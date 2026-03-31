@@ -1,18 +1,26 @@
 """
 Fetch comparable sales (comps) for a given property address.
-Scrapes recently sold listings from Zillow search results.
+
+Primary path:  homeharvest → Realtor.com + Redfin (lower legal risk, structured output)
+Fallback path: Redfin Stingray /gis-csv endpoint with a shapely bounding-box polygon
+               centered on the geocoded subject address (no JS rendering required)
 """
 
 import asyncio
-import json
+import csv
+import io
 import random
 from typing import Any
 from urllib.parse import urlencode
 
-from playwright.async_api import async_playwright
+import httpx
+from shapely.geometry import Point
 
-from .scraper import _USER_AGENTS, _human_delay
+from .scraper import _USER_AGENTS
 
+# ---------------------------------------------------------------------------
+# Primary: homeharvest (Realtor.com + Redfin)
+# ---------------------------------------------------------------------------
 
 async def fetch_comps(
     address: str,
@@ -24,102 +32,205 @@ async def fetch_comps(
     max_results: int = 10,
 ) -> list[dict[str, Any]]:
     """
-    Search Zillow for recently sold comps near the subject property.
-    Returns a list of comparable sales with price/sqft data.
+    Search for recently sold comps near the subject property.
+    Tries homeharvest first; falls back to Redfin Stingray if it fails.
     """
-    location = f"{city}, {state} {zip_code}".strip(", ")
-    params = {
-        "searchQueryState": json.dumps({
-            "pagination": {},
-            "isMapVisible": False,
-            "mapZoom": 14,
-            "filterState": {
-                "sort": {"value": "globalrelevanceex"},
-                "rs": {"value": True},   # recently sold
-                "fsba": {"value": False},
-                "fsbo": {"value": False},
-                "nc": {"value": False},
-                "cmsn": {"value": False},
-                "auc": {"value": False},
-                "fore": {"value": False},
-                "doz": {"value": "6"},   # sold within 6 months
-            },
-            "isListVisible": True,
-        }),
-        "searchTerm": location,
-    }
+    location = f"{city}, {state} {zip_code}".strip()
 
-    search_url = f"https://www.zillow.com/homes/recently_sold/{urlencode({'q': location})}/"
-
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        context = await browser.new_context(
-            user_agent=random.choice(_USER_AGENTS),
-            viewport={"width": 1280, "height": 800},
-            locale="en-US",
-        )
-        page = await context.new_page()
-        await page.route(
-            "**/*.{png,jpg,jpeg,gif,webp,svg,woff,woff2}",
-            lambda route: route.abort(),
-        )
-
-        try:
-            await page.goto(search_url, wait_until="domcontentloaded", timeout=30_000)
-            await _human_delay(1000, 3000)
-
-            raw = await page.evaluate("""() => {
-                const el = document.getElementById('__NEXT_DATA__');
-                return el ? el.textContent : null;
-            }""")
-
-            if raw:
-                comps = _parse_zillow_search_results(raw, max_results)
-                if comps:
-                    return comps
-
-            # Fallback: parse visible card text
-            return await _scrape_cards(page, max_results)
-
-        finally:
-            await browser.close()
-
-
-def _parse_zillow_search_results(raw: str, max_results: int) -> list[dict[str, Any]]:
     try:
-        data = json.loads(raw)
-        results = (
-            data.get("props", {})
-            .get("pageProps", {})
-            .get("searchPageState", {})
-            .get("cat1", {})
-            .get("searchResults", {})
-            .get("listResults", [])
+        comps = await asyncio.to_thread(
+            _homeharvest_comps, location, bedrooms, max_results
         )
-        comps = []
-        for r in results[:max_results]:
-            sqft = r.get("area")
-            sold_price = r.get("unformattedPrice") or r.get("price")
-            comps.append({
-                "address": r.get("address", ""),
-                "sold_price": sold_price,
-                "sold_date": r.get("soldDate", ""),
-                "bedrooms": r.get("beds"),
-                "bathrooms": r.get("baths"),
-                "sqft": sqft,
-                "price_per_sqft": round(sold_price / sqft, 2) if sold_price and sqft else None,
-                "url": r.get("detailUrl", ""),
-            })
-        return comps
-    except (json.JSONDecodeError, AttributeError, TypeError):
+        if comps:
+            return comps
+    except Exception:
+        pass
+
+    # Fallback: geocode address → Redfin Stingray /gis-csv
+    try:
+        coords = await _geocode_census(address, city, state, zip_code)
+        if coords:
+            return await _stingray_comps(*coords, bedrooms=bedrooms, max_results=max_results)
+    except Exception:
+        pass
+
+    return []
+
+
+def _homeharvest_comps(
+    location: str,
+    bedrooms: int | None,
+    max_results: int,
+) -> list[dict[str, Any]]:
+    """Synchronous — run via asyncio.to_thread."""
+    from homeharvest import scrape_property  # import here; heavy dependency
+
+    df = scrape_property(
+        site_name=["realtor.com", "redfin"],
+        listing_type="sold",
+        location=location,
+        past_days=180,
+        results_wanted=max_results * 3,  # oversample, then filter
+    )
+
+    if df is None or df.empty:
         return []
 
+    if bedrooms is not None:
+        df = df[df["beds"].between(bedrooms - 1, bedrooms + 1, inclusive="both")]
 
-async def _scrape_cards(page, max_results: int) -> list[dict[str, Any]]:
-    """Fallback: extract address/price text from listing cards."""
-    cards = await page.query_selector_all("[data-test='property-card']")
     comps = []
-    for card in cards[:max_results]:
-        text = await card.inner_text()
-        comps.append({"raw_text": text.strip()[:500]})
+    for _, row in df.head(max_results).iterrows():
+        sqft = _safe(row, "sqft")
+        sold_price = _safe(row, "sold_price") or _safe(row, "list_price")
+        comps.append({
+            "address": _safe(row, "street", ""),
+            "city": _safe(row, "city", ""),
+            "state": _safe(row, "state", ""),
+            "zip_code": _safe(row, "zip_code", ""),
+            "sold_price": sold_price,
+            "sold_date": str(_safe(row, "sold_date", "")),
+            "bedrooms": _safe(row, "beds"),
+            "bathrooms": _safe(row, "baths"),
+            "sqft": sqft,
+            "price_per_sqft": round(sold_price / sqft, 2) if sold_price and sqft else None,
+            "url": _safe(row, "property_url", ""),
+            "source": "homeharvest",
+        })
     return comps
+
+
+def _safe(row: Any, key: str, default: Any = None) -> Any:
+    """Safely read a pandas Series value, returning default for NaN/None."""
+    import pandas as pd
+    val = row.get(key, default)
+    if val is None:
+        return default
+    try:
+        if pd.isna(val):
+            return default
+    except (TypeError, ValueError):
+        pass
+    return val
+
+
+# ---------------------------------------------------------------------------
+# Fallback: Redfin Stingray /gis-csv with shapely bounding box
+# ---------------------------------------------------------------------------
+
+async def _geocode_census(
+    address: str, city: str, state: str, zip_code: str
+) -> tuple[float, float] | None:
+    """
+    Geocode an address using the free Census Geocoding API.
+    Returns (lat, lng) or None if not found.
+    """
+    params = {
+        "street": address,
+        "city": city,
+        "state": state,
+        "zip": zip_code,
+        "benchmark": "Public_AR_Current",
+        "format": "json",
+    }
+    url = "https://geocoding.geo.census.gov/geocoder/locations/address?" + urlencode(params)
+
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.get(url)
+        resp.raise_for_status()
+        data = resp.json()
+
+    matches = data.get("result", {}).get("addressMatches", [])
+    if not matches:
+        return None
+    coords = matches[0]["coordinates"]
+    return float(coords["y"]), float(coords["x"])  # lat, lng
+
+
+async def _stingray_comps(
+    lat: float,
+    lng: float,
+    bedrooms: int | None = None,
+    max_results: int = 10,
+) -> list[dict[str, Any]]:
+    """
+    Call the Redfin Stingray /gis-csv endpoint with a bounding-box polygon
+    generated by shapely. Returns recently sold comps as structured dicts.
+
+    The `poly` param is a URL-encoded WKT POLYGON string.
+    Degrees-per-mile at ~45° lat: 1° lat ≈ 69 mi, 1° lng ≈ 49 mi.
+    """
+    # Convert radius to approximate degree offsets
+    lat_offset = 0.5 / 69.0   # ~0.5 mile in latitude degrees
+    lng_offset = 0.5 / 49.0   # ~0.5 mile in longitude degrees
+
+    bbox = Point(lng, lat).buffer(
+        max(lat_offset, lng_offset),
+        cap_style=3,  # square cap → rectangular bbox
+    )
+    wkt_poly = bbox.wkt
+
+    params: dict[str, Any] = {
+        "status_type": 2,            # sold
+        "num_homes": min(max_results, 350),
+        "sold_within_days": 180,
+        "poly": wkt_poly,
+        "sf": "1,2,3,6,13",         # house, condo, townhouse, multi-family, mobile
+    }
+    if bedrooms:
+        params["num_beds"] = bedrooms
+
+    url = "https://www.redfin.com/stingray/api/gis-csv?" + urlencode(params)
+    headers = {
+        "User-Agent": random.choice(_USER_AGENTS),
+        "Accept": "text/csv,*/*",
+        "Referer": "https://www.redfin.com/",
+    }
+
+    await asyncio.sleep(random.uniform(1.5, 3.5))
+
+    async with httpx.AsyncClient(timeout=20, follow_redirects=True) as client:
+        resp = await client.get(url, headers=headers)
+        resp.raise_for_status()
+
+    return _parse_stingray_csv(resp.text, max_results)
+
+
+def _parse_stingray_csv(text: str, max_results: int) -> list[dict[str, Any]]:
+    comps = []
+    reader = csv.DictReader(io.StringIO(text))
+    for row in reader:
+        if len(comps) >= max_results:
+            break
+        try:
+            sold_price = _float(row.get("PRICE"))
+            sqft = _float(row.get("SQUARE FEET"))
+            comps.append({
+                "address": row.get("ADDRESS", ""),
+                "city": row.get("CITY", ""),
+                "state": row.get("STATE OR PROVINCE", ""),
+                "zip_code": row.get("ZIP OR POSTAL CODE", ""),
+                "sold_price": sold_price,
+                "sold_date": row.get("SOLD DATE", ""),
+                "bedrooms": _int(row.get("BEDS")),
+                "bathrooms": _float(row.get("BATHS")),
+                "sqft": sqft,
+                "price_per_sqft": round(sold_price / sqft, 2) if sold_price and sqft else None,
+                "url": row.get("URL (SEE https://www.redfin.com/buy-a-home/comparative-market-analysis FOR INFO ON PRICING)", ""),
+                "source": "redfin_stingray",
+            })
+        except (ValueError, TypeError):
+            continue
+    return comps
+
+
+def _float(val: Any) -> float | None:
+    try:
+        return float(str(val).replace(",", "").replace("$", "").strip())
+    except (ValueError, TypeError, AttributeError):
+        return None
+
+
+def _int(val: Any) -> int | None:
+    f = _float(val)
+    return int(f) if f is not None else None

@@ -116,13 +116,58 @@ def _normalize_zillow(data: dict) -> dict[str, Any]:
 
 
 async def _extract_redfin(page: Page) -> dict[str, Any]:
-    # Redfin renders via React; wait for key elements
+    # Redfin also embeds listing data in __NEXT_DATA__
+    raw = await page.evaluate("""() => {
+        const el = document.getElementById('__NEXT_DATA__');
+        return el ? el.textContent : null;
+    }""")
+
+    if raw:
+        try:
+            next_data = json.loads(raw)
+            listing_data = (
+                next_data.get("props", {})
+                .get("pageProps", {})
+                .get("initialReduxState", {})
+                .get("feed", {})
+                .get("propertyV2", {})
+            )
+            if listing_data:
+                return _normalize_redfin(listing_data)
+        except (json.JSONDecodeError, AttributeError):
+            pass
+
+    # Fallback: wait for visible DOM and scrape text
     try:
         await page.wait_for_selector(".HomeInfo", timeout=10_000)
     except Exception:
         pass
 
     return await _extract_generic(page)
+
+
+def _normalize_redfin(data: dict) -> dict[str, Any]:
+    basic = data.get("basicInfo", {})
+    public_record = data.get("publicRecordsInfo", {})
+    tax_info = public_record.get("taxInfo", {})
+    return {
+        "address": basic.get("streetAddress", {}).get("assembledAddress", ""),
+        "city": basic.get("city", ""),
+        "state": basic.get("stateName", ""),
+        "zip_code": basic.get("zip", ""),
+        "price": basic.get("listingPrice", {}).get("amount"),
+        "bedrooms": basic.get("beds"),
+        "bathrooms": basic.get("baths"),
+        "sqft": basic.get("sqFt", {}).get("value"),
+        "lot_size": basic.get("lotSize", {}).get("value"),
+        "year_built": public_record.get("yearBuilt"),
+        "property_type": basic.get("propertyType"),
+        "description": data.get("remarks", {}).get("listingRemarks", ""),
+        "hoa_fee": basic.get("hoaFee", {}).get("amount"),
+        "tax_annual": tax_info.get("taxesDue"),
+        "days_on_market": basic.get("dom"),
+        "redfin_estimate": data.get("avm", {}).get("predictedValue"),
+    }
 
 
 async def _extract_generic(page: Page) -> dict[str, Any]:
