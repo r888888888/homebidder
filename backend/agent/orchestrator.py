@@ -17,10 +17,10 @@ from .tools.pricing import analyze_market, recommend_offer
 
 MODEL = "claude-sonnet-4-6"
 
-SYSTEM_PROMPT = """You are HomeBidder, an expert real estate analyst helping home buyers make competitive, data-driven offers.
+SYSTEM_PROMPT = """You are HomeBidder, an expert real estate analyst helping home buyers make competitive, data-driven offers in the SF Bay Area.
 
 Your job:
-1. Scrape the target listing to understand the property details.
+1. Look up the property by address to understand the listing details.
 2. Fetch comparable sold listings (comps) nearby.
 3. Analyze the comp market data statistically.
 4. Recommend a realistic offer price range with clear rationale.
@@ -106,9 +106,9 @@ async def _dispatch_tool(name: str, inputs: dict) -> str:
     return json.dumps(result)
 
 
-async def run_agent(listing_url: str, buyer_context: str = "") -> AsyncIterator[str]:
+async def run_agent(address: str, buyer_context: str = "") -> AsyncIterator[str]:
     """
-    Run the full agent loop for a listing URL.
+    Run the full agent loop for a property address.
     Yields SSE-formatted text chunks as the agent reasons.
     """
     client = anthropic.AsyncAnthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
@@ -117,8 +117,8 @@ async def run_agent(listing_url: str, buyer_context: str = "") -> AsyncIterator[
         {
             "role": "user",
             "content": (
-                f"Please analyze this listing and recommend an offer price.\n\n"
-                f"Listing URL: {listing_url}\n"
+                f"Please analyze this property and recommend an offer price.\n\n"
+                f"Property address: {address}\n"
                 + (f"Buyer notes: {buyer_context}\n" if buyer_context else "")
             ),
         }

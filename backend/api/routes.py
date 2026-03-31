@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import get_db
@@ -10,7 +10,7 @@ router = APIRouter()
 
 
 class AnalyzeRequest(BaseModel):
-    url: HttpUrl
+    address: str
     buyer_context: str = ""
 
 
@@ -20,12 +20,12 @@ async def analyze_listing(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Stream an agent analysis for the given listing URL.
+    Stream an agent analysis for the given property address.
     Returns Server-Sent Events (text/event-stream).
     """
 
     async def event_stream():
-        async for chunk in run_agent(str(req.url), req.buyer_context):
+        async for chunk in run_agent(req.address, req.buyer_context):
             yield chunk
 
     return StreamingResponse(

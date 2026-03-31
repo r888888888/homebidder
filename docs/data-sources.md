@@ -18,6 +18,13 @@ Reference document for all candidate data sources: scrapeable sites, free APIs, 
 | Zillow `__NEXT_DATA__` | Listings, Zestimate | Free (scraping) | High | Fallback only |
 | homeharvest (Python) | Realtor.com + Redfin + Zillow | Free (library) | Moderate | Rapid prototyping |
 | ATTOM Data | Full property data | 30-day trial, then paid | None | Future paid tier |
+| **DataSF Assessor-Recorder API** | SF Prop 13 assessed value, permits | Free, no auth | None | SF tax impact calc |
+| **Alameda County Open Data** | Assessor parcel data | Free, no auth | None | Oakland/Berkeley comps |
+| **Santa Clara County Assessor** | Assessor parcel data | Free, no auth | None | South Bay comps |
+| **CGS Fault/Liquefaction shapefiles** | Earthquake hazard zones | Free, static download | None | CA seismic risk |
+| **CalFire FHSZ shapefile** | Fire Hazard Severity Zones | Free, static download | None | CA fire risk |
+| **FEMA Flood Map Service API** | NFIP flood zones | Free, no auth | None | Flood zone lookup |
+| **BART Open API** | Station locations | Free, API key | None | Transit proximity scoring |
 
 ---
 
@@ -309,17 +316,133 @@ properties = scrape_property(
 
 ---
 
+## 11. SF Bay Area-Specific Data Sources ✅ Primary target market
+
+### 11a. DataSF Assessor-Recorder API (San Francisco)
+
+**URL:** `https://data.sfgov.org/resource/wv5m-vpq2.json`
+
+**What it is:** SF's open data portal exposes the full Assessor-Recorder database via Socrata API. No auth required for basic queries.
+
+**Key fields:** `blklot` (block-lot), `from_st`/`to_st`/`street` (address), `assessedland`, `assessedimpr`, `totvalue`, `exemptcode`, `taxclass`, `zoning_code`, `yrbuilt`, `baths`, `rooms`, `resunits`
+
+**Prop 13 use:** `assessedland + assessedimpr` = current Prop 13 assessed value. Buyer's new tax ≈ purchase_price × 1.18% (SF effective rate including SF Unified School parcel tax, BART, etc.).
+
+**How to use in HomeBidder:** Query using the normalized `street` + `blklot` (block-lot) derived from the Census geocoder output (which returns the Census TIGER matched address). Filter by street name and number from the matched address string.
+
+---
+
+### 11b. Alameda County Assessor Open Data
+
+**URL:** `https://data.acgov.org/datasets/assessor-parcel-data`
+
+**What it is:** Alameda County publishes parcel data via their ArcGIS Open Data portal. Covers Oakland, Berkeley, Piedmont, Fremont, Hayward, Alameda, and 10+ other cities.
+
+**Format:** GeoJSON or CSV download; also queryable via ArcGIS REST API with address/APN filter.
+
+**Key fields:** APN, situs address, assessed land, assessed improvement, last sale price, last sale date, year built, sqft, beds/baths, property type.
+
+**How to use in HomeBidder:** Sold comp backbone for East Bay. Query by bounding box around subject property to pull recent sales.
+
+---
+
+### 11c. Santa Clara County Assessor
+
+**URL:** `https://sccassessor.org` (open data section)
+
+**What it is:** SCC provides parcel query via their portal; bulk download available via their open data page for properties in San Jose, Palo Alto, Sunnyvale, Cupertino, Mountain View, Los Altos, etc.
+
+**How to use in HomeBidder:** Comp backbone for South Bay / Silicon Valley markets.
+
+---
+
+### 11d. CGS Earthquake Hazard Shapefiles (California Geological Survey)
+
+**URL:** `https://maps.conservation.ca.gov/cgs/EQZApp/app/`
+
+**What it is:** The California Geological Survey publishes official Alquist-Priolo Earthquake Fault Zone and Seismic Hazard Zone (liquefaction and landslide) boundaries as downloadable shapefiles. These are the same zones used in CA Natural Hazard Disclosure (NHD) reports.
+
+**Datasets:**
+- **Alquist-Priolo Fault Zones**: Statewide polygon shapefile of fault zones (special studies areas). Homes within these zones require geologic investigation before permits are issued.
+- **Seismic Hazard Zones**: Two sub-layers — liquefaction zones (bay fill, alluvium) and earthquake-induced landslide zones. Covers Bay Area counties in detail.
+
+**Format:** Shapefile download (zip). Load with `shapely` + `fiona` or `geopandas` at startup.
+
+**Legal risk:** None. State government data.
+
+**How to use in HomeBidder:** At startup, load both shapefiles into memory as `shapely` geometry objects. At query time, check `point.within(zone_polygon)` for the property lat/lon.
+
+---
+
+### 11e. CalFire Fire Hazard Severity Zones
+
+**URL:** `https://gis.data.cnra.ca.gov/datasets/CAL-FIRE::california-fire-hazard-severity-zones`
+
+**What it is:** CAL FIRE's official FHSZ map, the dataset used in NHD reports. Three tiers: Moderate, High, Very High. Also includes "SRA" (State Responsibility Area) vs "LRA" (Local Responsibility Area) classification.
+
+**Format:** GeoJSON or shapefile download via CNRA open data portal.
+
+**Key Bay Area high-risk areas:** Oakland Hills, Berkeley Hills, Marin County (most of it), Los Altos Hills, Portola Valley, parts of Fremont/Sunol, South Bay foothills.
+
+**Insurance implication:** State Farm and Allstate have stopped writing new homeowners policies in CA. Properties in Very High FHSZ may only be insurable through the CA FAIR Plan (last-resort insurer) or specialty markets — add $5–15K/yr to carrying costs and flag for buyers.
+
+**How to use in HomeBidder:** Same pattern as CGS shapefiles — load at startup, `point.within()` at query time.
+
+---
+
+### 11f. FEMA Flood Map Service Center API
+
+**URL:** `https://msc.fema.gov/arcgis/rest/services/`
+
+**What it is:** FEMA's NFIP flood zone data as an ArcGIS REST endpoint. Free, no auth.
+
+**Query pattern:**
+```
+GET https://msc.fema.gov/arcgis/rest/services/NFHL/NFHL_National/FeatureServer/28/query
+  ?geometry=-122.4,37.75&geometryType=esriGeometryPoint
+  &spatialRel=esriSpatialRelIntersects
+  &outFields=FLD_ZONE,ZONE_SUBTY,SFHA_TF
+  &f=json
+```
+
+**Key flood zones:**
+- `A`, `AE`, `AO`, `AH` — Special Flood Hazard Areas (SFHAs) — mandatory flood insurance if federally-backed mortgage
+- `VE` — Coastal high-velocity zone
+- `X` (shaded) — Moderate risk (0.2% annual chance)
+- `X` (unshaded) — Minimal risk
+
+**Bay Area relevance:** Bay waterfront properties (parts of Alameda Island, portions of Fremont, Marin shoreline, South Bay marshes), creek corridors (Coyote Creek San Jose, Guadalupe River), SoMa/Mission Bay SF (historical bay fill).
+
+**How to use in HomeBidder:** Point-in-polygon query per property lookup. Cache result in DB with the `Listing` record.
+
+---
+
+### 11g. BART Open API
+
+**URL:** `https://api.bart.gov/docs/overview/index.aspx`
+
+**What it is:** BART's official REST API. Free with a key (register at api.bart.gov). The `stn.aspx?cmd=stns` endpoint returns all 50 stations with lat/lon.
+
+**How to use in HomeBidder:** Fetch all stations once at startup (or cache for 30 days). Compute haversine distance from property lat/lon to each station; return nearest station and distance in miles. Properties within 0.5 miles (walkshed) command a documented transit premium.
+
+**Caltrain:** No API needed — 29 stops are hardcoded with lat/lon and can be committed to `backend/data/caltrain_stations.json`.
+
+---
+
 ## Recommended Implementation Order
 
 1. **Now — prototype:**
    - `homeharvest` for listing + comp scraping
    - RentCast free tier for AVM validation (50 calls/month)
    - Redfin Data Center TSV for market trend context
+   - DataSF Assessor API for SF Prop 13 data (free, no rate limits)
 
 2. **Short-term — stabilize:**
+   - Download CGS, CalFire, FEMA shapefiles once; load at startup for hazard checks
    - Replace `homeharvest` with direct Redfin Stingray `/gis-csv` calls for comps
-   - County assessor bulk data download for target metros (load into SQLite)
+   - Alameda + Santa Clara county assessor data in SQLite as comp backbone
    - FHFA HPI + Census ACS for enrichment
+   - BART API key for transit proximity scoring
 
 3. **Scale — when commercial:**
    - ATTOM Data API or RealEstateAPI.com as primary structured source
