@@ -1,0 +1,28 @@
+{
+  "name": "homebidder-frontend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vinxi dev",
+    "build": "vinxi build",
+    "start": "vinxi start"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.62.0",
+    "@tanstack/react-router": "^1.79.0",
+    "@tanstack/start": "^1.79.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.3",
+    "vinxi": "^0.4.3"
+  }
+}

@@ -1,0 +1,28 @@
+# fly.toml — deploy the Python API service
+# Run `fly launch` then `fly deploy` from the repo root.
+# For the frontend, run `fly launch` from ./frontend separately.
+
+app = "homebidder-api"
+primary_region = "iad"
+
+[build]
+  dockerfile = "backend/Dockerfile"
+
+[env]
+  PORT = "8000"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1
+
+[mounts]
+  source = "homebidder_db"
+  destination = "/app/data"
