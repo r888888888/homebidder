@@ -35,6 +35,7 @@ function taxAlert(sellerTax: number, buyerTax: number): TaxAlert {
 interface Props {
   neighborhood: NeighborhoodData;
   purchasePrice: number | null;
+  neighborhoodName?: string | null;
 }
 
 const ALERT_COLORS: Record<string, string> = {
@@ -42,7 +43,7 @@ const ALERT_COLORS: Record<string, string> = {
   red: "text-[var(--coral)]",
 };
 
-export function NeighborhoodCard({ neighborhood, purchasePrice }: Props) {
+export function NeighborhoodCard({ neighborhood, purchasePrice, neighborhoodName }: Props) {
   const hasProp13 = neighborhood.prop13_assessed_value != null;
   const buyerAnnualTax =
     purchasePrice != null ? Math.round(purchasePrice * CA_TAX_RATE) : null;
@@ -55,9 +56,12 @@ export function NeighborhoodCard({ neighborhood, purchasePrice }: Props) {
     <div className="card overflow-hidden fade-up">
       {/* Header */}
       <div className="border-b border-[var(--line)] px-6 py-4">
-        <p className="text-xs font-semibold uppercase tracking-widest text-[var(--ink-muted)]">
+        <p className="mb-0.5 text-xs font-semibold uppercase tracking-widest text-[var(--ink-muted)]">
           Neighborhood
         </p>
+        {neighborhoodName && (
+          <p className="text-sm font-medium text-[var(--ink)]">{neighborhoodName}</p>
+        )}
       </div>
 
       {/* Stats grid */}

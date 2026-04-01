@@ -40,6 +40,7 @@ export function AnalysisStream({ events, isRunning }: Props) {
         <NeighborhoodCard
           neighborhood={neighborhoodData}
           purchasePrice={(propertyData?.price as number | null) ?? null}
+          neighborhoodName={(propertyData?.neighborhoods as string | null) ?? null}
         />
       )}
 

@@ -15,6 +15,8 @@ export interface PropertyData {
   hoa_fee: number | null;
   days_on_market: number | null;
   list_date: string | null;
+  city: string | null;
+  neighborhoods: string | null;
   price_history: unknown[];
   avm_estimate: number | null;
   source: string;
@@ -118,6 +120,8 @@ export function PropertySummaryCard({ property }: Props) {
     { label: "Sqft", value: property.sqft != null ? fmt(property.sqft) : "—" },
     { label: "Year Built", value: property.year_built ?? "—" },
     { label: "Lot Size (sqft)", value: property.lot_size != null ? fmt(property.lot_size) : "—" },
+    { label: "City", value: property.city ?? "—" },
+    { label: "County", value: property.county || "—" },
     { label: "Type", value: formatPropertyType(property.property_type) },
     { label: "Days on Market", value: domLabel(property.list_date, property.days_on_market) },
   ];

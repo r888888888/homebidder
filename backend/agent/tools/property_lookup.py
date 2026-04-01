@@ -48,11 +48,11 @@ async def lookup_property_by_address(address: str) -> dict[str, Any]:
         source = "rentcast" if avm is not None else "none"
 
     return {
-        # Geocoder fields
+        # Geocoder fields (county falls back to homeharvest — geocoder omits it)
         "address_matched": geo["address_matched"],
         "latitude": geo["latitude"],
         "longitude": geo["longitude"],
-        "county": geo["county"],
+        "county": listing.get("county") or geo["county"],
         "state": geo["state"],
         "zip_code": geo["zip_code"],
         # Listing fields (None when not found)
@@ -66,6 +66,8 @@ async def lookup_property_by_address(address: str) -> dict[str, Any]:
         "hoa_fee": listing.get("hoa_fee"),
         "days_on_market": listing.get("days_on_market"),
         "list_date": listing.get("list_date"),
+        "city": listing.get("city"),
+        "neighborhoods": listing.get("neighborhoods"),
         "price_history": listing.get("price_history", []),
         # AVM
         "avm_estimate": avm,
@@ -129,6 +131,7 @@ async def _homeharvest_listing(matched_address: str) -> dict[str, Any]:
     full_baths = _safe(row, "full_baths") or 0
     half_baths = _safe(row, "half_baths") or 0
     list_date_raw = _safe(row, "list_date")
+    neighborhoods_raw = _safe(row, "neighborhoods")
     return {
         "price": _safe(row, "list_price"),
         "bedrooms": _safe(row, "beds"),
@@ -140,6 +143,9 @@ async def _homeharvest_listing(matched_address: str) -> dict[str, Any]:
         "hoa_fee": _safe(row, "hoa_fee"),
         "days_on_market": _safe(row, "days_on_mls"),
         "list_date": str(list_date_raw) if list_date_raw is not None else None,
+        "city": _safe(row, "city"),
+        "county": _safe(row, "county"),
+        "neighborhoods": str(neighborhoods_raw) if neighborhoods_raw is not None else None,
         "price_history": _safe(row, "price_history", []) or [],
         "source": "homeharvest",
     }

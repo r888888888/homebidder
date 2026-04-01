@@ -44,6 +44,7 @@ HOMEHARVEST_ROW = {
     "hoa_fee": None,
     "days_on_mls": 5,
     "list_date": "2026-03-27 10:00:00",
+    "neighborhoods": "Noe Valley, Castro",
     "price_history": [],
     "property_url": "https://www.redfin.com/CA/San-Francisco/450-Sanchez-St",
 }
@@ -295,6 +296,7 @@ class TestResultStructure:
 
         required_keys = {
             "address_matched", "latitude", "longitude", "county", "state", "zip_code",
+            "city", "neighborhoods",
             "price", "bedrooms", "bathrooms", "sqft", "year_built", "lot_size",
             "property_type", "hoa_fee", "days_on_market", "list_date", "price_history",
             "avm_estimate", "source",
@@ -365,6 +367,21 @@ class TestHomeharvestListingHelper:
             result = await _homeharvest_listing("450 SANCHEZ ST, SAN FRANCISCO, CA, 94114")
 
         assert result["list_date"] is None
+
+    async def test_city_and_neighborhoods_included(self):
+        """_homeharvest_listing includes city, county, and neighborhoods fields."""
+        from agent.tools.property_lookup import _homeharvest_listing
+
+        df = _make_homeharvest_df([{**HOMEHARVEST_ROW, "county": "San Francisco"}])
+
+        with patch("agent.tools.property_lookup.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+
+            result = await _homeharvest_listing("450 SANCHEZ ST, SAN FRANCISCO, CA, 94114")
+
+        assert result["city"] == "San Francisco"
+        assert result["county"] == "San Francisco"
+        assert result["neighborhoods"] == "Noe Valley, Castro"
 
     async def test_homeharvest_listing_returns_empty_dict_when_df_empty(self):
         """_homeharvest_listing returns {} when homeharvest finds nothing."""

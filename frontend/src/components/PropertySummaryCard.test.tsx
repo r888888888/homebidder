@@ -10,6 +10,8 @@ const BASE_PROPERTY = {
   county: "San Francisco",
   state: "CA",
   zip_code: "94114",
+  city: "San Francisco",
+  neighborhoods: "Noe Valley, Castro",
   price: 1_250_000,
   bedrooms: 3,
   bathrooms: 2,
@@ -88,6 +90,18 @@ describe("PropertySummaryCard", () => {
   it("renders lot size", () => {
     render(<PropertySummaryCard property={BASE_PROPERTY} />);
     expect(screen.getByText(/2,500/)).toBeInTheDocument();
+  });
+
+  it("renders city", () => {
+    render(<PropertySummaryCard property={BASE_PROPERTY} />);
+    const dt = screen.getByText(/^city$/i);
+    expect(dt.nextElementSibling?.textContent).toBe("San Francisco");
+  });
+
+  it("renders county", () => {
+    render(<PropertySummaryCard property={BASE_PROPERTY} />);
+    const dt = screen.getByText(/^county$/i);
+    expect(dt.nextElementSibling?.textContent).toBe("San Francisco");
   });
 });
 

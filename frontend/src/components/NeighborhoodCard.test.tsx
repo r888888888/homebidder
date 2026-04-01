@@ -13,6 +13,26 @@ const BASE_NEIGHBORHOOD = {
   prop13_annual_tax: 15_000,
 };
 
+describe("NeighborhoodCard — neighborhood name", () => {
+  it("renders the neighborhood name in the header when provided", () => {
+    render(
+      <NeighborhoodCard
+        neighborhood={BASE_NEIGHBORHOOD}
+        purchasePrice={1_500_000}
+        neighborhoodName="Noe Valley, Castro"
+      />
+    );
+    expect(screen.getByText(/Noe Valley/)).toBeInTheDocument();
+  });
+
+  it("omits neighborhood name when not provided", () => {
+    render(
+      <NeighborhoodCard neighborhood={BASE_NEIGHBORHOOD} purchasePrice={1_500_000} />
+    );
+    expect(screen.queryByText(/Noe Valley/)).not.toBeInTheDocument();
+  });
+});
+
 describe("NeighborhoodCard — neighborhood stats", () => {
   it("renders median home value", () => {
     render(
