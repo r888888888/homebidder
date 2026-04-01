@@ -168,6 +168,37 @@ class TestGeocoding:
             with pytest.raises(ValueError, match="not found"):
                 await lookup_property_by_address("123 Fake St, Nowhere, CA 00000")
 
+    async def test_geocode_retries_without_unit_number(self):
+        """
+        If a condo/unit address does not match initially, geocoder should retry
+        with the unit designator removed.
+        """
+        from agent.tools.property_lookup import lookup_property_by_address
+
+        no_match_response = MagicMock()
+        no_match_response.raise_for_status = MagicMock()
+        no_match_response.json.return_value = {"result": {"addressMatches": []}}
+
+        with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
+             patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh, \
+             patch("agent.tools.property_lookup._rentcast_data", new_callable=AsyncMock) as mock_rc:
+
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.side_effect = [no_match_response, _make_census_mock()]
+            mock_hh.return_value = {}
+            mock_rc.return_value = None
+
+            result = await lookup_property_by_address(
+                "450 Sanchez St #5, San Francisco, CA 94114"
+            )
+
+        assert result["address_matched"] == "450 SANCHEZ ST, SAN FRANCISCO, CA, 94114"
+        assert mock_client.get.call_count == 2
+        second_url = mock_client.get.call_args_list[1].args[0]
+        assert "450+Sanchez+St%2C+San+Francisco%2C+CA+94114" in second_url
+
 
 # ---------------------------------------------------------------------------
 # Homeharvest listing data tests
@@ -227,6 +258,34 @@ class TestHomeharvest:
             result = await lookup_property_by_address("450 Sanchez St, San Francisco, CA 94114")
 
         assert result["source"] == "homeharvest"
+
+    async def test_unit_address_prefers_exact_input_for_listing_lookup(self):
+        """
+        Condo/unit searches should query listing sources with the full input
+        address first (including unit), not only the geocoder-normalized address.
+        """
+        from agent.tools.property_lookup import lookup_property_by_address
+
+        no_match_response = MagicMock()
+        no_match_response.raise_for_status = MagicMock()
+        no_match_response.json.return_value = {"result": {"addressMatches": []}}
+
+        with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
+             patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh, \
+             patch("agent.tools.property_lookup._rentcast_data", new_callable=AsyncMock) as mock_rc:
+
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            # First geocode call fails on full unit address; second succeeds on stripped.
+            mock_client.get.side_effect = [no_match_response, _make_census_mock()]
+            mock_hh.return_value = {"price": 1_050_000.0, "source": "homeharvest"}
+            mock_rc.return_value = None
+
+            await lookup_property_by_address("4125 24th St #4, San Francisco, CA 94114")
+
+        first_lookup_arg = mock_hh.call_args_list[0].args[0]
+        assert first_lookup_arg == "4125 24th St #4, San Francisco, CA 94114"
 
 
 # ---------------------------------------------------------------------------

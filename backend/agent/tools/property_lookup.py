@@ -9,6 +9,7 @@ Returns a unified property dict and the geocoded coordinates.
 
 import asyncio
 import os
+import re
 from typing import Any
 from urllib.parse import urlencode, quote
 
@@ -36,10 +37,21 @@ async def lookup_property_by_address(address: str) -> dict[str, Any]:
     """
     geo = await _geocode(address)
 
-    listing, rentcast = await asyncio.gather(
-        _homeharvest_listing(geo["address_matched"]),
-        _rentcast_data(geo["address_matched"]),
-    )
+    # Prefer exact user input for condo/unit lookups, then fall back to
+    # geocoder-normalized address if needed.
+    candidates = [address]
+    if geo["address_matched"] and geo["address_matched"] != address:
+        candidates.append(geo["address_matched"])
+
+    listing: dict[str, Any] = {}
+    rentcast: dict | None = None
+    for candidate in candidates:
+        listing, rentcast = await asyncio.gather(
+            _homeharvest_listing(candidate),
+            _rentcast_data(candidate),
+        )
+        if listing or (rentcast and rentcast.get("avm") is not None):
+            break
 
     avm = rentcast["avm"] if rentcast else None
     rc_sqft = rentcast["sqft"] if rentcast else None
@@ -83,34 +95,42 @@ async def lookup_property_by_address(address: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 async def _geocode(address: str) -> dict[str, Any]:
-    params = {
-        "address": address,
-        "benchmark": "Public_AR_Current",
-        "format": "json",
-    }
-    url = CENSUS_GEOCODER_URL + "?" + urlencode(params)
+    candidates = [address]
+    stripped = _strip_unit_designator(address)
+    if stripped and stripped != address:
+        candidates.append(stripped)
 
     async with httpx.AsyncClient(timeout=15) as client:
-        resp = await client.get(url)
-        resp.raise_for_status()
-        data = resp.json()
+        for candidate in candidates:
+            params = {
+                "address": candidate,
+                "benchmark": "Public_AR_Current",
+                "format": "json",
+            }
+            url = CENSUS_GEOCODER_URL + "?" + urlencode(params)
 
-    matches = data.get("result", {}).get("addressMatches", [])
-    if not matches:
-        raise ValueError(f"Address not found by Census geocoder: {address!r}")
+            resp = await client.get(url)
+            resp.raise_for_status()
+            data = resp.json()
 
-    match = matches[0]
-    components = match.get("addressComponents", {})
-    coords = match["coordinates"]
+            matches = data.get("result", {}).get("addressMatches", [])
+            if not matches:
+                continue
 
-    return {
-        "address_matched": match["matchedAddress"],
-        "latitude": float(coords["y"]),
-        "longitude": float(coords["x"]),
-        "county": components.get("county", ""),
-        "state": components.get("state", ""),
-        "zip_code": components.get("zip", ""),
-    }
+            match = matches[0]
+            components = match.get("addressComponents", {})
+            coords = match["coordinates"]
+
+            return {
+                "address_matched": match["matchedAddress"],
+                "latitude": float(coords["y"]),
+                "longitude": float(coords["x"]),
+                "county": components.get("county", ""),
+                "state": components.get("state", ""),
+                "zip_code": components.get("zip", ""),
+            }
+
+    raise ValueError(f"Address not found by Census geocoder: {address!r}")
 
 
 # ---------------------------------------------------------------------------
@@ -221,3 +241,19 @@ def _safe(row: Any, key: str, default: Any = None) -> Any:
     if isinstance(val, np.floating):
         return float(val)
     return val
+
+
+def _strip_unit_designator(address: str) -> str:
+    """
+    Remove common condo/apartment unit tokens to improve geocoder hit rate.
+    Example: "450 Sanchez St #5, San Francisco, CA 94114" ->
+             "450 Sanchez St, San Francisco, CA 94114"
+    """
+    cleaned = re.sub(
+        r"(?i)(?:,\s*|\s+)(?:#\s*[\w-]+|apt\.?\s*[\w-]+|apartment\s*[\w-]+|unit\s*[\w-]+|suite\s*[\w-]+|ste\.?\s*[\w-]+)\b",
+        "",
+        address,
+    )
+    cleaned = re.sub(r"\s{2,}", " ", cleaned)
+    cleaned = re.sub(r"\s+,", ",", cleaned)
+    return cleaned.strip(" ,")

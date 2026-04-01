@@ -27,6 +27,7 @@ Call the following tools to gather data:
 1. lookup_property_by_address — geocode the address and retrieve listing details.
 2. fetch_neighborhood_context — use county, state, zip_code, address_matched from step 1.
 3. fetch_comps — fetch recently sold comparable properties near the subject.
+   When available from step 1, pass property_type as subject_property_type so comps match building type (condo/sfh/townhome).
 
 Market analysis and offer recommendation will be computed automatically after comps are fetched.
 Your job is to write a clear, data-backed narrative once all results are available.
@@ -80,7 +81,8 @@ TOOLS: list[anthropic.types.ToolParam] = [
         "description": (
             "Search for recently sold comparable properties near the subject address. "
             "Returns comps with sold_price, sqft, price_per_sqft, pct_over_asking, and distance_miles. "
-            "Pass subject_lat, subject_lon from lookup_property_by_address and subject_sqft when known."
+            "Pass subject_lat, subject_lon from lookup_property_by_address, subject_sqft when known, "
+            "and subject_property_type (e.g. CONDO/SINGLE_FAMILY/TOWNHOUSE) to filter by building type."
         ),
         "input_schema": {
             "type": "object",
@@ -92,6 +94,7 @@ TOOLS: list[anthropic.types.ToolParam] = [
                 "subject_lat":  {"type": "number", "description": "Subject property latitude from lookup_property_by_address"},
                 "subject_lon":  {"type": "number", "description": "Subject property longitude from lookup_property_by_address"},
                 "subject_sqft": {"type": "integer", "description": "Subject sqft; filters comps to ±25% when provided"},
+                "subject_property_type": {"type": "string", "description": "Subject property type; filters comps to matching type (condo/sfh/townhome) when provided"},
                 "bedrooms":     {"type": "integer", "description": "Filter comps to similar bedroom count"},
                 "max_results":  {"type": "integer", "default": 100},
             },

@@ -212,6 +212,56 @@ class TestSqftFilter:
 
         assert len(comps) == 1
 
+
+# ---------------------------------------------------------------------------
+# property type filter
+# ---------------------------------------------------------------------------
+
+class TestPropertyTypeFilter:
+    async def test_filters_comps_by_subject_property_type(self):
+        """When subject type is condo, non-condo comps are excluded."""
+        from agent.tools.comps import fetch_comps
+
+        condo = {**BASE_COMP_ROW, "street": "1 Condo Way", "style": "CONDO"}
+        sfh = {**BASE_COMP_ROW, "street": "2 House Way", "style": "SINGLE_FAMILY"}
+        df = _make_df([condo, sfh])
+
+        with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+            comps = await fetch_comps(
+                address="450 Sanchez St",
+                city="San Francisco",
+                state="CA",
+                zip_code="94114",
+                subject_lat=SF_LAT,
+                subject_lon=SF_LON,
+                subject_property_type="CONDO",
+            )
+
+        assert len(comps) == 1
+        assert comps[0]["address"] == "1 Condo Way"
+
+    async def test_no_property_type_filter_when_subject_type_missing(self):
+        """When no subject property type is provided, both condo and SFH remain."""
+        from agent.tools.comps import fetch_comps
+
+        condo = {**BASE_COMP_ROW, "street": "1 Condo Way", "style": "CONDO"}
+        sfh = {**BASE_COMP_ROW, "street": "2 House Way", "style": "SINGLE_FAMILY"}
+        df = _make_df([condo, sfh])
+
+        with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+            comps = await fetch_comps(
+                address="450 Sanchez St",
+                city="San Francisco",
+                state="CA",
+                zip_code="94114",
+                subject_lat=SF_LAT,
+                subject_lon=SF_LON,
+            )
+
+        assert len(comps) == 2
+
     async def test_comps_outside_25pct_sqft_excluded(self):
         """Comp outside ±25% of subject sqft is filtered out."""
         from agent.tools.comps import fetch_comps

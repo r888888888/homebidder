@@ -116,6 +116,7 @@ async def fetch_comps(
     subject_lat: float | None = None,
     subject_lon: float | None = None,
     subject_sqft: int | None = None,
+    subject_property_type: str | None = None,
     bedrooms: int | None = None,
     max_results: int = 100,
 ) -> list[dict[str, Any]]:
@@ -129,10 +130,19 @@ async def fetch_comps(
     - pct_over_asking: (sold_price - list_price) / list_price * 100, or None
     - distance_miles: haversine distance from subject, or None when comp lacks coords
     """
+    subject_type_norm = _normalize_property_type(subject_property_type)
+
     try:
         df = await asyncio.to_thread(_scrape_homeharvest_comps, zip_code, bedrooms, max_results)
         if df is not None and not df.empty:
-            comps = _process_df(df, subject_lat, subject_lon, subject_sqft, max_results)
+            comps = _process_df(
+                df,
+                subject_lat,
+                subject_lon,
+                subject_sqft,
+                max_results,
+                subject_type_norm,
+            )
             return await _fill_missing_sqft(comps)
     except Exception:
         pass
@@ -141,7 +151,12 @@ async def fetch_comps(
     try:
         coords = await _geocode_census(address, city, state, zip_code)
         if coords:
-            return await _stingray_comps(*coords, bedrooms=bedrooms, max_results=max_results)
+            return await _stingray_comps(
+                *coords,
+                bedrooms=bedrooms,
+                max_results=max_results,
+                subject_property_type=subject_type_norm,
+            )
     except Exception:
         pass
 
@@ -184,11 +199,18 @@ def _process_df(
     subject_lon: float | None,
     subject_sqft: int | None,
     max_results: int,
+    subject_property_type: str | None = None,
 ) -> list[dict[str, Any]]:
     """Convert homeharvest DataFrame to list of comp dicts with Phase 4 enrichments."""
     comps = []
     for _, row in df.iterrows():
         sqft = _safe(row, "sqft")
+        comp_property_type = _safe(row, "style") or _safe(row, "property_type")
+        comp_type_norm = _normalize_property_type(comp_property_type)
+
+        if subject_property_type:
+            if comp_type_norm != subject_property_type:
+                continue
 
         # sqft similarity filter (±25%) — only when subject_sqft provided
         if subject_sqft is not None and sqft is not None:
@@ -224,6 +246,7 @@ def _process_df(
             "bathrooms": (_safe(row, "full_baths") or 0) + (_safe(row, "half_baths") or 0) * 0.5 or None,
             "sqft": sqft,
             "lot_size": _safe(row, "lot_sqft"),
+            "property_type": comp_property_type,
             "price_per_sqft": round(sold_price / sqft, 2) if sold_price and sqft else None,
             "url": _safe(row, "property_url", ""),
             "latitude": comp_lat,
@@ -334,6 +357,7 @@ async def _stingray_comps(
     lng: float,
     bedrooms: int | None = None,
     max_results: int = 10,
+    subject_property_type: str | None = None,
 ) -> list[dict[str, Any]]:
     """
     Call the Redfin Stingray /gis-csv endpoint with a bounding-box polygon
@@ -353,7 +377,7 @@ async def _stingray_comps(
         "num_homes": min(max_results, 350),
         "sold_within_days": 180,
         "poly": wkt_poly,
-        "sf": "1,2,3,6,13",
+        "sf": _redfin_sf_filter_value(subject_property_type),
     }
     if bedrooms:
         params["num_beds"] = bedrooms
@@ -417,3 +441,31 @@ def _float(val: Any) -> float | None:
 def _int(val: Any) -> int | None:
     f = _float(val)
     return int(f) if f is not None else None
+
+
+def _normalize_property_type(value: str | None) -> str | None:
+    """Normalize raw property type labels to one of: sfh, condo, townhome."""
+    if not value:
+        return None
+    v = str(value).strip().lower()
+    if "condo" in v:
+        return "condo"
+    if "town" in v:
+        return "townhome"
+    if any(token in v for token in ("single", "sfh", "sfr", "house")):
+        return "sfh"
+    return None
+
+
+def _redfin_sf_filter_value(subject_property_type: str | None) -> str:
+    """
+    Redfin Stingray `sf` param:
+    1=house, 2=condo, 3=townhouse, 6=multi-family, 13=mobile.
+    """
+    if subject_property_type == "sfh":
+        return "1"
+    if subject_property_type == "condo":
+        return "2"
+    if subject_property_type == "townhome":
+        return "3"
+    return "1,2,3,6,13"
