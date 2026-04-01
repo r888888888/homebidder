@@ -335,6 +335,31 @@ class TestCompsRentCastSqftFallback:
         assert mock_client.get.call_count == 2
         assert all(c["sqft"] == 1500 for c in comps)
 
+    async def test_price_per_sqft_computed_after_rentcast_sqft_fill(self):
+        """price_per_sqft is computed when sqft comes from RentCast."""
+        from agent.tools.comps import fetch_comps
+
+        row = {**BASE_COMP_ROW, "sqft": None}  # sold_price=1_100_000
+        df = _make_df([row])
+
+        with patch.dict(os.environ, {"RENTCAST_API_KEY": "test-key"}), \
+             patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread, \
+             patch("agent.tools.comps.httpx.AsyncClient") as mock_cls:
+
+            mock_thread.return_value = df
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.return_value = _make_rentcast_avm_mock(sqft=1100)
+
+            comps = await fetch_comps(
+                address="450 Sanchez St", city="San Francisco", state="CA",
+                zip_code="94114", subject_lat=SF_LAT, subject_lon=SF_LON,
+            )
+
+        assert comps[0]["sqft"] == 1100
+        assert comps[0]["price_per_sqft"] == pytest.approx(1000.0)
+
     async def test_sqft_remains_none_when_rentcast_fails(self):
         """sqft stays None if RentCast raises for a comp."""
         from agent.tools.comps import fetch_comps

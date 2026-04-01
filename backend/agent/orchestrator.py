@@ -23,16 +23,17 @@ MODEL = "claude-sonnet-4-6"
 
 SYSTEM_PROMPT = """You are HomeBidder, an expert real estate analyst helping home buyers make competitive, data-driven offers in the SF Bay Area.
 
-Your job:
-1. Call lookup_property_by_address to geocode the address and retrieve listing details.
-2. Call fetch_neighborhood_context (using county, state, zip_code, address_matched from step 1) to get Prop 13 tax data and neighborhood statistics.
-3. Fetch comparable sold listings (comps) nearby.
-4. Analyze the comp market data statistically.
-5. Recommend a realistic offer price range with clear rationale.
+Call the following tools to gather data:
+1. lookup_property_by_address — geocode the address and retrieve listing details.
+2. fetch_neighborhood_context — use county, state, zip_code, address_matched from step 1.
+3. fetch_comps — fetch recently sold comparable properties near the subject.
+
+Market analysis and offer recommendation will be computed automatically after comps are fetched.
+Your job is to write a clear, data-backed narrative once all results are available.
 
 For Bay Area properties: always surface the Prop 13 tax shock — compare the seller's current annual tax to the buyer's estimated annual tax at purchase price (purchase_price × 1.25%).
 Be specific, cite the comp data, and explain your reasoning in plain language a first-time buyer can understand.
-Always present: a low (conservative), recommended, and high (aggressive) offer figure.
+Interpret the offer recommendation output and add qualitative context — do not simply restate the numbers.
 """
 
 TOOLS: list[anthropic.types.ToolParam] = [
@@ -150,7 +151,7 @@ async def _dispatch_tool(name: str, inputs: dict) -> tuple[str, dict | None]:
         return json.dumps(result), None
     elif name == "recommend_offer":
         result = recommend_offer(**inputs)
-        return json.dumps(result), None
+        return json.dumps(result), result
     else:
         result = {"error": f"Unknown tool: {name}"}
         return json.dumps(result), None
@@ -160,6 +161,12 @@ async def run_agent(address: str, buyer_context: str = "") -> AsyncIterator[str]
     """
     Run the full agent loop for a property address.
     Yields SSE-formatted text chunks as the agent reasons.
+
+    Pipeline:
+      Phase 1 — Claude calls lookup_property_by_address, fetch_neighborhood_context, fetch_comps.
+      Phase 2 — Orchestrator auto-computes analyze_market + recommend_offer (avoids Claude
+                 re-serializing the full comps array, which hits max_tokens).
+      Phase 3 — Final Claude call (no tools) writes the narrative.
     """
     client = anthropic.AsyncAnthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
@@ -176,13 +183,22 @@ async def run_agent(address: str, buyer_context: str = "") -> AsyncIterator[str]
 
     yield f"data: {json.dumps({'type': 'status', 'text': 'Starting analysis...'})}\n\n"
 
+    # State tracked across turns
+    property_result: dict | None = None
+    analysis_done = False
+
+    # Data-gathering tools Claude is allowed to call
+    DATA_TOOLS = [t for t in TOOLS if t["name"] in ("lookup_property_by_address", "fetch_neighborhood_context", "fetch_comps")]
+
     while True:
+        active_tools = DATA_TOOLS if not analysis_done else []
+
         try:
             response = await client.messages.create(
                 model=MODEL,
-                max_tokens=4096,
+                max_tokens=8000,
                 system=SYSTEM_PROMPT,
-                tools=TOOLS,
+                tools=active_tools,
                 messages=messages,
             )
         except anthropic.RateLimitError as exc:
@@ -206,6 +222,8 @@ async def run_agent(address: str, buyer_context: str = "") -> AsyncIterator[str]
             yield f"data: {json.dumps({'type': 'error', 'text': 'The request could not be completed. Please try a different address or contact support if the problem persists.', 'retry_after': None})}\n\n"
             break
 
+        log.info("Claude stop_reason=%s content_blocks=%d analysis_done=%s", response.stop_reason, len(response.content), analysis_done)
+
         # Stream any text content to client
         for block in response.content:
             if block.type == "text" and block.text:
@@ -216,29 +234,69 @@ async def run_agent(address: str, buyer_context: str = "") -> AsyncIterator[str]
 
         if response.stop_reason == "tool_use":
             tool_results = []
+            dispatched: dict[str, object] = {}
+
             for block in response.content:
                 if block.type == "tool_use":
+                    log.info("Dispatching tool: %s  input_keys=%s", block.name, list(block.input.keys()))
                     yield f"data: {json.dumps({'type': 'tool_call', 'tool': block.name, 'input': block.input})}\n\n"
                     try:
                         result_str, parsed = await _dispatch_tool(block.name, block.input)
+                        log.info("Tool %s returned %d bytes parsed=%s", block.name, len(result_str), parsed is not None)
                     except Exception as exc:
                         log.error("Tool %r raised: %s", block.name, exc, exc_info=True)
                         result_str = json.dumps({"error": f"Tool '{block.name}' failed: {exc}"})
                         parsed = None
-                    # Emit structured tool_result event so the frontend can render cards
+
                     if parsed is not None:
+                        dispatched[block.name] = parsed
                         yield f"data: {json.dumps({'type': 'tool_result', 'tool': block.name, 'result': parsed})}\n\n"
+
                     tool_results.append({
                         "type": "tool_result",
                         "tool_use_id": block.id,
                         "content": result_str,
                     })
 
-            # Append assistant turn + tool results
+            if "lookup_property_by_address" in dispatched:
+                property_result = dispatched["lookup_property_by_address"]
+
+            # Phase 2: auto-compute analyze_market + recommend_offer after comps arrive
+            if "fetch_comps" in dispatched and not analysis_done:
+                comps = dispatched["fetch_comps"]
+                listing = property_result or {}
+
+                # analyze_market
+                yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'analyze_market', 'input': {'comps': f'[{len(comps)} comps]'}})}\n\n"
+                market_stats = analyze_market(comps) if comps else {"error": "no comps"}
+                log.info("Auto-computed analyze_market: %s", list(market_stats.keys()))
+                yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'analyze_market', 'result': market_stats})}\n\n"
+
+                # recommend_offer
+                yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'recommend_offer', 'input': {'listing': '...', 'market_stats': '...'}})}\n\n"
+                offer_result = recommend_offer(listing, market_stats, buyer_context)
+                log.info("Auto-computed recommend_offer: posture=%s", offer_result.get("posture"))
+                yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'recommend_offer', 'result': offer_result})}\n\n"
+
+                # Inject results into conversation as a concise summary (avoids re-sending full comps)
+                summary = (
+                    "The following analysis has been automatically computed.\n\n"
+                    f"**Market Analysis:**\n{json.dumps(market_stats)}\n\n"
+                    f"**Offer Recommendation:**\n{json.dumps(offer_result)}\n\n"
+                    "Please now write your final narrative for the buyer."
+                )
+                messages.append({"role": "assistant", "content": response.content})
+                messages.append({"role": "user", "content": tool_results})
+                messages.append({"role": "assistant", "content": "I have all the data I need. Let me write the analysis."})
+                messages.append({"role": "user", "content": summary})
+                analysis_done = True
+                continue
+
+            # Normal turn: append assistant + tool results and loop
             messages.append({"role": "assistant", "content": response.content})
             messages.append({"role": "user", "content": tool_results})
         else:
-            # Unexpected stop reason
+            log.warning("Unexpected stop_reason=%r — ending loop", response.stop_reason)
             break
 
     yield f"data: {json.dumps({'type': 'done'})}\n\n"

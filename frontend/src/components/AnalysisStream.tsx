@@ -2,6 +2,7 @@ import type { AnalysisEvent } from "../routes/index";
 import { PropertySummaryCard, type PropertyData } from "./PropertySummaryCard";
 import { NeighborhoodCard, type NeighborhoodData } from "./NeighborhoodCard";
 import { CompsCard, type CompData } from "./CompsCard";
+import { OfferRecommendationCard, type OfferData } from "./OfferRecommendationCard";
 
 interface Props {
   events: AnalysisEvent[];
@@ -36,6 +37,11 @@ export function AnalysisStream({ events, isRunning }: Props) {
   );
   const compsData = compsEvent?.result as CompData[] | undefined;
 
+  const offerEvent = events.find(
+    (e) => e.type === "tool_result" && e.tool === "recommend_offer"
+  );
+  const offerData = offerEvent?.result as OfferData | undefined;
+
   return (
     <div className="space-y-4 fade-up">
       {/* Property summary card */}
@@ -52,6 +58,9 @@ export function AnalysisStream({ events, isRunning }: Props) {
 
       {/* Comps table */}
       {compsData && <CompsCard comps={compsData} />}
+
+      {/* Offer recommendation */}
+      {offerData && <OfferRecommendationCard offer={offerData} />}
 
       {/* Agent step progress */}
       {toolCalls.length > 0 && (

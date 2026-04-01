@@ -243,11 +243,14 @@ async def _fill_missing_sqft(comps: list[dict[str, Any]]) -> list[dict[str, Any]
     """
     For any comp missing sqft, fetch it from RentCast /v1/avm/value in parallel.
     Only comps with sqft=None are queried; all requests run concurrently.
+
+    Set RENTCAST_SQFT_FALLBACK=0 to disable (useful in development to reduce API calls).
     """
     import os
     api_key = os.environ.get("RENTCAST_API_KEY")
+    fallback_enabled = os.environ.get("RENTCAST_SQFT_FALLBACK", "1") not in ("0", "false", "False")
     missing_indices = [i for i, c in enumerate(comps) if c["sqft"] is None]
-    if not missing_indices or not api_key:
+    if not missing_indices or not api_key or not fallback_enabled:
         return comps
 
     headers = {"X-Api-Key": api_key, "Accept": "application/json"}
@@ -268,6 +271,9 @@ async def _fill_missing_sqft(comps: list[dict[str, Any]]) -> list[dict[str, Any]
     results = await asyncio.gather(*[_fetch_sqft(comps[i]) for i in missing_indices])
     for i, sqft in zip(missing_indices, results):
         comps[i]["sqft"] = sqft
+        sold_price = comps[i].get("sold_price")
+        if sqft is not None and sold_price is not None:
+            comps[i]["price_per_sqft"] = round(sold_price / sqft, 2)
     return comps
 
 
