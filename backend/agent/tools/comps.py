@@ -19,6 +19,8 @@ from shapely.geometry import Point
 
 from .scraper import _USER_AGENTS
 
+RENTCAST_AVM_URL = "https://api.rentcast.io/v1/avm/value"
+
 
 # ---------------------------------------------------------------------------
 # Haversine distance (miles)
@@ -130,7 +132,8 @@ async def fetch_comps(
     try:
         df = await asyncio.to_thread(_scrape_homeharvest_comps, zip_code, bedrooms, max_results)
         if df is not None and not df.empty:
-            return _process_df(df, subject_lat, subject_lon, subject_sqft, max_results)
+            comps = _process_df(df, subject_lat, subject_lon, subject_sqft, max_results)
+            return await _fill_missing_sqft(comps)
     except Exception:
         pass
 
@@ -233,6 +236,38 @@ def _process_df(
         if len(comps) >= max_results:
             break
 
+    return comps
+
+
+async def _fill_missing_sqft(comps: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """
+    For any comp missing sqft, fetch it from RentCast /v1/avm/value in parallel.
+    Only comps with sqft=None are queried; all requests run concurrently.
+    """
+    import os
+    api_key = os.environ.get("RENTCAST_API_KEY")
+    missing_indices = [i for i, c in enumerate(comps) if c["sqft"] is None]
+    if not missing_indices or not api_key:
+        return comps
+
+    headers = {"X-Api-Key": api_key, "Accept": "application/json"}
+
+    async def _fetch_sqft(comp: dict) -> int | None:
+        addr = f"{comp['address']}, {comp['city']}, {comp['state']} {comp['zip_code']}"
+        url = RENTCAST_AVM_URL + "?" + urlencode({"address": addr})
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.get(url, headers=headers)
+                resp.raise_for_status()
+                data = resp.json()
+            sqft = data.get("subjectProperty", {}).get("squareFootage")
+            return int(sqft) if sqft is not None else None
+        except Exception:
+            return None
+
+    results = await asyncio.gather(*[_fetch_sqft(comps[i]) for i in missing_indices])
+    for i, sqft in zip(missing_indices, results):
+        comps[i]["sqft"] = sqft
     return comps
 
 

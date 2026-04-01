@@ -8,8 +8,9 @@ Tests for fetch_comps Phase 4 enhancements.
 All homeharvest / HTTP calls are mocked.
 """
 
+import os
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 import pandas as pd
 
 
@@ -245,3 +246,115 @@ class TestSqftFilter:
             )
 
         assert len(comps) == 1
+
+# ---------------------------------------------------------------------------
+# RentCast sqft fallback for comps
+# ---------------------------------------------------------------------------
+
+def _make_rentcast_avm_mock(sqft: int | None):
+    resp = MagicMock()
+    resp.raise_for_status = MagicMock()
+    resp.json.return_value = {
+        "price": 1_100_000,
+        "subjectProperty": {"squareFootage": sqft} if sqft is not None else {},
+    }
+    return resp
+
+
+class TestCompsRentCastSqftFallback:
+    async def test_rentcast_sqft_used_when_homeharvest_sqft_missing(self):
+        """When a comp has no sqft, RentCast fills it in."""
+        from agent.tools.comps import fetch_comps
+
+        row = {**BASE_COMP_ROW, "sqft": None}
+        df = _make_df([row])
+
+        with patch.dict(os.environ, {"RENTCAST_API_KEY": "test-key"}), \
+             patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread, \
+             patch("agent.tools.comps.httpx.AsyncClient") as mock_cls:
+
+            mock_thread.return_value = df
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.return_value = _make_rentcast_avm_mock(sqft=1650)
+
+            comps = await fetch_comps(
+                address="450 Sanchez St", city="San Francisco", state="CA",
+                zip_code="94114", subject_lat=SF_LAT, subject_lon=SF_LON,
+            )
+
+        assert len(comps) == 1
+        assert comps[0]["sqft"] == 1650
+
+    async def test_rentcast_sqft_not_called_when_homeharvest_has_sqft(self):
+        """RentCast is not called when homeharvest already provides sqft."""
+        from agent.tools.comps import fetch_comps
+
+        df = _make_df([BASE_COMP_ROW])  # sqft=1700
+
+        with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread, \
+             patch("agent.tools.comps.httpx.AsyncClient") as mock_cls:
+
+            mock_thread.return_value = df
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            comps = await fetch_comps(
+                address="450 Sanchez St", city="San Francisco", state="CA",
+                zip_code="94114", subject_lat=SF_LAT, subject_lon=SF_LON,
+            )
+
+        mock_client.get.assert_not_called()
+        assert comps[0]["sqft"] == 1700
+
+    async def test_rentcast_calls_made_in_parallel_for_multiple_missing(self):
+        """RentCast is called once per comp with missing sqft, all in parallel."""
+        from agent.tools.comps import fetch_comps
+
+        row1 = {**BASE_COMP_ROW, "street": "1 A St", "sqft": None}
+        row2 = {**BASE_COMP_ROW, "street": "2 B St", "sqft": None}
+        df = _make_df([row1, row2])
+
+        with patch.dict(os.environ, {"RENTCAST_API_KEY": "test-key"}), \
+             patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread, \
+             patch("agent.tools.comps.httpx.AsyncClient") as mock_cls:
+
+            mock_thread.return_value = df
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.return_value = _make_rentcast_avm_mock(sqft=1500)
+
+            comps = await fetch_comps(
+                address="450 Sanchez St", city="San Francisco", state="CA",
+                zip_code="94114", subject_lat=SF_LAT, subject_lon=SF_LON,
+            )
+
+        assert mock_client.get.call_count == 2
+        assert all(c["sqft"] == 1500 for c in comps)
+
+    async def test_sqft_remains_none_when_rentcast_fails(self):
+        """sqft stays None if RentCast raises for a comp."""
+        from agent.tools.comps import fetch_comps
+        import httpx
+
+        row = {**BASE_COMP_ROW, "sqft": None}
+        df = _make_df([row])
+
+        with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread, \
+             patch("agent.tools.comps.httpx.AsyncClient") as mock_cls:
+
+            mock_thread.return_value = df
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.side_effect = httpx.HTTPError("timeout")
+
+            comps = await fetch_comps(
+                address="450 Sanchez St", city="San Francisco", state="CA",
+                zip_code="94114", subject_lat=SF_LAT, subject_lon=SF_LON,
+            )
+
+        assert comps[0]["sqft"] is None
