@@ -91,6 +91,16 @@ class TestAnalyzeMarketOverbidStats:
         assert result["median_pct_over_asking"] == pytest.approx(10.0)
         assert result["pct_sold_over_asking"] == pytest.approx(100.0)
 
+    def test_computes_median_lot_size_and_comp_sqft(self):
+        comps = [
+            {**BASE_COMP, "sqft": 1300, "lot_size": 2200},
+            {**BASE_COMP, "sqft": 1500, "lot_size": 2500},
+            {**BASE_COMP, "sqft": 1700, "lot_size": 3100},
+        ]
+        result = analyze_market(comps)
+        assert result["median_comp_sqft"] == 1500
+        assert result["median_lot_size"] == 2500
+
 
 # ---------------------------------------------------------------------------
 # recommend_offer — buyer_context keyword parsing
@@ -166,6 +176,21 @@ class TestOverbidPosture:
         result = recommend_offer(listing, stats)
         # recommended should be above fair_value, not just list price
         assert result["offer_recommended"] > result["fair_value_estimate"]
+
+    def test_overbid_does_not_multiply_fair_value_directly(self):
+        """
+        Overbid should influence aggressiveness within the band, not full-price scaling.
+        """
+        stats = {
+            **BASE_STATS,
+            "median_sale_price": 1_100_000,
+            "median_pct_over_asking": 20.0,
+        }
+        listing = {**BASE_LISTING, "days_on_market": 3}
+        result = recommend_offer(listing, stats)
+
+        # Old behavior would be ~1.32M (1.1M * 1.20). New behavior should be much tighter.
+        assert result["offer_recommended"] < 1_200_000
 
     def test_at_market_when_median_overbid_lte_5(self):
         listing = {**BASE_LISTING, "days_on_market": 20}
@@ -272,3 +297,111 @@ class TestPassthroughFields:
         result = recommend_offer(BASE_LISTING, stats)
         assert result["median_pct_over_asking"] is None
         assert result["pct_sold_over_asking"] is None
+
+
+# ---------------------------------------------------------------------------
+# recommend_offer — fair value algorithm (land-aware)
+# ---------------------------------------------------------------------------
+
+class TestFairValueAlgorithm:
+    def test_lot_size_increases_fair_value_when_lot_is_larger_than_comps(self):
+        listing = {**BASE_LISTING, "sqft": 1500, "lot_size": 4000}
+        stats = {
+            **BASE_STATS,
+            "median_sale_price": 1_100_000,
+            "median_comp_sqft": 1500,
+            "median_lot_size": 2500,
+            "median_price_per_sqft": 733.0,
+            "median_pct_over_asking": 0.0,
+        }
+        result = recommend_offer(listing, stats)
+        assert result["fair_value_estimate"] > 1_100_000
+
+    def test_does_not_explode_fair_value_from_ppsf_times_sqft(self):
+        """
+        Protect against Bay Area distortion where ppsf*sqft can overstate value.
+        With median comp near $1M, fair value should stay near that anchor.
+        """
+        listing = {**BASE_LISTING, "sqft": 2000, "lot_size": 2500}
+        stats = {
+            **BASE_STATS,
+            "median_sale_price": 1_000_000,
+            "median_price_per_sqft": 2000.0,  # would imply $4.0M under old logic
+            "median_comp_sqft": 1500,
+            "median_lot_size": 2500,
+            "median_pct_over_asking": 0.0,
+        }
+        result = recommend_offer(listing, stats)
+        assert result["fair_value_estimate"] < 1_500_000
+
+    def test_returns_fair_value_breakdown_with_adjustment_details(self):
+        listing = {
+            **BASE_LISTING,
+            "sqft": 1800,
+            "lot_size": 3200,
+            "avm_estimate": 1_260_000,
+        }
+        stats = {
+            **BASE_STATS,
+            "median_sale_price": 1_100_000,
+            "median_comp_sqft": 1500,
+            "median_lot_size": 2500,
+            "median_pct_over_asking": 0.0,
+        }
+        result = recommend_offer(listing, stats)
+        breakdown = result["fair_value_breakdown"]
+        assert breakdown["method"] == "median_comp_anchor"
+        assert breakdown["lot_adjustment_pct"] is not None
+        assert breakdown["sqft_adjustment_pct"] is not None
+        assert breakdown["avm_blend_used"] is True
+
+    def test_breakdown_uses_ppsf_fallback_method_when_median_comp_missing(self):
+        listing = {**BASE_LISTING, "sqft": 1500}
+        stats = {
+            "median_price_per_sqft": 700.0,
+            "median_pct_over_asking": 0.0,
+        }
+        result = recommend_offer(listing, stats)
+        breakdown = result["fair_value_breakdown"]
+        assert breakdown["method"] == "ppsf_fallback"
+        assert breakdown["lot_adjustment_pct"] is None
+        assert breakdown["sqft_adjustment_pct"] is None
+        assert breakdown["avm_blend_used"] is False
+
+
+# ---------------------------------------------------------------------------
+# recommend_offer — dynamic offer range band
+# ---------------------------------------------------------------------------
+
+class TestDynamicOfferRangeBand:
+    def test_competitive_band_widens_with_high_volatility_and_few_comps(self):
+        listing = {**BASE_LISTING, "days_on_market": 2}
+        high_uncertainty_stats = {
+            **BASE_STATS,
+            "median_sale_price": 1_100_000,
+            "price_stdev": 320_000,
+            "comp_count": 3,
+            "median_pct_over_asking": 8.0,
+        }
+        low_uncertainty_stats = {
+            **BASE_STATS,
+            "median_sale_price": 1_100_000,
+            "price_stdev": 60_000,
+            "comp_count": 14,
+            "median_pct_over_asking": 8.0,
+        }
+
+        high_uncertainty = recommend_offer(listing, high_uncertainty_stats)
+        low_uncertainty = recommend_offer(listing, low_uncertainty_stats)
+
+        assert high_uncertainty["offer_range_band_pct"] > low_uncertainty["offer_range_band_pct"]
+
+    def test_defaults_to_three_percent_band_when_dispersion_data_missing(self):
+        listing = {**BASE_LISTING, "days_on_market": 2}
+        stats = {
+            **BASE_STATS,
+            "median_sale_price": 1_100_000,
+            "median_pct_over_asking": 8.0,
+        }
+        result = recommend_offer(listing, stats)
+        assert result["offer_range_band_pct"] == pytest.approx(3.0)

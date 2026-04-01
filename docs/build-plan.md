@@ -170,8 +170,24 @@ Key dynamics that shape all phases:
 **Backend — update `pricing.py`**
 - Parse `buyer_context` string for keywords: "multiple offers" / "fast close" / "below asking" → adjust posture thresholds
 - Add `market_velocity` input: DOM < 7 → offer review period likely → hot posture; DOM > 45 → slow → negotiating posture
+- Add land-aware market statistics from comps: `median_lot_size` and `median_comp_sqft`
+- Replace `ppsf * subject_sqft` as primary fair-value method with a **median-comp anchored hybrid**:
+  - Anchor fair value to `median_sale_price`
+  - Apply bounded lot-size adjustment (higher weight) and bounded sqft adjustment (lower weight)
+  - Apply a light RentCast AVM blend when available to stabilize sparse/noisy comp sets
+  - Keep `ppsf * sqft` only as fallback when comp median is unavailable
+- Return `fair_value_breakdown` in `recommend_offer` output so UI can explain the estimate:
+  - method (`median_comp_anchor` / `ppsf_fallback` / `list_price_fallback`)
+  - lot and sqft adjustment percentages
+  - AVM blend usage flag
+- Replace fixed ±3% competitive range with dynamic uncertainty band (`offer_range_band_pct`):
+  - starts at 3%
+  - widens with higher comp price dispersion (`price_stdev / median_sale_price`)
+  - widens when comp count is low; tightens when comp count is high
+  - bounded to a safe interval (2% to 6%)
+- Use `median_pct_over_asking` as an **aggression signal** within that band (positioning recommendation toward upper bound), not as a direct multiplier on fair value
 - **Bay Area offer strategy:**
-  - If median `pct_over_asking` across comps > 5%: posture = Competitive; `recommended_offer` = comp median × (1 + median_overbid_pct)
+  - If median `pct_over_asking` across comps > 5%: posture = Competitive; `recommended_offer` is pushed toward the upper uncertainty band (not full overbid multiplication)
   - Offer review date detection: if DOM ≤ 7 and listed on Tue/Wed → advisory "Seller likely reviewing offers [day+5]; submit by [date]"
   - `contingency_recommendation`: `waive_appraisal` when market is > 10% over asking; `waive_loan` when buyer has strong pre-approval; always `keep_inspection` unless buyer is flagged as investor in `buyer_context`
 

@@ -7,6 +7,40 @@ from datetime import datetime, timedelta
 from typing import Any
 
 
+def _clamp(value: float, low: float, high: float) -> float:
+    return max(low, min(value, high))
+
+
+def _compute_offer_range_band_pct(
+    market_stats: dict[str, Any],
+    median_comp: float | None,
+) -> float:
+    """
+    Return uncertainty band as a decimal (e.g. 0.03 == 3%).
+    Uses comp dispersion and sample size, bounded to [2%, 6%].
+    """
+    base_band = 0.03
+    stdev = market_stats.get("price_stdev")
+    comp_count = market_stats.get("comp_count")
+
+    vol_adjustment = 0.0
+    if stdev and median_comp:
+        cv = stdev / median_comp
+        # Around 10% CV stays near baseline; higher volatility widens.
+        vol_adjustment = _clamp((cv - 0.10) * 0.50, -0.01, 0.02)
+
+    sample_adjustment = 0.0
+    if stdev and median_comp and comp_count is not None:
+        if comp_count < 4:
+            sample_adjustment = 0.01
+        elif comp_count < 6:
+            sample_adjustment = 0.005
+        elif comp_count >= 12:
+            sample_adjustment = -0.005
+
+    return _clamp(base_band + vol_adjustment + sample_adjustment, 0.02, 0.06)
+
+
 def analyze_market(comps: list[dict[str, Any]]) -> dict[str, Any]:
     """
     Given a list of comp sales, compute market statistics.
@@ -19,6 +53,8 @@ def analyze_market(comps: list[dict[str, Any]]) -> dict[str, Any]:
     """
     prices = [c["sold_price"] for c in comps if c.get("sold_price")]
     ppsf_values = [c["price_per_sqft"] for c in comps if c.get("price_per_sqft")]
+    lot_sizes = [c["lot_size"] for c in comps if c.get("lot_size")]
+    comp_sqft_values = [c["sqft"] for c in comps if c.get("sqft")]
 
     if not prices:
         return {"error": "No valid comp prices found"}
@@ -34,6 +70,12 @@ def analyze_market(comps: list[dict[str, Any]]) -> dict[str, Any]:
     if ppsf_values:
         result["median_price_per_sqft"] = round(statistics.median(ppsf_values), 2)
         result["mean_price_per_sqft"] = round(statistics.mean(ppsf_values), 2)
+
+    if lot_sizes:
+        result["median_lot_size"] = round(statistics.median(lot_sizes))
+
+    if comp_sqft_values:
+        result["median_comp_sqft"] = round(statistics.median(comp_sqft_values))
 
     if len(prices) >= 3:
         result["price_stdev"] = round(statistics.stdev(prices))
@@ -71,8 +113,12 @@ def recommend_offer(
     median_comp = market_stats.get("median_sale_price")
     ppsf = market_stats.get("median_price_per_sqft")
     sqft = listing.get("sqft")
+    lot_size = listing.get("lot_size")
     dom = listing.get("days_on_market")
     list_date = listing.get("list_date")
+    median_lot_size = market_stats.get("median_lot_size")
+    median_comp_sqft = market_stats.get("median_comp_sqft")
+    avm_estimate = listing.get("avm_estimate")
 
     # Passthrough overbid stats from market_stats
     median_overbid: float | None = market_stats.get("median_pct_over_asking")
@@ -81,13 +127,59 @@ def recommend_offer(
     if not list_price:
         return {"error": "Listing price unknown"}
 
-    # Estimated fair value based on comps
-    if ppsf and sqft:
-        fair_value = round(ppsf * sqft)
-    elif median_comp:
+    # Estimated fair value:
+    # - Anchor to comp median price (Bay Area land-scarcity friendly)
+    # - Apply bounded lot-size and sqft adjustments when available
+    # - Use ppsf*sqft only as fallback when comp median is missing
+    if median_comp:
         fair_value = median_comp
+
+        total_adjustment = 0.0
+        lot_adjustment_pct: float | None = None
+        sqft_adjustment_pct: float | None = None
+
+        if lot_size and median_lot_size:
+            lot_delta = (lot_size - median_lot_size) / median_lot_size
+            lot_adjustment_pct = _clamp(lot_delta * 0.60, -0.20, 0.25)
+            total_adjustment += lot_adjustment_pct
+
+        if sqft and median_comp_sqft:
+            sqft_delta = (sqft - median_comp_sqft) / median_comp_sqft
+            sqft_adjustment_pct = _clamp(sqft_delta * 0.25, -0.10, 0.12)
+            total_adjustment += sqft_adjustment_pct
+
+        fair_value = round(fair_value * (1 + total_adjustment))
+        avm_blend_used = False
+
+        # Light AVM blend to stabilize sparse/noisy comp sets.
+        if avm_estimate:
+            fair_value = round(fair_value * 0.85 + avm_estimate * 0.15)
+            avm_blend_used = True
+        fair_value_breakdown = {
+            "method": "median_comp_anchor",
+            "base_comp_median": median_comp,
+            "lot_adjustment_pct": round(lot_adjustment_pct * 100, 2) if lot_adjustment_pct is not None else None,
+            "sqft_adjustment_pct": round(sqft_adjustment_pct * 100, 2) if sqft_adjustment_pct is not None else None,
+            "avm_blend_used": avm_blend_used,
+        }
+    elif ppsf and sqft:
+        fair_value = round(ppsf * sqft)
+        fair_value_breakdown = {
+            "method": "ppsf_fallback",
+            "base_comp_median": None,
+            "lot_adjustment_pct": None,
+            "sqft_adjustment_pct": None,
+            "avm_blend_used": False,
+        }
     else:
         fair_value = list_price
+        fair_value_breakdown = {
+            "method": "list_price_fallback",
+            "base_comp_median": None,
+            "lot_adjustment_pct": None,
+            "sqft_adjustment_pct": None,
+            "avm_blend_used": False,
+        }
 
     # --- Posture determination (lowest to highest priority) ---
 
@@ -121,15 +213,24 @@ def recommend_offer(
         posture = "negotiating"
 
     # --- Offer range ---
+    band_pct = _compute_offer_range_band_pct(market_stats, median_comp)
+
     if posture == "competitive":
+        # Use median overbid as an aggression signal inside the uncertainty band,
+        # rather than multiplying fair value directly (avoids double-counting heat).
         if median_overbid is not None and median_overbid > 0:
-            recommended = round(fair_value * (1 + median_overbid / 100) / 1000) * 1000
+            overbid_signal = _clamp(median_overbid / 20, 0.0, 1.0)
         else:
-            recommended = round(list_price * 1.01 / 1000) * 1000
-        # Anchor range to recommended so low <= recommended <= high always holds.
-        # High is at least list_price (don't cap the aggressive end below asking).
-        low = round(recommended * 0.97 / 1000) * 1000
-        high = max(round(recommended * 1.03 / 1000) * 1000, round(list_price / 1000) * 1000)
+            overbid_signal = 0.0
+        aggressive_fraction = 0.35 + 0.65 * overbid_signal
+        recommended = round(
+            fair_value * (1 + band_pct * aggressive_fraction) / 1000
+        ) * 1000
+
+        base_low = round(fair_value * (1 - band_pct) / 1000) * 1000
+        base_high = round(fair_value * (1 + band_pct) / 1000) * 1000
+        low = min(base_low, recommended)
+        high = max(base_high, recommended, round(list_price / 1000) * 1000)
     elif posture == "negotiating":
         low = round(fair_value * 0.95 / 1000) * 1000
         recommended = round(fair_value * 0.98 / 1000) * 1000
@@ -162,10 +263,12 @@ def recommend_offer(
     return {
         "list_price": list_price,
         "fair_value_estimate": fair_value,
+        "fair_value_breakdown": fair_value_breakdown,
         "offer_low": low,
         "offer_recommended": recommended,
         "offer_high": high,
         "posture": posture,
+        "offer_range_band_pct": round(band_pct * 100, 2),
         "spread_vs_list_pct": round(spread_pct * 100, 1),
         "median_pct_over_asking": median_overbid,
         "pct_sold_over_asking": pct_sold_over_asking,
