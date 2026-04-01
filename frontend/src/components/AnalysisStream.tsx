@@ -1,5 +1,6 @@
 import type { AnalysisEvent } from "../routes/index";
 import { PropertySummaryCard, type PropertyData } from "./PropertySummaryCard";
+import { NeighborhoodCard, type NeighborhoodData } from "./NeighborhoodCard";
 
 interface Props {
   events: AnalysisEvent[];
@@ -8,6 +9,7 @@ interface Props {
 
 const TOOL_LABELS: Record<string, string> = {
   lookup_property_by_address: "Looking up property",
+  fetch_neighborhood_context: "Fetching neighborhood & tax data",
   fetch_comps: "Fetching comparable sales",
   analyze_market: "Analyzing market data",
   recommend_offer: "Computing offer range",
@@ -23,10 +25,23 @@ export function AnalysisStream({ events, isRunning }: Props) {
   );
   const propertyData = propertyEvent?.result as PropertyData | undefined;
 
+  const neighborhoodEvent = events.find(
+    (e) => e.type === "tool_result" && e.tool === "fetch_neighborhood_context"
+  );
+  const neighborhoodData = neighborhoodEvent?.result as NeighborhoodData | undefined;
+
   return (
     <div className="space-y-4 fade-up">
       {/* Property summary card */}
       {propertyData && <PropertySummaryCard property={propertyData} />}
+
+      {/* Neighborhood & Prop 13 card */}
+      {neighborhoodData && (
+        <NeighborhoodCard
+          neighborhood={neighborhoodData}
+          purchasePrice={(propertyData?.price as number | null) ?? null}
+        />
+      )}
 
       {/* Agent step progress */}
       {toolCalls.length > 0 && (

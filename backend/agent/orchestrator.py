@@ -15,6 +15,7 @@ import anthropic
 log = logging.getLogger(__name__)
 
 from .tools.property_lookup import lookup_property_by_address
+from .tools.neighborhood import fetch_neighborhood_context
 from .tools.comps import fetch_comps
 from .tools.pricing import analyze_market, recommend_offer
 
@@ -24,10 +25,12 @@ SYSTEM_PROMPT = """You are HomeBidder, an expert real estate analyst helping hom
 
 Your job:
 1. Call lookup_property_by_address to geocode the address and retrieve listing details.
-2. Fetch comparable sold listings (comps) nearby.
-3. Analyze the comp market data statistically.
-4. Recommend a realistic offer price range with clear rationale.
+2. Call fetch_neighborhood_context (using county, state, zip_code, address_matched from step 1) to get Prop 13 tax data and neighborhood statistics.
+3. Fetch comparable sold listings (comps) nearby.
+4. Analyze the comp market data statistically.
+5. Recommend a realistic offer price range with clear rationale.
 
+For Bay Area properties: always surface the Prop 13 tax shock — compare the seller's current annual tax to the buyer's estimated annual tax at purchase price (purchase_price × 1.25%).
 Be specific, cite the comp data, and explain your reasoning in plain language a first-time buyer can understand.
 Always present: a low (conservative), recommended, and high (aggressive) offer figure.
 """
@@ -51,6 +54,24 @@ TOOLS: list[anthropic.types.ToolParam] = [
                 },
             },
             "required": ["address"],
+        },
+    },
+    {
+        "name": "fetch_neighborhood_context",
+        "description": (
+            "Fetch Prop 13 assessed-value data from the county assessor (SF, Alameda, Santa Clara) "
+            "and Census ACS neighborhood statistics (median home value, housing units, vacancy rate). "
+            "Call after lookup_property_by_address using its county, state, zip_code, and address_matched."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "county":          {"type": "string"},
+                "state":           {"type": "string"},
+                "zip_code":        {"type": "string"},
+                "address_matched": {"type": "string"},
+            },
+            "required": ["county", "state", "zip_code", "address_matched"],
         },
     },
     {
@@ -111,6 +132,9 @@ async def _dispatch_tool(name: str, inputs: dict) -> tuple[str, dict | None]:
     """
     if name == "lookup_property_by_address":
         result = await lookup_property_by_address(**inputs)
+        return json.dumps(result), result
+    elif name == "fetch_neighborhood_context":
+        result = await fetch_neighborhood_context(**inputs)
         return json.dumps(result), result
     elif name == "fetch_comps":
         result = await fetch_comps(**inputs)

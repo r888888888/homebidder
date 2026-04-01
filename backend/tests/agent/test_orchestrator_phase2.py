@@ -49,6 +49,19 @@ class TestToolRegistration:
 
         assert "lookup_property_by_address" in SYSTEM_PROMPT
 
+    def test_fetch_neighborhood_context_registered(self):
+        """TOOLS list contains fetch_neighborhood_context."""
+        from agent.orchestrator import TOOLS
+
+        names = [t["name"] for t in TOOLS]
+        assert "fetch_neighborhood_context" in names
+
+    def test_system_prompt_references_neighborhood(self):
+        """System prompt instructs Claude to call fetch_neighborhood_context."""
+        from agent.orchestrator import SYSTEM_PROMPT
+
+        assert "fetch_neighborhood_context" in SYSTEM_PROMPT
+
 
 class TestToolResultSseEvents:
     async def test_tool_result_event_emitted_after_tool_call(self):
