@@ -36,10 +36,13 @@ async def lookup_property_by_address(address: str) -> dict[str, Any]:
     """
     geo = await _geocode(address)
 
-    listing, avm = await asyncio.gather(
+    listing, rentcast = await asyncio.gather(
         _homeharvest_listing(geo["address_matched"]),
-        _rentcast_avm(geo["address_matched"]),
+        _rentcast_data(geo["address_matched"]),
     )
+
+    avm = rentcast["avm"] if rentcast else None
+    rc_sqft = rentcast["sqft"] if rentcast else None
 
     # Determine source
     if listing:
@@ -59,7 +62,7 @@ async def lookup_property_by_address(address: str) -> dict[str, Any]:
         "price": listing.get("price"),
         "bedrooms": listing.get("bedrooms"),
         "bathrooms": listing.get("bathrooms"),
-        "sqft": listing.get("sqft"),
+        "sqft": listing.get("sqft") or rc_sqft,
         "year_built": listing.get("year_built"),
         "lot_size": listing.get("lot_size"),
         "property_type": listing.get("property_type"),
@@ -166,16 +169,20 @@ def _scrape_homeharvest(location: str):
 # Step 2b — RentCast AVM
 # ---------------------------------------------------------------------------
 
-async def _rentcast_avm(matched_address: str) -> float | None:
+RENTCAST_AVM_URL = "https://api.rentcast.io/v1/avm/value"
+
+
+async def _rentcast_data(matched_address: str) -> dict | None:
     """
-    Fetch AVM estimate from RentCast.
-    Returns None if RENTCAST_API_KEY is unset or the call fails.
+    Fetch AVM estimate from RentCast's /v1/avm/value endpoint.
+    squareFootage is extracted from subjectProperty in the same response.
+    Returns {"avm": float | None, "sqft": int | None} or None if the call fails.
     """
     api_key = os.environ.get("RENTCAST_API_KEY")
     if not api_key:
         return None
 
-    url = RENTCAST_BASE_URL + "?" + urlencode({"address": matched_address})
+    url = RENTCAST_AVM_URL + "?" + urlencode({"address": matched_address})
     headers = {"X-Api-Key": api_key, "Accept": "application/json"}
 
     try:
@@ -184,7 +191,11 @@ async def _rentcast_avm(matched_address: str) -> float | None:
             resp.raise_for_status()
             data = resp.json()
         price = data.get("price")
-        return float(price) if price is not None else None
+        sqft = data.get("subjectProperty", {}).get("squareFootage")
+        return {
+            "avm": float(price) if price is not None else None,
+            "sqft": int(sqft) if sqft is not None else None,
+        }
     except Exception:
         return None
 

@@ -92,7 +92,7 @@ TOOLS: list[anthropic.types.ToolParam] = [
                 "subject_lon":  {"type": "number", "description": "Subject property longitude from lookup_property_by_address"},
                 "subject_sqft": {"type": "integer", "description": "Subject sqft; filters comps to ±25% when provided"},
                 "bedrooms":     {"type": "integer", "description": "Filter comps to similar bedroom count"},
-                "max_results":  {"type": "integer", "default": 10},
+                "max_results":  {"type": "integer", "default": 100},
             },
             "required": ["address", "city", "state", "zip_code"],
         },

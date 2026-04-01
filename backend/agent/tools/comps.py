@@ -115,7 +115,7 @@ async def fetch_comps(
     subject_lon: float | None = None,
     subject_sqft: int | None = None,
     bedrooms: int | None = None,
-    max_results: int = 10,
+    max_results: int = 100,
 ) -> list[dict[str, Any]]:
     """
     Search for recently sold comps near the subject property.
@@ -127,10 +127,8 @@ async def fetch_comps(
     - pct_over_asking: (sold_price - list_price) / list_price * 100, or None
     - distance_miles: haversine distance from subject, or None when comp lacks coords
     """
-    location = f"{city}, {state} {zip_code}".strip()
-
     try:
-        df = await asyncio.to_thread(_scrape_homeharvest_comps, location, bedrooms, max_results)
+        df = await asyncio.to_thread(_scrape_homeharvest_comps, zip_code, bedrooms, max_results)
         if df is not None and not df.empty:
             return _process_df(df, subject_lat, subject_lon, subject_sqft, max_results)
     except Exception:
@@ -154,8 +152,8 @@ def _scrape_homeharvest_comps(location: str, bedrooms: int | None, max_results: 
     df = scrape_property(
         listing_type="sold",
         location=location,
-        past_days=180,
-        limit=max_results * 3,  # oversample, then filter
+        past_days=90,
+        limit=max_results*3,
     )
 
     if df is None or df.empty:
@@ -165,6 +163,16 @@ def _scrape_homeharvest_comps(location: str, bedrooms: int | None, max_results: 
         df = df[df["beds"].between(bedrooms - 1, bedrooms + 1, inclusive="both")]
 
     return df
+
+
+def _fmt_date(val: Any) -> str | None:
+    """Return ISO date string 'YYYY-MM-DD' from a pandas Timestamp, date, or string; None for missing."""
+    if val is None:
+        return None
+    if hasattr(val, "strftime"):
+        return val.strftime("%Y-%m-%d")
+    s = str(val).strip()
+    return s[:10] if s else None
 
 
 def _process_df(
@@ -208,10 +216,11 @@ def _process_df(
             "zip_code": _safe(row, "zip_code", ""),
             "sold_price": sold_price,
             "list_price": list_price,
-            "sold_date": str(_safe(row, "sold_date", "")),
+            "sold_date": _fmt_date(_safe(row, "last_sold_date")),
             "bedrooms": _safe(row, "beds"),
             "bathrooms": (_safe(row, "full_baths") or 0) + (_safe(row, "half_baths") or 0) * 0.5 or None,
             "sqft": sqft,
+            "lot_size": _safe(row, "lot_sqft"),
             "price_per_sqft": round(sold_price / sqft, 2) if sold_price and sqft else None,
             "url": _safe(row, "property_url", ""),
             "latitude": comp_lat,

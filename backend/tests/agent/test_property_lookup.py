@@ -53,7 +53,14 @@ RENTCAST_RESPONSE = {
     "price": 1_300_000,
     "priceRangeLow": 1_200_000,
     "priceRangeHigh": 1_400_000,
-    "confidence": "HIGH",
+    "subjectProperty": {
+        "squareFootage": 1750,
+        "lotSize": 2500,
+        "bedrooms": 3,
+        "bathrooms": 2,
+        "yearBuilt": 1928,
+        "propertyType": "Single Family",
+    },
 }
 
 
@@ -90,7 +97,7 @@ class TestGeocoding:
 
         with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
              patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh, \
-             patch("agent.tools.property_lookup._rentcast_avm", new_callable=AsyncMock) as mock_rc:
+             patch("agent.tools.property_lookup._rentcast_data", new_callable=AsyncMock) as mock_rc:
 
             mock_client = AsyncMock()
             mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
@@ -109,7 +116,7 @@ class TestGeocoding:
 
         with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
              patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh, \
-             patch("agent.tools.property_lookup._rentcast_avm", new_callable=AsyncMock) as mock_rc:
+             patch("agent.tools.property_lookup._rentcast_data", new_callable=AsyncMock) as mock_rc:
 
             mock_client = AsyncMock()
             mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
@@ -129,7 +136,7 @@ class TestGeocoding:
 
         with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
              patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh, \
-             patch("agent.tools.property_lookup._rentcast_avm", new_callable=AsyncMock) as mock_rc:
+             patch("agent.tools.property_lookup._rentcast_data", new_callable=AsyncMock) as mock_rc:
 
             mock_client = AsyncMock()
             mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
@@ -173,7 +180,7 @@ class TestHomeharvest:
 
         with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
              patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh, \
-             patch("agent.tools.property_lookup._rentcast_avm", new_callable=AsyncMock) as mock_rc:
+             patch("agent.tools.property_lookup._rentcast_data", new_callable=AsyncMock) as mock_rc:
 
             mock_client = AsyncMock()
             mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
@@ -208,7 +215,7 @@ class TestHomeharvest:
 
         with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
              patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh, \
-             patch("agent.tools.property_lookup._rentcast_avm", new_callable=AsyncMock) as mock_rc:
+             patch("agent.tools.property_lookup._rentcast_data", new_callable=AsyncMock) as mock_rc:
 
             mock_client = AsyncMock()
             mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
@@ -233,14 +240,14 @@ class TestRentCastFallback:
 
         with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
              patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh, \
-             patch("agent.tools.property_lookup._rentcast_avm", new_callable=AsyncMock) as mock_rc:
+             patch("agent.tools.property_lookup._rentcast_data", new_callable=AsyncMock) as mock_rc:
 
             mock_client = AsyncMock()
             mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
             mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
             mock_client.get.return_value = _make_census_mock()
             mock_hh.return_value = {}
-            mock_rc.return_value = 1_300_000.0
+            mock_rc.return_value = {"avm": 1_300_000.0, "sqft": None}
 
             result = await lookup_property_by_address("450 Sanchez St, San Francisco, CA 94114")
 
@@ -252,14 +259,14 @@ class TestRentCastFallback:
 
         with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
              patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh, \
-             patch("agent.tools.property_lookup._rentcast_avm", new_callable=AsyncMock) as mock_rc:
+             patch("agent.tools.property_lookup._rentcast_data", new_callable=AsyncMock) as mock_rc:
 
             mock_client = AsyncMock()
             mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
             mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
             mock_client.get.return_value = _make_census_mock()
             mock_hh.return_value = {}
-            mock_rc.return_value = 1_300_000.0
+            mock_rc.return_value = {"avm": 1_300_000.0, "sqft": None}
 
             result = await lookup_property_by_address("450 Sanchez St, San Francisco, CA 94114")
 
@@ -271,18 +278,56 @@ class TestRentCastFallback:
 
         with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
              patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh, \
-             patch("agent.tools.property_lookup._rentcast_avm", new_callable=AsyncMock) as mock_rc:
+             patch("agent.tools.property_lookup._rentcast_data", new_callable=AsyncMock) as mock_rc:
 
             mock_client = AsyncMock()
             mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
             mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
             mock_client.get.return_value = _make_census_mock()
             mock_hh.return_value = {"price": 1_250_000.0, "source": "homeharvest"}
-            mock_rc.return_value = 1_300_000.0
+            mock_rc.return_value = {"avm": 1_300_000.0, "sqft": None}
 
             result = await lookup_property_by_address("450 Sanchez St, San Francisco, CA 94114")
 
         assert result["avm_estimate"] == 1_300_000.0
+
+    async def test_sqft_falls_back_to_rentcast_when_homeharvest_missing(self):
+        """When homeharvest returns no sqft, RentCast squareFootage is used."""
+        from agent.tools.property_lookup import lookup_property_by_address
+
+        with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
+             patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh, \
+             patch("agent.tools.property_lookup._rentcast_data", new_callable=AsyncMock) as mock_rc:
+
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.return_value = _make_census_mock()
+            mock_hh.return_value = {"price": 1_250_000.0, "sqft": None, "source": "homeharvest"}
+            mock_rc.return_value = {"avm": 1_300_000.0, "sqft": 1750}
+
+            result = await lookup_property_by_address("450 Sanchez St, San Francisco, CA 94114")
+
+        assert result["sqft"] == 1750
+
+    async def test_sqft_from_homeharvest_preferred_over_rentcast(self):
+        """homeharvest sqft wins when present; RentCast sqft is not used."""
+        from agent.tools.property_lookup import lookup_property_by_address
+
+        with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
+             patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh, \
+             patch("agent.tools.property_lookup._rentcast_data", new_callable=AsyncMock) as mock_rc:
+
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.return_value = _make_census_mock()
+            mock_hh.return_value = {"price": 1_250_000.0, "sqft": 1800, "source": "homeharvest"}
+            mock_rc.return_value = {"avm": 1_300_000.0, "sqft": 1750}
+
+            result = await lookup_property_by_address("450 Sanchez St, San Francisco, CA 94114")
+
+        assert result["sqft"] == 1800
 
 
 # ---------------------------------------------------------------------------
@@ -304,7 +349,7 @@ class TestResultStructure:
 
         with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
              patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh, \
-             patch("agent.tools.property_lookup._rentcast_avm", new_callable=AsyncMock) as mock_rc:
+             patch("agent.tools.property_lookup._rentcast_data", new_callable=AsyncMock) as mock_rc:
 
             mock_client = AsyncMock()
             mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
@@ -407,10 +452,10 @@ class TestHomeharvestListingHelper:
         assert result == {}
 
 
-class TestRentCastAvmHelper:
-    async def test_rentcast_avm_returns_price_when_key_set(self):
-        """_rentcast_avm returns the AVM price when RENTCAST_API_KEY is set."""
-        from agent.tools.property_lookup import _rentcast_avm
+class TestRentCastDataHelper:
+    async def test_rentcast_data_returns_sqft_and_avm_when_key_set(self):
+        """_rentcast_data returns sqft and avm when RENTCAST_API_KEY is set."""
+        from agent.tools.property_lookup import _rentcast_data
         import os
 
         with patch.dict(os.environ, {"RENTCAST_API_KEY": "test-key"}), \
@@ -421,24 +466,25 @@ class TestRentCastAvmHelper:
             mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
             mock_client.get.return_value = _make_rentcast_mock()
 
-            result = await _rentcast_avm("450 Sanchez St, San Francisco, CA 94114")
+            result = await _rentcast_data("450 Sanchez St, San Francisco, CA 94114")
 
-        assert result == 1_300_000.0
+        assert result["sqft"] == 1750
+        assert result["avm"] == 1_300_000.0
 
-    async def test_rentcast_avm_returns_none_when_no_key(self):
-        """_rentcast_avm returns None when RENTCAST_API_KEY is not set."""
-        from agent.tools.property_lookup import _rentcast_avm
+    async def test_rentcast_data_returns_none_when_no_key(self):
+        """_rentcast_data returns None when RENTCAST_API_KEY is not set."""
+        from agent.tools.property_lookup import _rentcast_data
         import os
 
         with patch.dict(os.environ, {}, clear=True):
             os.environ.pop("RENTCAST_API_KEY", None)
-            result = await _rentcast_avm("450 Sanchez St, San Francisco, CA 94114")
+            result = await _rentcast_data("450 Sanchez St, San Francisco, CA 94114")
 
         assert result is None
 
-    async def test_rentcast_avm_returns_none_on_http_error(self):
-        """_rentcast_avm returns None when the RentCast API call fails."""
-        from agent.tools.property_lookup import _rentcast_avm
+    async def test_rentcast_data_returns_none_on_http_error(self):
+        """_rentcast_data returns None when the RentCast API call fails."""
+        from agent.tools.property_lookup import _rentcast_data
         import os
         import httpx
 
@@ -450,6 +496,6 @@ class TestRentCastAvmHelper:
             mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
             mock_client.get.side_effect = httpx.HTTPError("connection error")
 
-            result = await _rentcast_avm("450 Sanchez St, San Francisco, CA 94114")
+            result = await _rentcast_data("450 Sanchez St, San Francisco, CA 94114")
 
         assert result is None

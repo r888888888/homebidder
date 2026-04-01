@@ -3,7 +3,7 @@ import { describe, it, expect } from "vitest";
 import { CompsCard } from "./CompsCard";
 import { AnalysisStream } from "./AnalysisStream";
 
-const BASE_COMP = {
+const BASE_COMP: import("./CompsCard").CompData = {
   address: "100 Comp St",
   city: "San Francisco",
   state: "CA",
@@ -14,6 +14,7 @@ const BASE_COMP = {
   bedrooms: 3,
   bathrooms: 2,
   sqft: 1700,
+  lot_size: 2500,
   price_per_sqft: 647,
   pct_over_asking: 4.76,
   distance_miles: 0.3,
@@ -59,15 +60,31 @@ describe("CompsCard", () => {
     expect(screen.getByText(/0\.30?\s*mi/i)).toBeInTheDocument();
   });
 
-  it("renders sold date", () => {
+  it("renders sold date in human-readable form", () => {
     render(<CompsCard comps={COMPS} />);
-    expect(screen.getByText(/2026-02-01/)).toBeInTheDocument();
+    expect(screen.getByText(/Feb\s+1,?\s+2026/i)).toBeInTheDocument();
+  });
+
+  it("renders beds and baths", () => {
+    render(<CompsCard comps={COMPS} />);
+    expect(screen.getByText(/3bd\s*\/\s*2ba/i)).toBeInTheDocument();
   });
 
   it("shows negative pct_over_asking in a visually distinct way", () => {
     const underComp = { ...BASE_COMP, sold_price: 950_000, pct_over_asking: -9.52 };
     render(<CompsCard comps={[underComp]} />);
     expect(screen.getByText(/-9\.5%|-9\.52%/)).toBeInTheDocument();
+  });
+
+  it("shows lot size as tooltip on sqft cell", () => {
+    render(<CompsCard comps={COMPS} />);
+    expect(screen.getByTitle(/Lot size: 2,500 sqft/i)).toBeInTheDocument();
+  });
+
+  it("shows list price as tooltip on % over ask cell", () => {
+    render(<CompsCard comps={COMPS} />);
+    const cell = screen.getByTitle(/List price: \$1,050,000/i);
+    expect(cell).toBeInTheDocument();
   });
 
   it("shows — when pct_over_asking is null", () => {
@@ -88,6 +105,24 @@ describe("CompsCard", () => {
     render(<CompsCard comps={[BASE_COMP, comp2]} />);
     expect(screen.getByText(/100 Comp St/i)).toBeInTheDocument();
     expect(screen.getByText(/200 Other Ave/i)).toBeInTheDocument();
+  });
+
+  it("sorts comps by distance ascending", () => {
+    const far = { ...BASE_COMP, address: "Far House", distance_miles: 1.5 };
+    const near = { ...BASE_COMP, address: "Near House", distance_miles: 0.1 };
+    render(<CompsCard comps={[far, near]} />);
+    const rows = screen.getAllByRole("row");
+    // Header + 2 data rows; nearest should appear first
+    expect(rows[1]).toHaveTextContent(/Near House/);
+    expect(rows[2]).toHaveTextContent(/Far House/);
+  });
+
+  it("marks the closest comps with data-nearest attribute", () => {
+    const near = { ...BASE_COMP, address: "Near House", distance_miles: 0.1 };
+    const far = { ...BASE_COMP, address: "Far House", distance_miles: 1.5 };
+    render(<CompsCard comps={[far, near]} />);
+    const nearestRows = document.querySelectorAll("[data-nearest='true']");
+    expect(nearestRows.length).toBe(2); // both qualify when ≤ 3 total
   });
 
   it("renders an empty state when comps list is empty", () => {
