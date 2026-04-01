@@ -9,6 +9,7 @@ Fallback path: Redfin Stingray /gis-csv endpoint with a shapely bounding-box pol
 import asyncio
 import csv
 import io
+import math
 import random
 from typing import Any
 from urllib.parse import urlencode
@@ -17,6 +18,89 @@ import httpx
 from shapely.geometry import Point
 
 from .scraper import _USER_AGENTS
+
+
+# ---------------------------------------------------------------------------
+# Haversine distance (miles)
+# ---------------------------------------------------------------------------
+
+def _haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Return great-circle distance in miles between two lat/lon points."""
+    R = 3958.8  # Earth radius in miles
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlam = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlam / 2) ** 2
+    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
+# ---------------------------------------------------------------------------
+# Adaptive radius by Bay Area ZIP density
+# ---------------------------------------------------------------------------
+
+# Dense urban SF ZIP codes (Mission, Castro, SoMa, Richmond, Sunset, etc.)
+_DENSE_SF_ZIPS = {
+    "94102", "94103", "94104", "94105", "94107", "94108", "94109",
+    "94110", "94111", "94112", "94113", "94114", "94115", "94116",
+    "94117", "94118", "94119", "94120", "94121", "94122", "94123",
+    "94124", "94125", "94126", "94127", "94128", "94129", "94130",
+    "94131", "94132", "94133", "94134",
+}
+
+# Dense urban Oakland / Berkeley ZIP codes
+_DENSE_OAKLAND_ZIPS = {
+    "94601", "94602", "94603", "94605", "94606", "94607", "94608",
+    "94609", "94610", "94611", "94612", "94613", "94618", "94619",
+    "94621", "94702", "94703", "94704", "94705", "94706", "94707",
+    "94708", "94709", "94710",
+}
+
+_DENSE_ZIPS = _DENSE_SF_ZIPS | _DENSE_OAKLAND_ZIPS
+
+# Suburban Bay Area ZIP codes (Peninsula, South Bay, East Bay suburbs)
+_SUBURBAN_BAY_AREA_ZIPS = {
+    # Marin
+    "94901", "94903", "94904", "94920", "94924", "94925", "94930",
+    "94939", "94941", "94945", "94947", "94949", "94960", "94965",
+    # Peninsula / South Bay
+    "94002", "94005", "94010", "94014", "94015", "94019", "94025",
+    "94027", "94028", "94030", "94044", "94061", "94062", "94063",
+    "94065", "94066", "94070", "94080", "94401", "94402", "94403",
+    "94404", "94501", "94502", "94506", "94507", "94509", "94513",
+    "94514", "94516", "94517", "94518", "94519", "94520", "94521",
+    "94523", "94526", "94528", "94530", "94531", "94536", "94538",
+    "94539", "94541", "94542", "94544", "94545", "94546", "94547",
+    "94549", "94550", "94551", "94552", "94553", "94555", "94556",
+    "94558", "94559", "94561", "94563", "94564", "94565", "94566",
+    "94568", "94569", "94572", "94577", "94578", "94579", "94580",
+    "94582", "94583", "94585", "94586", "94587", "94588", "94595",
+    "94596", "94597", "94598",
+    # Santa Clara County
+    "94022", "94024", "94035", "94040", "94041", "94043", "94301",
+    "94302", "94303", "94304", "94305", "94306", "94086", "94087",
+    "94088", "94089", "95002", "95008", "95013", "95014", "95020",
+    "95032", "95035", "95037", "95046", "95050", "95051", "95054",
+    "95070", "95110", "95111", "95112", "95116", "95117", "95118",
+    "95119", "95120", "95121", "95122", "95123", "95124", "95125",
+    "95126", "95127", "95128", "95129", "95130", "95131", "95132",
+    "95133", "95134", "95135", "95136", "95138", "95139", "95148",
+}
+
+
+def _adaptive_radius(zip_code: str) -> float:
+    """
+    Return a search radius in miles appropriate for the zip code density.
+    - Dense SF/Oakland: 0.3 mi
+    - Suburban Bay Area: 0.75 mi
+    - Everything else: 1.0 mi
+    """
+    z = str(zip_code).strip()
+    if z in _DENSE_ZIPS:
+        return 0.3
+    if z in _SUBURBAN_BAY_AREA_ZIPS:
+        return 0.75
+    return 1.0
+
 
 # ---------------------------------------------------------------------------
 # Primary: homeharvest (Realtor.com + Redfin)
@@ -27,22 +111,28 @@ async def fetch_comps(
     city: str,
     state: str,
     zip_code: str,
+    subject_lat: float | None = None,
+    subject_lon: float | None = None,
+    subject_sqft: int | None = None,
     bedrooms: int | None = None,
-    radius_miles: float = 0.5,
     max_results: int = 10,
 ) -> list[dict[str, Any]]:
     """
     Search for recently sold comps near the subject property.
     Tries homeharvest first; falls back to Redfin Stingray if it fails.
+
+    Phase 4 additions:
+    - subject_lat/lon: used to compute per-comp distance_miles via haversine
+    - subject_sqft: when provided, filters comps to ±25% sqft of subject
+    - pct_over_asking: (sold_price - list_price) / list_price * 100, or None
+    - distance_miles: haversine distance from subject, or None when comp lacks coords
     """
     location = f"{city}, {state} {zip_code}".strip()
 
     try:
-        comps = await asyncio.to_thread(
-            _homeharvest_comps, location, bedrooms, max_results
-        )
-        if comps:
-            return comps
+        df = await asyncio.to_thread(_scrape_homeharvest_comps, location, bedrooms, max_results)
+        if df is not None and not df.empty:
+            return _process_df(df, subject_lat, subject_lon, subject_sqft, max_results)
     except Exception:
         pass
 
@@ -57,13 +147,9 @@ async def fetch_comps(
     return []
 
 
-def _homeharvest_comps(
-    location: str,
-    bedrooms: int | None,
-    max_results: int,
-) -> list[dict[str, Any]]:
-    """Synchronous — run via asyncio.to_thread."""
-    from homeharvest import scrape_property  # import here; heavy dependency
+def _scrape_homeharvest_comps(location: str, bedrooms: int | None, max_results: int):
+    """Synchronous — run via asyncio.to_thread. Returns a DataFrame or None."""
+    from homeharvest import scrape_property
 
     df = scrape_property(
         listing_type="sold",
@@ -73,29 +159,71 @@ def _homeharvest_comps(
     )
 
     if df is None or df.empty:
-        return []
+        return df
 
     if bedrooms is not None:
         df = df[df["beds"].between(bedrooms - 1, bedrooms + 1, inclusive="both")]
 
+    return df
+
+
+def _process_df(
+    df,
+    subject_lat: float | None,
+    subject_lon: float | None,
+    subject_sqft: int | None,
+    max_results: int,
+) -> list[dict[str, Any]]:
+    """Convert homeharvest DataFrame to list of comp dicts with Phase 4 enrichments."""
     comps = []
-    for _, row in df.head(max_results).iterrows():
+    for _, row in df.iterrows():
         sqft = _safe(row, "sqft")
+
+        # sqft similarity filter (±25%) — only when subject_sqft provided
+        if subject_sqft is not None and sqft is not None:
+            if abs(sqft - subject_sqft) / subject_sqft > 0.25:
+                continue
+
         sold_price = _safe(row, "sold_price") or _safe(row, "list_price")
+        list_price = _safe(row, "list_price")
+
+        # pct_over_asking
+        if sold_price is not None and list_price is not None and list_price != 0:
+            pct_over_asking = round((sold_price - list_price) / list_price * 100, 2)
+        else:
+            pct_over_asking = None
+
+        # distance_miles
+        comp_lat = _safe(row, "latitude")
+        comp_lon = _safe(row, "longitude")
+        if subject_lat is not None and subject_lon is not None and comp_lat is not None and comp_lon is not None:
+            distance_miles = round(_haversine(subject_lat, subject_lon, comp_lat, comp_lon), 4)
+        else:
+            distance_miles = None
+
         comps.append({
             "address": _safe(row, "street", ""),
             "city": _safe(row, "city", ""),
             "state": _safe(row, "state", ""),
             "zip_code": _safe(row, "zip_code", ""),
             "sold_price": sold_price,
+            "list_price": list_price,
             "sold_date": str(_safe(row, "sold_date", "")),
             "bedrooms": _safe(row, "beds"),
             "bathrooms": (_safe(row, "full_baths") or 0) + (_safe(row, "half_baths") or 0) * 0.5 or None,
             "sqft": sqft,
             "price_per_sqft": round(sold_price / sqft, 2) if sold_price and sqft else None,
             "url": _safe(row, "property_url", ""),
+            "latitude": comp_lat,
+            "longitude": comp_lon,
+            "pct_over_asking": pct_over_asking,
+            "distance_miles": distance_miles,
             "source": "homeharvest",
         })
+
+        if len(comps) >= max_results:
+            break
+
     return comps
 
 
@@ -160,26 +288,22 @@ async def _stingray_comps(
     """
     Call the Redfin Stingray /gis-csv endpoint with a bounding-box polygon
     generated by shapely. Returns recently sold comps as structured dicts.
-
-    The `poly` param is a URL-encoded WKT POLYGON string.
-    Degrees-per-mile at ~45° lat: 1° lat ≈ 69 mi, 1° lng ≈ 49 mi.
     """
-    # Convert radius to approximate degree offsets
-    lat_offset = 0.5 / 69.0   # ~0.5 mile in latitude degrees
-    lng_offset = 0.5 / 49.0   # ~0.5 mile in longitude degrees
+    lat_offset = 0.5 / 69.0
+    lng_offset = 0.5 / 49.0
 
     bbox = Point(lng, lat).buffer(
         max(lat_offset, lng_offset),
-        cap_style=3,  # square cap → rectangular bbox
+        cap_style=3,
     )
     wkt_poly = bbox.wkt
 
     params: dict[str, Any] = {
-        "status_type": 2,            # sold
+        "status_type": 2,
         "num_homes": min(max_results, 350),
         "sold_within_days": 180,
         "poly": wkt_poly,
-        "sf": "1,2,3,6,13",         # house, condo, townhouse, multi-family, mobile
+        "sf": "1,2,3,6,13",
     }
     if bedrooms:
         params["num_beds"] = bedrooms
@@ -215,12 +339,17 @@ def _parse_stingray_csv(text: str, max_results: int) -> list[dict[str, Any]]:
                 "state": row.get("STATE OR PROVINCE", ""),
                 "zip_code": row.get("ZIP OR POSTAL CODE", ""),
                 "sold_price": sold_price,
+                "list_price": None,
                 "sold_date": row.get("SOLD DATE", ""),
                 "bedrooms": _int(row.get("BEDS")),
                 "bathrooms": _float(row.get("BATHS")),
                 "sqft": sqft,
                 "price_per_sqft": round(sold_price / sqft, 2) if sold_price and sqft else None,
                 "url": row.get("URL (SEE https://www.redfin.com/buy-a-home/comparative-market-analysis FOR INFO ON PRICING)", ""),
+                "latitude": None,
+                "longitude": None,
+                "pct_over_asking": None,
+                "distance_miles": None,
                 "source": "redfin_stingray",
             })
         except (ValueError, TypeError):

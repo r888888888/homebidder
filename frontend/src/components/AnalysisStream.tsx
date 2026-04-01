@@ -1,6 +1,7 @@
 import type { AnalysisEvent } from "../routes/index";
 import { PropertySummaryCard, type PropertyData } from "./PropertySummaryCard";
 import { NeighborhoodCard, type NeighborhoodData } from "./NeighborhoodCard";
+import { CompsCard, type CompData } from "./CompsCard";
 
 interface Props {
   events: AnalysisEvent[];
@@ -30,6 +31,11 @@ export function AnalysisStream({ events, isRunning }: Props) {
   );
   const neighborhoodData = neighborhoodEvent?.result as NeighborhoodData | undefined;
 
+  const compsEvent = events.find(
+    (e) => e.type === "tool_result" && e.tool === "fetch_comps"
+  );
+  const compsData = compsEvent?.result as CompData[] | undefined;
+
   return (
     <div className="space-y-4 fade-up">
       {/* Property summary card */}
@@ -43,6 +49,9 @@ export function AnalysisStream({ events, isRunning }: Props) {
           neighborhoodName={(propertyData?.neighborhoods as string | null) ?? null}
         />
       )}
+
+      {/* Comps table */}
+      {compsData && <CompsCard comps={compsData} />}
 
       {/* Agent step progress */}
       {toolCalls.length > 0 && (

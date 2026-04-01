@@ -76,17 +76,23 @@ TOOLS: list[anthropic.types.ToolParam] = [
     },
     {
         "name": "fetch_comps",
-        "description": "Search for recently sold comparable properties near the subject address. Returns a list of comp sales with price, sqft, and price-per-sqft.",
+        "description": (
+            "Search for recently sold comparable properties near the subject address. "
+            "Returns comps with sold_price, sqft, price_per_sqft, pct_over_asking, and distance_miles. "
+            "Pass subject_lat, subject_lon from lookup_property_by_address and subject_sqft when known."
+        ),
         "input_schema": {
             "type": "object",
             "properties": {
-                "address": {"type": "string"},
-                "city": {"type": "string"},
-                "state": {"type": "string"},
-                "zip_code": {"type": "string"},
-                "bedrooms": {"type": "integer", "description": "Filter comps to similar bedroom count"},
-                "radius_miles": {"type": "number", "default": 0.5},
-                "max_results": {"type": "integer", "default": 10},
+                "address":      {"type": "string"},
+                "city":         {"type": "string"},
+                "state":        {"type": "string"},
+                "zip_code":     {"type": "string"},
+                "subject_lat":  {"type": "number", "description": "Subject property latitude from lookup_property_by_address"},
+                "subject_lon":  {"type": "number", "description": "Subject property longitude from lookup_property_by_address"},
+                "subject_sqft": {"type": "integer", "description": "Subject sqft; filters comps to ±25% when provided"},
+                "bedrooms":     {"type": "integer", "description": "Filter comps to similar bedroom count"},
+                "max_results":  {"type": "integer", "default": 10},
             },
             "required": ["address", "city", "state", "zip_code"],
         },
@@ -138,7 +144,7 @@ async def _dispatch_tool(name: str, inputs: dict) -> tuple[str, dict | None]:
         return json.dumps(result), result
     elif name == "fetch_comps":
         result = await fetch_comps(**inputs)
-        return json.dumps(result), None
+        return json.dumps(result), result
     elif name == "analyze_market":
         result = analyze_market(**inputs)
         return json.dumps(result), None

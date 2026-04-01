@@ -10,7 +10,7 @@ export interface AnalysisEvent {
   text?: string;
   tool?: string;
   input?: Record<string, unknown>;
-  result?: Record<string, unknown>;
+  result?: Record<string, unknown> | unknown[];
   retry_after?: number | null;
 }
 
