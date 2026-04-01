@@ -1,17 +1,17 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AnalysisForm } from "../components/AnalysisForm";
-import { AnalysisStream } from "../components/AnalysisStream";
 
 export const Route = createFileRoute("/")({
   component: HomePage,
 });
 
 export interface AnalysisEvent {
-  type: "status" | "tool_call" | "text" | "done";
+  type: "status" | "tool_call" | "tool_result" | "text" | "error" | "done";
   text?: string;
   tool?: string;
   input?: Record<string, unknown>;
+  result?: Record<string, unknown>;
+  retry_after?: number | null;
 }
 
 const FEATURES = [
@@ -42,52 +42,10 @@ const HOW_IT_WORKS = [
 ];
 
 function HomePage() {
-  const [events, setEvents] = useState<AnalysisEvent[]>([]);
-  const [isRunning, setIsRunning] = useState(false);
-  const hasResults = events.length > 0;
+  const navigate = useNavigate();
 
-  async function handleSubmit(address: string, buyerContext: string) {
-    setEvents([]);
-    setIsRunning(true);
-
-    const apiBase = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
-    const res = await fetch(`${apiBase}/api/analyze`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ address, buyer_context: buyerContext }),
-    });
-
-    if (!res.ok || !res.body) {
-      setEvents([{ type: "text", text: `Error: ${res.statusText}` }]);
-      setIsRunning(false);
-      return;
-    }
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
-
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-        try {
-          const event: AnalysisEvent = JSON.parse(line.slice(6));
-          setEvents((prev) => [...prev, event]);
-          if (event.type === "done") setIsRunning(false);
-        } catch {
-          // skip malformed
-        }
-      }
-    }
-
-    setIsRunning(false);
+  function handleSubmit(address: string, buyerContext: string) {
+    navigate({ to: "/analysis", search: { address, buyerContext } });
   }
 
   return (
@@ -120,8 +78,19 @@ function HomePage() {
 
           {/* Form card */}
           <div className="card w-full p-6 sm:p-8">
-            <AnalysisForm onSubmit={handleSubmit} isRunning={isRunning} />
+            <AnalysisForm onSubmit={handleSubmit} isRunning={false} />
           </div>
+
+          {/* Dev shortcut — only rendered in development builds */}
+          {import.meta.env.DEV && (
+            <button
+              type="button"
+              onClick={() => handleSubmit("327 Brazil Ave, San Francisco, CA 94112", "")}
+              className="mt-4 rounded-lg border border-dashed border-white/20 bg-white/5 px-4 py-1.5 text-xs text-white/50 hover:border-white/40 hover:text-white/70"
+            >
+              Dev: analyze 327 Brazil Ave
+            </button>
+          )}
 
           {/* Feature chips */}
           <div className="mt-6 flex flex-wrap justify-center gap-2">
@@ -138,34 +107,24 @@ function HomePage() {
       </section>
 
       <div className="page-wrap py-14">
-        {/* Results */}
-        {hasResults && (
-          <section className="mb-14">
-            <AnalysisStream events={events} isRunning={isRunning} />
-          </section>
-        )}
-
-        {/* How it works */}
-        {!hasResults && (
-          <section>
-            <h2 className="display-title mb-8 text-center text-2xl font-bold text-[var(--ink)] sm:text-3xl">
-              How it works
-            </h2>
-            <div className="grid gap-4 sm:grid-cols-3">
-              {HOW_IT_WORKS.map(({ step, title, body }) => (
-                <div key={step} className="card p-6">
-                  <div className="mb-4 flex h-9 w-9 items-center justify-center rounded-full bg-[var(--navy)] text-sm font-bold text-white">
-                    {step}
-                  </div>
-                  <h3 className="mb-2 text-base font-semibold text-[var(--ink)]">
-                    {title}
-                  </h3>
-                  <p className="text-sm leading-relaxed text-[var(--ink-soft)]">{body}</p>
+        <section>
+          <h2 className="display-title mb-8 text-center text-2xl font-bold text-[var(--ink)] sm:text-3xl">
+            How it works
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-3">
+            {HOW_IT_WORKS.map(({ step, title, body }) => (
+              <div key={step} className="card p-6">
+                <div className="mb-4 flex h-9 w-9 items-center justify-center rounded-full bg-[var(--navy)] text-sm font-bold text-white">
+                  {step}
                 </div>
-              ))}
-            </div>
-          </section>
-        )}
+                <h3 className="mb-2 text-base font-semibold text-[var(--ink)]">
+                  {title}
+                </h3>
+                <p className="text-sm leading-relaxed text-[var(--ink-soft)]">{body}</p>
+              </div>
+            ))}
+          </div>
+        </section>
       </div>
     </>
   );

@@ -1,5 +1,7 @@
+import logging
 import os
 from contextlib import asynccontextmanager
+from logging.handlers import RotatingFileHandler
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
@@ -9,6 +11,18 @@ from db import init_db
 from api.routes import router
 
 load_dotenv()
+
+_fmt = logging.Formatter("%(asctime)s %(levelname)-8s %(name)s  %(message)s")
+_file_handler = RotatingFileHandler(
+    os.getenv("LOG_FILE", "homebidder.log"),
+    maxBytes=5 * 1024 * 1024,  # 5 MB per file
+    backupCount=3,
+)
+_file_handler.setFormatter(_fmt)
+_console_handler = logging.StreamHandler()
+_console_handler.setFormatter(_fmt)
+
+logging.basicConfig(level=logging.DEBUG, handlers=[_console_handler, _file_handler])
 
 
 @asynccontextmanager

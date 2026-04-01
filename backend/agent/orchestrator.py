@@ -6,12 +6,15 @@ and feed results back until Claude produces a final recommendation.
 """
 
 import json
+import logging
 import os
 from typing import AsyncIterator
 
 import anthropic
 
-from .tools.scraper import scrape_listing
+log = logging.getLogger(__name__)
+
+from .tools.property_lookup import lookup_property_by_address
 from .tools.comps import fetch_comps
 from .tools.pricing import analyze_market, recommend_offer
 
@@ -20,7 +23,7 @@ MODEL = "claude-sonnet-4-6"
 SYSTEM_PROMPT = """You are HomeBidder, an expert real estate analyst helping home buyers make competitive, data-driven offers in the SF Bay Area.
 
 Your job:
-1. Look up the property by address to understand the listing details.
+1. Call lookup_property_by_address to geocode the address and retrieve listing details.
 2. Fetch comparable sold listings (comps) nearby.
 3. Analyze the comp market data statistically.
 4. Recommend a realistic offer price range with clear rationale.
@@ -31,14 +34,23 @@ Always present: a low (conservative), recommended, and high (aggressive) offer f
 
 TOOLS: list[anthropic.types.ToolParam] = [
     {
-        "name": "scrape_listing",
-        "description": "Scrape a Zillow or Redfin listing URL to extract property details (price, beds, baths, sqft, year built, description, etc.).",
+        "name": "lookup_property_by_address",
+        "description": (
+            "Geocode a free-text address via the Census Geocoder, then scrape listing "
+            "details from Realtor.com/Redfin via homeharvest. Falls back to RentCast AVM "
+            "for unlisted/off-market properties. Returns matched address, coordinates, "
+            "price, beds/baths/sqft, year built, lot size, property type, HOA fee, "
+            "days on market, price history, and AVM estimate."
+        ),
         "input_schema": {
             "type": "object",
             "properties": {
-                "url": {"type": "string", "description": "Full URL of the listing page"},
+                "address": {
+                    "type": "string",
+                    "description": "Free-text address string, e.g. '450 Sanchez St, San Francisco, CA 94114'",
+                },
             },
-            "required": ["url"],
+            "required": ["address"],
         },
     },
     {
@@ -79,7 +91,7 @@ TOOLS: list[anthropic.types.ToolParam] = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "listing": {"type": "object", "description": "Listing data from scrape_listing"},
+                "listing": {"type": "object", "description": "Listing data from lookup_property_by_address"},
                 "market_stats": {"type": "object", "description": "Output of analyze_market"},
                 "buyer_context": {
                     "type": "string",
@@ -92,18 +104,26 @@ TOOLS: list[anthropic.types.ToolParam] = [
 ]
 
 
-async def _dispatch_tool(name: str, inputs: dict) -> str:
-    if name == "scrape_listing":
-        result = await scrape_listing(**inputs)
+async def _dispatch_tool(name: str, inputs: dict) -> tuple[str, dict | None]:
+    """
+    Dispatch a tool call and return (json_result_string, parsed_result_or_None).
+    parsed_result is set for tools whose result should be streamed as tool_result events.
+    """
+    if name == "lookup_property_by_address":
+        result = await lookup_property_by_address(**inputs)
+        return json.dumps(result), result
     elif name == "fetch_comps":
         result = await fetch_comps(**inputs)
+        return json.dumps(result), None
     elif name == "analyze_market":
         result = analyze_market(**inputs)
+        return json.dumps(result), None
     elif name == "recommend_offer":
         result = recommend_offer(**inputs)
+        return json.dumps(result), None
     else:
         result = {"error": f"Unknown tool: {name}"}
-    return json.dumps(result)
+        return json.dumps(result), None
 
 
 async def run_agent(address: str, buyer_context: str = "") -> AsyncIterator[str]:
@@ -127,13 +147,34 @@ async def run_agent(address: str, buyer_context: str = "") -> AsyncIterator[str]
     yield f"data: {json.dumps({'type': 'status', 'text': 'Starting analysis...'})}\n\n"
 
     while True:
-        response = await client.messages.create(
-            model=MODEL,
-            max_tokens=4096,
-            system=SYSTEM_PROMPT,
-            tools=TOOLS,
-            messages=messages,
-        )
+        try:
+            response = await client.messages.create(
+                model=MODEL,
+                max_tokens=4096,
+                system=SYSTEM_PROMPT,
+                tools=TOOLS,
+                messages=messages,
+            )
+        except anthropic.RateLimitError as exc:
+            retry_after: int | None = None
+            try:
+                retry_after = int(exc.response.headers.get("retry-after", ""))
+            except (AttributeError, ValueError):
+                pass
+
+            log.warning("Anthropic rate limit hit (retry-after=%s)", retry_after)
+
+            msg = (
+                "The analysis service is currently at capacity. "
+                + (f"Please try again in {retry_after} seconds." if retry_after else "Please try again in a moment.")
+            )
+            yield f"data: {json.dumps({'type': 'error', 'text': msg, 'retry_after': retry_after})}\n\n"
+            break
+
+        except anthropic.BadRequestError as exc:
+            log.error("Anthropic bad request (400): %s", exc.message)
+            yield f"data: {json.dumps({'type': 'error', 'text': 'The request could not be completed. Please try a different address or contact support if the problem persists.', 'retry_after': None})}\n\n"
+            break
 
         # Stream any text content to client
         for block in response.content:
@@ -148,7 +189,15 @@ async def run_agent(address: str, buyer_context: str = "") -> AsyncIterator[str]
             for block in response.content:
                 if block.type == "tool_use":
                     yield f"data: {json.dumps({'type': 'tool_call', 'tool': block.name, 'input': block.input})}\n\n"
-                    result_str = await _dispatch_tool(block.name, block.input)
+                    try:
+                        result_str, parsed = await _dispatch_tool(block.name, block.input)
+                    except Exception as exc:
+                        log.error("Tool %r raised: %s", block.name, exc, exc_info=True)
+                        result_str = json.dumps({"error": f"Tool '{block.name}' failed: {exc}"})
+                        parsed = None
+                    # Emit structured tool_result event so the frontend can render cards
+                    if parsed is not None:
+                        yield f"data: {json.dumps({'type': 'tool_result', 'tool': block.name, 'result': parsed})}\n\n"
                     tool_results.append({
                         "type": "tool_result",
                         "tool_use_id": block.id,
