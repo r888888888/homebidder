@@ -85,10 +85,10 @@ function HomePage() {
           {import.meta.env.DEV && (
             <button
               type="button"
-              onClick={() => handleSubmit("327 Brazil Ave, San Francisco, CA 94112", "")}
+              onClick={() => handleSubmit("319 Plymouth Ave, San Francisco, CA 94112", "")}
               className="mt-4 rounded-lg border border-dashed border-white/20 bg-white/5 px-4 py-1.5 text-xs text-white/50 hover:border-white/40 hover:text-white/70"
             >
-              Dev: analyze 327 Brazil Ave
+              Dev: analyze 310 Plymouth Ave
             </button>
           )}
 
