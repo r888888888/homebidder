@@ -49,13 +49,17 @@ function domLabel(listDate: string | null, daysOnMarket: number | null): string 
     // Parse as UTC (homeharvest timestamps are UTC)
     const listedAt = new Date(listDate.replace(" ", "T") + "Z");
     const hoursAgo = (Date.now() - listedAt.getTime()) / (1000 * 60 * 60);
+    if (hoursAgo < 1) return "< 1 hr";
     if (hoursAgo < 24) {
       const h = Math.floor(hoursAgo);
-      return h < 1 ? "< 1 hr" : `${h} hr${h === 1 ? "" : "s"}`;
+      return `${h} hr${h === 1 ? "" : "s"}`;
     }
+    // Use list_date-derived days rather than homeharvest's integer (which can be 0 for 25h listings)
+    const d = Math.floor(hoursAgo / 24);
+    return `${d} day${d === 1 ? "" : "s"}`;
   }
   if (daysOnMarket == null) return "—";
-  return String(daysOnMarket);
+  return `${daysOnMarket} day${daysOnMarket === 1 ? "" : "s"}`;
 }
 
 function avmDelta(price: number | null, avm: number | null): string | null {

@@ -54,9 +54,8 @@ describe("PropertySummaryCard", () => {
 
   it("renders days on market", () => {
     render(<PropertySummaryCard property={BASE_PROPERTY} />);
-    // DOM label is "Days on Market" and value "5" — find the dd sibling
     const dt = screen.getByText(/days on market/i);
-    expect(dt.nextElementSibling?.textContent).toBe("5");
+    expect(dt.nextElementSibling?.textContent).toBe("5 days");
   });
 
   it("renders AVM estimate", () => {
@@ -125,8 +124,8 @@ describe("PropertySummaryCard — hours on market", () => {
         property={{ ...BASE_PROPERTY, list_date: listDate, days_on_market: 3 }}
       />
     );
-    // Should show days, not hours
-    expect(screen.queryByText(/\d+\s*h(r|our)/i)).not.toBeInTheDocument();
+    const dt = screen.getByText(/days on market/i);
+    expect(dt.nextElementSibling?.textContent).toMatch(/3 days/);
   });
 
   it("falls back to days_on_market when list_date is null", () => {
@@ -136,7 +135,7 @@ describe("PropertySummaryCard — hours on market", () => {
       />
     );
     const dt = screen.getByText(/days on market/i);
-    expect(dt.nextElementSibling?.textContent).toMatch(/7/);
+    expect(dt.nextElementSibling?.textContent).toMatch(/7 days/);
   });
 });
 
