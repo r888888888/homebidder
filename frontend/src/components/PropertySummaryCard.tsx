@@ -14,6 +14,7 @@ export interface PropertyData {
   property_type: string | null;
   hoa_fee: number | null;
   days_on_market: number | null;
+  list_date: string | null;
   price_history: unknown[];
   avm_estimate: number | null;
   source: string;
@@ -35,6 +36,24 @@ function formatPropertyType(raw: string | null | undefined): string {
     .replace(/_/g, " ")
     .toLowerCase()
     .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/**
+ * Returns a human-friendly time-on-market string.
+ * Uses list_date for sub-day precision; falls back to days_on_market.
+ */
+function domLabel(listDate: string | null, daysOnMarket: number | null): string {
+  if (listDate) {
+    // Parse as UTC (homeharvest timestamps are UTC)
+    const listedAt = new Date(listDate.replace(" ", "T") + "Z");
+    const hoursAgo = (Date.now() - listedAt.getTime()) / (1000 * 60 * 60);
+    if (hoursAgo < 24) {
+      const h = Math.floor(hoursAgo);
+      return h < 1 ? "< 1 hr" : `${h} hr${h === 1 ? "" : "s"}`;
+    }
+  }
+  if (daysOnMarket == null) return "—";
+  return String(daysOnMarket);
 }
 
 function avmDelta(price: number | null, avm: number | null): string | null {
@@ -100,7 +119,7 @@ export function PropertySummaryCard({ property }: Props) {
     { label: "Year Built", value: property.year_built ?? "—" },
     { label: "Lot Size (sqft)", value: property.lot_size != null ? fmt(property.lot_size) : "—" },
     { label: "Type", value: formatPropertyType(property.property_type) },
-    { label: "Days on Market", value: fmt(property.days_on_market) },
+    { label: "Days on Market", value: domLabel(property.list_date, property.days_on_market) },
   ];
 
   if (property.hoa_fee != null) {

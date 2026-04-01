@@ -19,6 +19,7 @@ const BASE_PROPERTY = {
   property_type: "SINGLE_FAMILY",
   hoa_fee: null,
   days_on_market: 5,
+  list_date: null,
   price_history: [],
   avm_estimate: 1_300_000,
   source: "homeharvest" as const,
@@ -87,6 +88,41 @@ describe("PropertySummaryCard", () => {
   it("renders lot size", () => {
     render(<PropertySummaryCard property={BASE_PROPERTY} />);
     expect(screen.getByText(/2,500/)).toBeInTheDocument();
+  });
+});
+
+describe("PropertySummaryCard — hours on market", () => {
+  it("shows hours when list_date is less than 24 hours ago", () => {
+    const recentDate = new Date(Date.now() - 5 * 60 * 60 * 1000); // 5 hours ago
+    const listDate = recentDate.toISOString().replace("T", " ").slice(0, 19);
+    render(
+      <PropertySummaryCard
+        property={{ ...BASE_PROPERTY, list_date: listDate, days_on_market: 0 }}
+      />
+    );
+    expect(screen.getByText(/5\s*h(r|our)/i)).toBeInTheDocument();
+  });
+
+  it("shows days when list_date is 2 or more days ago", () => {
+    const oldDate = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000); // 3 days ago
+    const listDate = oldDate.toISOString().replace("T", " ").slice(0, 19);
+    render(
+      <PropertySummaryCard
+        property={{ ...BASE_PROPERTY, list_date: listDate, days_on_market: 3 }}
+      />
+    );
+    // Should show days, not hours
+    expect(screen.queryByText(/\d+\s*h(r|our)/i)).not.toBeInTheDocument();
+  });
+
+  it("falls back to days_on_market when list_date is null", () => {
+    render(
+      <PropertySummaryCard
+        property={{ ...BASE_PROPERTY, list_date: null, days_on_market: 7 }}
+      />
+    );
+    const dt = screen.getByText(/days on market/i);
+    expect(dt.nextElementSibling?.textContent).toMatch(/7/);
   });
 });
 

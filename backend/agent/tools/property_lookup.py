@@ -65,6 +65,7 @@ async def lookup_property_by_address(address: str) -> dict[str, Any]:
         "property_type": listing.get("property_type"),
         "hoa_fee": listing.get("hoa_fee"),
         "days_on_market": listing.get("days_on_market"),
+        "list_date": listing.get("list_date"),
         "price_history": listing.get("price_history", []),
         # AVM
         "avm_estimate": avm,
@@ -125,16 +126,20 @@ async def _homeharvest_listing(matched_address: str) -> dict[str, Any]:
         return {}
 
     row = df.iloc[0]
+    full_baths = _safe(row, "full_baths") or 0
+    half_baths = _safe(row, "half_baths") or 0
+    list_date_raw = _safe(row, "list_date")
     return {
         "price": _safe(row, "list_price"),
         "bedrooms": _safe(row, "beds"),
-        "bathrooms": _safe(row, "baths"),
+        "bathrooms": full_baths + half_baths * 0.5 if (full_baths or half_baths) else None,
         "sqft": _safe(row, "sqft"),
         "year_built": _safe(row, "year_built"),
         "lot_size": _safe(row, "lot_sqft"),
         "property_type": _safe(row, "style", ""),
         "hoa_fee": _safe(row, "hoa_fee"),
-        "days_on_market": _safe(row, "days_on_market"),
+        "days_on_market": _safe(row, "days_on_mls"),
+        "list_date": str(list_date_raw) if list_date_raw is not None else None,
         "price_history": _safe(row, "price_history", []) or [],
         "source": "homeharvest",
     }
@@ -145,10 +150,9 @@ def _scrape_homeharvest(location: str):
     from homeharvest import scrape_property
 
     return scrape_property(
-        site_name=["realtor.com", "redfin"],
         listing_type="for_sale",
         location=location,
-        results_wanted=1,
+        limit=1,
     )
 
 
@@ -185,6 +189,7 @@ async def _rentcast_avm(matched_address: str) -> float | None:
 
 def _safe(row: Any, key: str, default: Any = None) -> Any:
     import pandas as pd
+    import numpy as np
     val = row.get(key, default)
     if val is None:
         return default
@@ -193,4 +198,9 @@ def _safe(row: Any, key: str, default: Any = None) -> Any:
             return default
     except (TypeError, ValueError):
         pass
+    # Coerce numpy scalars to native Python types so json.dumps works
+    if isinstance(val, np.integer):
+        return int(val)
+    if isinstance(val, np.floating):
+        return float(val)
     return val

@@ -35,13 +35,15 @@ HOMEHARVEST_ROW = {
     "zip_code": "94114",
     "list_price": 1_250_000.0,
     "beds": 3,
-    "baths": 2.0,
+    "full_baths": 2,
+    "half_baths": None,
     "sqft": 1800,
     "year_built": 1928,
     "lot_sqft": 2500,
     "style": "SINGLE_FAMILY",
     "hoa_fee": None,
-    "days_on_market": 5,
+    "days_on_mls": 5,
+    "list_date": "2026-03-27 10:00:00",
     "price_history": [],
     "property_url": "https://www.redfin.com/CA/San-Francisco/450-Sanchez-St",
 }
@@ -294,7 +296,7 @@ class TestResultStructure:
         required_keys = {
             "address_matched", "latitude", "longitude", "county", "state", "zip_code",
             "price", "bedrooms", "bathrooms", "sqft", "year_built", "lot_size",
-            "property_type", "hoa_fee", "days_on_market", "price_history",
+            "property_type", "hoa_fee", "days_on_market", "list_date", "price_history",
             "avm_estimate", "source",
         }
 
@@ -336,6 +338,33 @@ class TestHomeharvestListingHelper:
         assert result["price"] == 1_250_000.0
         assert result["bedrooms"] == 3
         assert result["year_built"] == 1928
+
+    async def test_list_date_included_in_result(self):
+        """_homeharvest_listing passes list_date through as a string."""
+        from agent.tools.property_lookup import _homeharvest_listing
+
+        df = _make_homeharvest_df([HOMEHARVEST_ROW])
+
+        with patch("agent.tools.property_lookup.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+
+            result = await _homeharvest_listing("450 SANCHEZ ST, SAN FRANCISCO, CA, 94114")
+
+        assert result["list_date"] == "2026-03-27 10:00:00"
+
+    async def test_list_date_is_none_when_missing(self):
+        """_homeharvest_listing returns list_date=None if the column is absent."""
+        from agent.tools.property_lookup import _homeharvest_listing
+
+        row_without_date = {k: v for k, v in HOMEHARVEST_ROW.items() if k != "list_date"}
+        df = _make_homeharvest_df([row_without_date])
+
+        with patch("agent.tools.property_lookup.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+
+            result = await _homeharvest_listing("450 SANCHEZ ST, SAN FRANCISCO, CA, 94114")
+
+        assert result["list_date"] is None
 
     async def test_homeharvest_listing_returns_empty_dict_when_df_empty(self):
         """_homeharvest_listing returns {} when homeharvest finds nothing."""

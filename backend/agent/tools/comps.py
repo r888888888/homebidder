@@ -66,11 +66,10 @@ def _homeharvest_comps(
     from homeharvest import scrape_property  # import here; heavy dependency
 
     df = scrape_property(
-        site_name=["realtor.com", "redfin"],
         listing_type="sold",
         location=location,
         past_days=180,
-        results_wanted=max_results * 3,  # oversample, then filter
+        limit=max_results * 3,  # oversample, then filter
     )
 
     if df is None or df.empty:
@@ -91,7 +90,7 @@ def _homeharvest_comps(
             "sold_price": sold_price,
             "sold_date": str(_safe(row, "sold_date", "")),
             "bedrooms": _safe(row, "beds"),
-            "bathrooms": _safe(row, "baths"),
+            "bathrooms": (_safe(row, "full_baths") or 0) + (_safe(row, "half_baths") or 0) * 0.5 or None,
             "sqft": sqft,
             "price_per_sqft": round(sold_price / sqft, 2) if sold_price and sqft else None,
             "url": _safe(row, "property_url", ""),
@@ -103,6 +102,7 @@ def _homeharvest_comps(
 def _safe(row: Any, key: str, default: Any = None) -> Any:
     """Safely read a pandas Series value, returning default for NaN/None."""
     import pandas as pd
+    import numpy as np
     val = row.get(key, default)
     if val is None:
         return default
@@ -111,6 +111,10 @@ def _safe(row: Any, key: str, default: Any = None) -> Any:
             return default
     except (TypeError, ValueError):
         pass
+    if isinstance(val, np.integer):
+        return int(val)
+    if isinstance(val, np.floating):
+        return float(val)
     return val
 
 
