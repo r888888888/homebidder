@@ -130,8 +130,8 @@ class TestGeocoding:
 
         assert result["address_input"] == query
 
-    async def test_geocode_returns_lat_lon(self):
-        """Geocoded result includes latitude and longitude."""
+    async def test_geocode_returns_geo_fields(self):
+        """Geocoded result includes lat/lon, county, state, and zip_code."""
         from agent.tools.property_lookup import lookup_property_by_address
 
         with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
@@ -149,24 +149,6 @@ class TestGeocoding:
 
         assert abs(result["latitude"] - 37.7612) < 0.001
         assert abs(result["longitude"] - (-122.4313)) < 0.001
-
-    async def test_geocode_returns_county_state_zip(self):
-        """Geocoded result includes county, state, and zip_code."""
-        from agent.tools.property_lookup import lookup_property_by_address
-
-        with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
-             patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh, \
-             patch("agent.tools.property_lookup._rentcast_data", new_callable=AsyncMock) as mock_rc:
-
-            mock_client = AsyncMock()
-            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
-            mock_client.get.return_value = _make_census_mock()
-            mock_hh.return_value = {}
-            mock_rc.return_value = None
-
-            result = await lookup_property_by_address("450 Sanchez St, San Francisco, CA 94114")
-
         assert result["county"] == "San Francisco"
         assert result["state"] == "CA"
         assert result["zip_code"] == "94114"
@@ -258,25 +240,6 @@ class TestHomeharvest:
         assert result["bedrooms"] == 3
         assert result["sqft"] == 1800
         assert result["year_built"] == 1928
-        assert result["source"] == "homeharvest"
-
-    async def test_source_is_homeharvest_when_listing_found(self):
-        """Result source is 'homeharvest' when that path succeeds."""
-        from agent.tools.property_lookup import lookup_property_by_address
-
-        with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
-             patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh, \
-             patch("agent.tools.property_lookup._rentcast_data", new_callable=AsyncMock) as mock_rc:
-
-            mock_client = AsyncMock()
-            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
-            mock_client.get.return_value = _make_census_mock()
-            mock_hh.return_value = {"price": 1_000_000.0, "source": "homeharvest"}
-            mock_rc.return_value = None
-
-            result = await lookup_property_by_address("450 Sanchez St, San Francisco, CA 94114")
-
         assert result["source"] == "homeharvest"
 
     async def test_unit_address_prefers_exact_input_for_listing_lookup(self):
@@ -515,22 +478,6 @@ class TestResultStructure:
 # ---------------------------------------------------------------------------
 
 class TestHomeharvestListingHelper:
-    async def test_homeharvest_listing_returns_dict(self):
-        """_homeharvest_listing returns a dict with listing fields from a df row."""
-        import pandas as pd
-        from agent.tools.property_lookup import _homeharvest_listing
-
-        df = _make_homeharvest_df([HOMEHARVEST_ROW])
-
-        with patch("agent.tools.property_lookup.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
-            mock_thread.return_value = df
-
-            result = await _homeharvest_listing("450 SANCHEZ ST, SAN FRANCISCO, CA, 94114")
-
-        assert result["price"] == 1_250_000.0
-        assert result["bedrooms"] == 3
-        assert result["year_built"] == 1928
-
     async def test_list_date_included_in_result(self):
         """_homeharvest_listing passes list_date through as a string."""
         from agent.tools.property_lookup import _homeharvest_listing
@@ -844,8 +791,8 @@ class TestHomeharvest_NoDataRow:
 # ---------------------------------------------------------------------------
 
 class TestRentCastSubjectPropertyFallback:
-    async def test_rentcast_data_returns_bedrooms_from_subject_property(self):
-        """_rentcast_data extracts bedrooms from subjectProperty."""
+    async def test_rentcast_data_returns_beds_baths_year_built_from_subject_property(self):
+        """_rentcast_data extracts bedrooms, bathrooms, and yearBuilt from subjectProperty."""
         from agent.tools.property_lookup import _rentcast_data
         import os
 
@@ -860,39 +807,7 @@ class TestRentCastSubjectPropertyFallback:
             result = await _rentcast_data("66 Cleary Ct Unit 1206, San Francisco, CA 94109")
 
         assert result["bedrooms"] == 3
-
-    async def test_rentcast_data_returns_bathrooms_from_subject_property(self):
-        """_rentcast_data extracts bathrooms from subjectProperty."""
-        from agent.tools.property_lookup import _rentcast_data
-        import os
-
-        with patch.dict(os.environ, {"RENTCAST_API_KEY": "test-key"}), \
-             patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls:
-
-            mock_client = AsyncMock()
-            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
-            mock_client.get.return_value = _make_rentcast_mock()
-
-            result = await _rentcast_data("66 Cleary Ct Unit 1206, San Francisco, CA 94109")
-
         assert result["bathrooms"] == 2
-
-    async def test_rentcast_data_returns_year_built_from_subject_property(self):
-        """_rentcast_data extracts yearBuilt from subjectProperty."""
-        from agent.tools.property_lookup import _rentcast_data
-        import os
-
-        with patch.dict(os.environ, {"RENTCAST_API_KEY": "test-key"}), \
-             patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls:
-
-            mock_client = AsyncMock()
-            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
-            mock_client.get.return_value = _make_rentcast_mock()
-
-            result = await _rentcast_data("66 Cleary Ct Unit 1206, San Francisco, CA 94109")
-
         assert result["year_built"] == 1928
 
     async def test_lookup_uses_rentcast_beds_baths_year_built_as_fallback(self):

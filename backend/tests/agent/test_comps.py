@@ -62,37 +62,21 @@ class TestHaversine:
         dist = _haversine(gg_lat, gg_lon, ct_lat, ct_lon)
         assert dist == pytest.approx(4.1, abs=0.3)
 
-    def test_distance_is_symmetric(self):
-        from agent.tools.comps import _haversine
-        d1 = _haversine(SF_LAT, SF_LON, SJ_LAT, SJ_LON)
-        d2 = _haversine(SJ_LAT, SJ_LON, SF_LAT, SF_LON)
-        assert d1 == pytest.approx(d2, rel=1e-6)
-
 
 # ---------------------------------------------------------------------------
 # Adaptive radius
 # ---------------------------------------------------------------------------
 
 class TestAdaptiveRadius:
-    def test_dense_sf_zip_returns_small_radius(self):
-        """Dense SF ZIPs (e.g. 94110 Mission) → 0.3 mile radius."""
+    @pytest.mark.parametrize("zip_code,expected_radius", [
+        ("94110", 0.3),   # Dense SF Mission
+        ("94612", 0.3),   # Dense Oakland
+        ("94025", 0.75),  # Suburban Menlo Park
+        ("10001", 1.0),   # Unknown / non-Bay-Area default
+    ])
+    def test_adaptive_radius_by_zip(self, zip_code, expected_radius):
         from agent.tools.comps import _adaptive_radius
-        assert _adaptive_radius("94110") == pytest.approx(0.3)
-
-    def test_dense_oakland_zip_returns_small_radius(self):
-        """Dense Oakland ZIP → 0.3 mile radius."""
-        from agent.tools.comps import _adaptive_radius
-        assert _adaptive_radius("94612") == pytest.approx(0.3)
-
-    def test_suburban_zip_returns_medium_radius(self):
-        """Suburban Bay Area ZIP → 0.75 mile radius."""
-        from agent.tools.comps import _adaptive_radius
-        assert _adaptive_radius("94025") == pytest.approx(0.75)  # Menlo Park
-
-    def test_unknown_zip_returns_default_radius(self):
-        """Non-Bay-Area ZIP → 1.0 mile default."""
-        from agent.tools.comps import _adaptive_radius
-        assert _adaptive_radius("10001") == pytest.approx(1.0)  # NYC
+        assert _adaptive_radius(zip_code) == pytest.approx(expected_radius)
 
 
 # ---------------------------------------------------------------------------

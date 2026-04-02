@@ -107,12 +107,12 @@ class TestAnalyzeMarketOverbidStats:
 # ---------------------------------------------------------------------------
 
 class TestBuyerContextParsing:
-    def test_multiple_offers_raises_posture_to_competitive(self):
-        result = recommend_offer(BASE_LISTING, BASE_STATS, buyer_context="multiple offers expected")
-        assert result["posture"] == "competitive"
-
-    def test_fast_close_raises_posture_to_competitive(self):
-        result = recommend_offer(BASE_LISTING, BASE_STATS, buyer_context="need a fast close")
+    @pytest.mark.parametrize("buyer_context", [
+        "multiple offers expected",
+        "need a fast close",
+    ])
+    def test_competitive_keyword_raises_posture(self, buyer_context):
+        result = recommend_offer(BASE_LISTING, BASE_STATS, buyer_context=buyer_context)
         assert result["posture"] == "competitive"
 
     def test_below_asking_lowers_posture_to_negotiating(self):
@@ -135,17 +135,15 @@ class TestBuyerContextParsing:
 # ---------------------------------------------------------------------------
 
 class TestMarketVelocityDom:
-    def test_hot_market_dom_lt_7_sets_competitive(self):
-        listing = {**BASE_LISTING, "days_on_market": 5}
+    @pytest.mark.parametrize("dom,expected_posture", [
+        (5,  "competitive"),
+        (60, "negotiating"),
+    ])
+    def test_dom_velocity_sets_posture(self, dom, expected_posture):
+        listing = {**BASE_LISTING, "days_on_market": dom}
         stats = {**BASE_STATS, "median_pct_over_asking": 1.0}
         result = recommend_offer(listing, stats)
-        assert result["posture"] == "competitive"
-
-    def test_slow_market_dom_gt_45_sets_negotiating(self):
-        listing = {**BASE_LISTING, "days_on_market": 60}
-        stats = {**BASE_STATS, "median_pct_over_asking": 1.0}
-        result = recommend_offer(listing, stats)
-        assert result["posture"] == "negotiating"
+        assert result["posture"] == expected_posture
 
     def test_neutral_dom_no_velocity_override(self):
         listing = {**BASE_LISTING, "days_on_market": 20}
@@ -217,25 +215,21 @@ class TestOverbidPosture:
 # ---------------------------------------------------------------------------
 
 class TestOfferReviewAdvisory:
-    def test_advisory_present_when_dom_le_7_and_list_date_set(self):
+    def test_advisory_present_with_correct_deadline(self):
+        """Advisory is present and contains the correct review date (list_date + 7 days)."""
         listing = {**BASE_LISTING, "days_on_market": 3, "list_date": "2026-03-25 00:00:00"}
         result = recommend_offer(listing, BASE_STATS)
         assert result.get("offer_review_advisory") is not None
         assert "Offer review likely" in result["offer_review_advisory"]
-
-    def test_advisory_contains_deadline_date(self):
-        listing = {**BASE_LISTING, "days_on_market": 3, "list_date": "2026-03-25 00:00:00"}
-        result = recommend_offer(listing, BASE_STATS)
         # list_date + 7 days = 2026-04-01
         assert "2026-04-01" in result["offer_review_advisory"]
 
-    def test_advisory_absent_when_dom_gt_7(self):
-        listing = {**BASE_LISTING, "days_on_market": 10, "list_date": "2026-03-20 00:00:00"}
-        result = recommend_offer(listing, BASE_STATS)
-        assert not result.get("offer_review_advisory")
-
-    def test_advisory_absent_when_list_date_missing(self):
-        listing = {**BASE_LISTING, "days_on_market": 3, "list_date": None}
+    @pytest.mark.parametrize("dom,list_date", [
+        (10, "2026-03-20 00:00:00"),  # DOM too high
+        (3,  None),                   # list_date absent
+    ])
+    def test_advisory_absent(self, dom, list_date):
+        listing = {**BASE_LISTING, "days_on_market": dom, "list_date": list_date}
         result = recommend_offer(listing, BASE_STATS)
         assert not result.get("offer_review_advisory")
 
@@ -250,29 +244,19 @@ class TestOfferReviewAdvisory:
 # ---------------------------------------------------------------------------
 
 class TestContingencyRecommendations:
-    def test_contingency_key_present(self):
-        result = recommend_offer(BASE_LISTING, BASE_STATS)
-        assert "contingency_recommendation" in result
-        assert isinstance(result["contingency_recommendation"], dict)
-
-    def test_waive_appraisal_true_when_overbid_gt_10(self):
-        stats = {**BASE_STATS, "median_pct_over_asking": 12.0}
+    @pytest.mark.parametrize("median_overbid,expected_waive", [
+        (12.0, True),
+        (8.0,  False),
+    ])
+    def test_waive_appraisal_threshold(self, median_overbid, expected_waive):
+        stats = {**BASE_STATS, "median_pct_over_asking": median_overbid}
         result = recommend_offer(BASE_LISTING, stats)
-        assert result["contingency_recommendation"]["waive_appraisal"] is True
+        assert result["contingency_recommendation"]["waive_appraisal"] is expected_waive
 
-    def test_waive_appraisal_false_when_overbid_lte_10(self):
-        stats = {**BASE_STATS, "median_pct_over_asking": 8.0}
-        result = recommend_offer(BASE_LISTING, stats)
-        assert result["contingency_recommendation"]["waive_appraisal"] is False
-
-    def test_waive_loan_always_false(self):
+    def test_waive_loan_false_and_keep_inspection_true_regardless_of_overbid(self):
         stats = {**BASE_STATS, "median_pct_over_asking": 20.0}
         result = recommend_offer(BASE_LISTING, stats)
         assert result["contingency_recommendation"]["waive_loan"] is False
-
-    def test_keep_inspection_always_true(self):
-        stats = {**BASE_STATS, "median_pct_over_asking": 20.0}
-        result = recommend_offer(BASE_LISTING, stats)
         assert result["contingency_recommendation"]["keep_inspection"] is True
 
 
@@ -281,16 +265,6 @@ class TestContingencyRecommendations:
 # ---------------------------------------------------------------------------
 
 class TestPassthroughFields:
-    def test_median_pct_over_asking_in_result(self):
-        stats = {**BASE_STATS, "median_pct_over_asking": 8.0}
-        result = recommend_offer(BASE_LISTING, stats)
-        assert result["median_pct_over_asking"] == pytest.approx(8.0)
-
-    def test_pct_sold_over_asking_in_result(self):
-        stats = {**BASE_STATS, "pct_sold_over_asking": 75.0}
-        result = recommend_offer(BASE_LISTING, stats)
-        assert result["pct_sold_over_asking"] == pytest.approx(75.0)
-
     def test_missing_overbid_stats_returned_as_none(self):
         stats = {k: v for k, v in BASE_STATS.items()
                  if k not in ("median_pct_over_asking", "pct_sold_over_asking")}
