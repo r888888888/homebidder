@@ -5,6 +5,7 @@ Runs a tool-use loop: Claude decides which tools to call, we dispatch them,
 and feed results back until Claude produces a final recommendation.
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -18,6 +19,9 @@ from .tools.property_lookup import lookup_property_by_address
 from .tools.neighborhood import fetch_neighborhood_context
 from .tools.comps import fetch_comps
 from .tools.pricing import analyze_market, recommend_offer
+from .tools.market_trends import fetch_market_trends
+from .tools.fhfa import fetch_fhfa_hpi
+from .tools.ca_hazards import fetch_ca_hazard_zones
 
 MODEL = "claude-sonnet-4-6"
 
@@ -274,6 +278,50 @@ async def run_agent(address: str, buyer_context: str = "") -> AsyncIterator[str]
 
             if "lookup_property_by_address" in dispatched:
                 property_result = dispatched["lookup_property_by_address"]
+
+                # Phase 6: auto-fetch market trends, FHFA HPI, and CA hazard zones
+                # in parallel as soon as we have lat/lon and zip_code.
+                zip_code = property_result.get("zip_code")
+                lat = property_result.get("latitude")
+                lon = property_result.get("longitude")
+
+                if zip_code or (lat and lon):
+                    phase6_tasks = []
+                    if zip_code:
+                        phase6_tasks.append(fetch_market_trends(zip_code))
+                        phase6_tasks.append(fetch_fhfa_hpi(zip_code))
+                    else:
+                        phase6_tasks.extend([None, None])
+                    if lat and lon:
+                        phase6_tasks.append(fetch_ca_hazard_zones(lat, lon))
+                    else:
+                        phase6_tasks.append(None)
+
+                    # Run non-None tasks concurrently
+                    real_tasks = [t for t in phase6_tasks if t is not None]
+                    try:
+                        real_results = await asyncio.gather(*real_tasks, return_exceptions=True)
+                    except Exception:
+                        real_results = []
+
+                    result_iter = iter(real_results)
+
+                    trends_result = next(result_iter) if zip_code else None
+                    fhfa_result = next(result_iter) if zip_code else None
+                    hazard_result = next(result_iter) if (lat and lon) else None
+
+                    for tool_name, result in [
+                        ("fetch_market_trends", trends_result),
+                        ("fetch_fhfa_hpi", fhfa_result),
+                        ("fetch_ca_hazard_zones", hazard_result),
+                    ]:
+                        if result is None or isinstance(result, Exception):
+                            if isinstance(result, Exception):
+                                log.warning("Phase 6 tool %s failed: %s", tool_name, result)
+                            continue
+                        yield f"data: {json.dumps({'type': 'tool_call', 'tool': tool_name, 'input': {}})}\n\n"
+                        yield f"data: {json.dumps({'type': 'tool_result', 'tool': tool_name, 'result': result})}\n\n"
+                        log.info("Phase 6 auto-computed %s", tool_name)
 
             # Phase 2: auto-compute analyze_market + recommend_offer after comps arrive
             if "fetch_comps" in dispatched and not analysis_done:

@@ -106,8 +106,12 @@ class TestToolResultSseEvents:
             "source": "homeharvest",
         }
 
+        phase6_result = {"zip_code": "94114", "months": [], "trend": "flat"}
         with patch("agent.orchestrator.anthropic.AsyncAnthropic") as mock_cls, \
-             patch("agent.orchestrator.lookup_property_by_address", new_callable=AsyncMock) as mock_lookup:
+             patch("agent.orchestrator.lookup_property_by_address", new_callable=AsyncMock) as mock_lookup, \
+             patch("agent.orchestrator.fetch_market_trends", new_callable=AsyncMock, return_value=phase6_result), \
+             patch("agent.orchestrator.fetch_fhfa_hpi", new_callable=AsyncMock, return_value={"zip_code": "94114", "hpi_trend": "flat"}), \
+             patch("agent.orchestrator.fetch_ca_hazard_zones", new_callable=AsyncMock, return_value={"alquist_priolo": False}):
 
             mock_client = AsyncMock()
             mock_cls.return_value = mock_client
@@ -117,8 +121,12 @@ class TestToolResultSseEvents:
             events = await collect_events("450 Sanchez St, San Francisco, CA 94114")
 
         tool_result_events = [e for e in events if e.get("type") == "tool_result"]
-        assert len(tool_result_events) == 1
-        assert tool_result_events[0]["tool"] == "lookup_property_by_address"
+        tool_names = [e["tool"] for e in tool_result_events]
+        assert "lookup_property_by_address" in tool_names
+        # Phase 6 tools are auto-emitted after property lookup
+        assert "fetch_market_trends" in tool_names
+        assert "fetch_fhfa_hpi" in tool_names
+        assert "fetch_ca_hazard_zones" in tool_names
 
     async def test_tool_result_event_contains_property_data(self):
         """The tool_result event payload includes address_matched and price."""
