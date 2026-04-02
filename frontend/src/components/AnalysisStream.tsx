@@ -22,7 +22,7 @@ export function AnalysisStream({ events, isRunning }: Props) {
   const toolCalls = events.filter((e) => e.type === "tool_call");
   const finalText = textBlocks.map((e) => e.text ?? "").join("");
 
-  const propertyEvent = events.find(
+  const propertyEvent = [...events].reverse().find(
     (e) => e.type === "tool_result" && e.tool === "lookup_property_by_address"
   );
   const propertyData = propertyEvent?.result as PropertyData | undefined;

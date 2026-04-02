@@ -5,6 +5,7 @@ import { AnalysisStream } from "./AnalysisStream";
 
 const BASE_COMP: import("./CompsCard").CompData = {
   address: "100 Comp St",
+  unit: null,
   city: "San Francisco",
   state: "CA",
   zip_code: "94110",
@@ -33,6 +34,11 @@ describe("CompsCard", () => {
   it("renders a row for each comp", () => {
     render(<CompsCard comps={COMPS} />);
     expect(screen.getByText(/100 Comp St/i)).toBeInTheDocument();
+  });
+
+  it("renders unit in address when provided", () => {
+    render(<CompsCard comps={[{ ...BASE_COMP, unit: "515" }]} />);
+    expect(screen.getByText(/100 Comp St #515/i)).toBeInTheDocument();
   });
 
   it("renders the sold price formatted as currency", () => {

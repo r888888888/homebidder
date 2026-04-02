@@ -37,21 +37,27 @@ async def lookup_property_by_address(address: str) -> dict[str, Any]:
     """
     geo = await _geocode(address)
 
-    # Prefer exact user input for condo/unit lookups, then fall back to
-    # geocoder-normalized address if needed.
-    candidates = [address]
-    if geo["address_matched"] and geo["address_matched"] != address:
-        candidates.append(geo["address_matched"])
+    # Prefer exact user input (and unit variants) before geocoder-normalized
+    # address so condo/unit listings can be found.
+    candidates = _listing_lookup_candidates(address, geo["address_matched"])
 
     listing: dict[str, Any] = {}
     rentcast: dict | None = None
+    avm_fallback: dict | None = None
     for candidate in candidates:
-        listing, rentcast = await asyncio.gather(
+        listing_candidate, rentcast_candidate = await asyncio.gather(
             _homeharvest_listing(candidate),
             _rentcast_data(candidate),
         )
-        if listing or (rentcast and rentcast.get("avm") is not None):
+        if listing_candidate:
+            listing = listing_candidate
+            rentcast = rentcast_candidate
             break
+        if rentcast_candidate and rentcast_candidate.get("avm") is not None and avm_fallback is None:
+            avm_fallback = rentcast_candidate
+
+    if rentcast is None:
+        rentcast = avm_fallback
 
     avm = rentcast["avm"] if rentcast else None
     rc_sqft = rentcast["sqft"] if rentcast else None
@@ -63,6 +69,7 @@ async def lookup_property_by_address(address: str) -> dict[str, Any]:
         source = "rentcast" if avm is not None else "none"
 
     return {
+        "address_input": address,
         # Geocoder fields (county falls back to homeharvest — geocoder omits it)
         "address_matched": geo["address_matched"],
         "latitude": geo["latitude"],
@@ -70,6 +77,8 @@ async def lookup_property_by_address(address: str) -> dict[str, Any]:
         "county": listing.get("county") or geo["county"],
         "state": geo["state"],
         "zip_code": geo["zip_code"],
+        # Unit number: prefer homeharvest structured field, fall back to parsing user input
+        "unit": listing.get("unit") or _extract_unit_token(address),
         # Listing fields (None when not found)
         "price": listing.get("price"),
         "bedrooms": listing.get("bedrooms"),
@@ -150,11 +159,18 @@ async def _homeharvest_listing(matched_address: str) -> dict[str, Any]:
     if df is None or df.empty:
         return {}
 
-    row = df.iloc[0]
+    row = _select_best_homeharvest_row(df, matched_address)
     full_baths = _safe(row, "full_baths") or 0
     half_baths = _safe(row, "half_baths") or 0
     list_date_raw = _safe(row, "list_date")
     neighborhoods_raw = _safe(row, "neighborhoods")
+    # Unit: prefer structured field from homeharvest, fall back to street parse
+    unit_raw = (
+        _safe(row, "unit_number")
+        or _safe(row, "unit")
+        or _safe(row, "apartment")
+        or _extract_unit_token(_safe(row, "street", ""))
+    )
     return {
         "price": _safe(row, "list_price"),
         "bedrooms": _safe(row, "beds"),
@@ -170,6 +186,7 @@ async def _homeharvest_listing(matched_address: str) -> dict[str, Any]:
         "county": _safe(row, "county"),
         "neighborhoods": str(neighborhoods_raw) if neighborhoods_raw is not None else None,
         "price_history": _safe(row, "price_history", []) or [],
+        "unit": str(unit_raw).strip() if unit_raw else None,
         "source": "homeharvest",
     }
 
@@ -181,7 +198,7 @@ def _scrape_homeharvest(location: str):
     return scrape_property(
         listing_type="for_sale",
         location=location,
-        limit=1,
+        limit=20,
     )
 
 
@@ -257,3 +274,103 @@ def _strip_unit_designator(address: str) -> str:
     cleaned = re.sub(r"\s{2,}", " ", cleaned)
     cleaned = re.sub(r"\s+,", ",", cleaned)
     return cleaned.strip(" ,")
+
+
+def _to_unit_wording(address: str) -> str:
+    """Convert '#515' style address token to 'Unit 515'."""
+    return re.sub(r"(?i)#\s*([\w-]+)\b", r"Unit \1", address)
+
+
+def _extract_unit_token(text: str | None) -> str | None:
+    if not text:
+        return None
+    normalized = str(text)
+    # Realtor URLs often encode unit as `...-Unit-515...`; normalize separators
+    # so token extraction can match both plain text and URL slugs.
+    normalized = re.sub(r"[-_/]+", " ", normalized)
+    m = re.search(
+        r"(?i)(?:#\s*([\w-]+)|\bunit\s+([\w-]+)|\bapt\.?\s+([\w-]+)|\bsuite\s+([\w-]+)|\bste\.?\s+([\w-]+))",
+        normalized,
+    )
+    if not m:
+        return None
+    for g in m.groups():
+        if g:
+            return g.lower()
+    return None
+
+
+def _normalize_street_base(text: str | None) -> str:
+    """
+    Normalize a street address to comparable base form without unit suffixes.
+    """
+    if not text:
+        return ""
+    head = str(text).split(",")[0]
+    no_unit = _strip_unit_designator(head)
+    out = re.sub(r"[^a-zA-Z0-9 ]", " ", no_unit).lower()
+    out = re.sub(r"\s{2,}", " ", out).strip()
+    return out
+
+
+def _select_best_homeharvest_row(df: Any, query_address: str):
+    """
+    Choose the best-matching homeharvest row for query_address.
+    Important for multi-unit buildings where top result may be another unit.
+    """
+    target_unit = _extract_unit_token(query_address)
+    target_base = _normalize_street_base(query_address)
+
+    best_row = df.iloc[0]
+    best_score = -10_000
+
+    for _, row in df.iterrows():
+        street = _safe(row, "street", "")
+        row_base = _normalize_street_base(street)
+        row_unit = _extract_unit_token(street)
+        url_unit = _extract_unit_token(_safe(row, "property_url", ""))
+
+        score = 0
+
+        if target_base and row_base:
+            if row_base == target_base:
+                score += 4
+            elif target_base in row_base or row_base in target_base:
+                score += 2
+
+        if target_unit:
+            if row_unit == target_unit or url_unit == target_unit:
+                score += 8
+            elif row_unit is None and url_unit is None:
+                score -= 1
+            else:
+                score -= 4
+
+        if score > best_score:
+            best_score = score
+            best_row = row
+
+    return best_row
+
+
+def _listing_lookup_candidates(address: str, matched_address: str | None) -> list[str]:
+    """
+    Build deduped listing lookup candidates:
+    1) exact user input
+    2) unit-wording variant (if input includes '#')
+    3) geocoder normalized address
+    """
+    candidates: list[str] = []
+
+    def _add(value: str | None) -> None:
+        if not value:
+            return
+        v = value.strip()
+        if v and v not in candidates:
+            candidates.append(v)
+
+    _add(address)
+    if "#" in address:
+        _add(_to_unit_wording(address))
+    _add(matched_address)
+    return candidates

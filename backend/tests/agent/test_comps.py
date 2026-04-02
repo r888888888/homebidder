@@ -149,6 +149,22 @@ class TestPctOverAsking:
 
         assert comps[0]["pct_over_asking"] == pytest.approx(-10.0, abs=0.1)
 
+    async def test_unit_number_is_included_when_available(self):
+        """Comp includes unit field when source row has a unit identifier."""
+        from agent.tools.comps import fetch_comps
+
+        row = {**BASE_COMP_ROW, "unit_number": "515"}
+        df = _make_df([row])
+
+        with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+            comps = await fetch_comps(
+                address="821 Folsom St #515", city="San Francisco", state="CA",
+                zip_code="94107", subject_lat=SF_LAT, subject_lon=SF_LON,
+            )
+
+        assert comps[0]["unit"] == "515"
+
 
 # ---------------------------------------------------------------------------
 # distance_miles

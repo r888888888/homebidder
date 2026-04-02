@@ -241,10 +241,21 @@ async def run_agent(address: str, buyer_context: str = "") -> AsyncIterator[str]
 
             for block in response.content:
                 if block.type == "tool_use":
-                    log.info("Dispatching tool: %s  input_keys=%s", block.name, list(block.input.keys()))
-                    yield f"data: {json.dumps({'type': 'tool_call', 'tool': block.name, 'input': block.input})}\n\n"
+                    # Supplement fetch_comps with property context Claude may have omitted
+                    inputs = dict(block.input)
+                    if block.name == "fetch_comps" and property_result:
+                        if "subject_property_type" not in inputs and property_result.get("property_type"):
+                            inputs["subject_property_type"] = property_result["property_type"]
+                        if "subject_lat" not in inputs and property_result.get("latitude"):
+                            inputs["subject_lat"] = property_result["latitude"]
+                        if "subject_lon" not in inputs and property_result.get("longitude"):
+                            inputs["subject_lon"] = property_result["longitude"]
+                        if "subject_sqft" not in inputs and property_result.get("sqft"):
+                            inputs["subject_sqft"] = property_result["sqft"]
+                    log.info("Dispatching tool: %s  input_keys=%s", block.name, list(inputs.keys()))
+                    yield f"data: {json.dumps({'type': 'tool_call', 'tool': block.name, 'input': inputs})}\n\n"
                     try:
-                        result_str, parsed = await _dispatch_tool(block.name, block.input)
+                        result_str, parsed = await _dispatch_tool(block.name, inputs)
                         log.info("Tool %s returned %d bytes parsed=%s", block.name, len(result_str), parsed is not None)
                     except Exception as exc:
                         log.error("Tool %r raised: %s", block.name, exc, exc_info=True)

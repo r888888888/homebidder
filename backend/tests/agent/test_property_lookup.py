@@ -110,6 +110,26 @@ class TestGeocoding:
 
         assert result["address_matched"] == "450 SANCHEZ ST, SAN FRANCISCO, CA, 94114"
 
+    async def test_result_includes_original_address_input(self):
+        """Result includes the user-entered address for UI display."""
+        from agent.tools.property_lookup import lookup_property_by_address
+
+        query = "821 Folsom St #515, San Francisco, CA 94107"
+        with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
+             patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh, \
+             patch("agent.tools.property_lookup._rentcast_data", new_callable=AsyncMock) as mock_rc:
+
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.return_value = _make_census_mock()
+            mock_hh.return_value = {}
+            mock_rc.return_value = None
+
+            result = await lookup_property_by_address(query)
+
+        assert result["address_input"] == query
+
     async def test_geocode_returns_lat_lon(self):
         """Geocoded result includes latitude and longitude."""
         from agent.tools.property_lookup import lookup_property_by_address
@@ -287,6 +307,72 @@ class TestHomeharvest:
         first_lookup_arg = mock_hh.call_args_list[0].args[0]
         assert first_lookup_arg == "4125 24th St #4, San Francisco, CA 94114"
 
+    async def test_unit_address_retries_with_unit_wording(self):
+        """
+        If '#<unit>' lookup misses, try a 'Unit <unit>' variant before falling back.
+        """
+        from agent.tools.property_lookup import lookup_property_by_address
+
+        no_match_response = MagicMock()
+        no_match_response.raise_for_status = MagicMock()
+        no_match_response.json.return_value = {"result": {"addressMatches": []}}
+
+        with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
+             patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh, \
+             patch("agent.tools.property_lookup._rentcast_data", new_callable=AsyncMock) as mock_rc:
+
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.side_effect = [no_match_response, _make_census_mock()]
+
+            # first candidate misses, second candidate (Unit wording) hits
+            mock_hh.side_effect = [{}, {"price": 995_000.0, "source": "homeharvest"}]
+            mock_rc.return_value = None
+
+            result = await lookup_property_by_address(
+                "821 Folsom St #515, San Francisco, CA 94107"
+            )
+
+        assert result["source"] == "homeharvest"
+        assert mock_hh.call_args_list[0].args[0] == "821 Folsom St #515, San Francisco, CA 94107"
+        assert mock_hh.call_args_list[1].args[0] == "821 Folsom St Unit 515, San Francisco, CA 94107"
+
+    async def test_unit_lookup_continues_after_avm_if_listing_missing(self):
+        """
+        Do not stop on AVM-only results for the first candidate; keep trying
+        unit variants to find a listing record.
+        """
+        from agent.tools.property_lookup import lookup_property_by_address
+
+        no_match_response = MagicMock()
+        no_match_response.raise_for_status = MagicMock()
+        no_match_response.json.return_value = {"result": {"addressMatches": []}}
+
+        with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
+             patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh, \
+             patch("agent.tools.property_lookup._rentcast_data", new_callable=AsyncMock) as mock_rc:
+
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.side_effect = [no_match_response, _make_census_mock()]
+
+            # First pass: AVM exists but listing missing; second pass finds listing.
+            mock_hh.side_effect = [{}, {"price": 1_020_000.0, "source": "homeharvest"}]
+            mock_rc.side_effect = [
+                {"avm": 980_000.0, "sqft": None},
+                None,
+            ]
+
+            result = await lookup_property_by_address(
+                "821 Folsom St #515, San Francisco, CA 94107"
+            )
+
+        assert result["source"] == "homeharvest"
+        assert result["price"] == 1_020_000.0
+        assert mock_hh.call_count >= 2
+
 
 # ---------------------------------------------------------------------------
 # RentCast AVM fallback tests
@@ -399,7 +485,7 @@ class TestResultStructure:
         from agent.tools.property_lookup import lookup_property_by_address
 
         required_keys = {
-            "address_matched", "latitude", "longitude", "county", "state", "zip_code",
+            "address_input", "address_matched", "latitude", "longitude", "county", "state", "zip_code",
             "city", "neighborhoods",
             "price", "bedrooms", "bathrooms", "sqft", "year_built", "lot_size",
             "property_type", "hoa_fee", "days_on_market", "list_date", "price_history",
@@ -510,6 +596,66 @@ class TestHomeharvestListingHelper:
 
         assert result == {}
 
+    async def test_homeharvest_listing_prefers_matching_unit_row(self):
+        """
+        When multiple units are returned for the same building, select the row
+        whose unit matches the requested address.
+        """
+        from agent.tools.property_lookup import _homeharvest_listing
+
+        row_514 = {
+            **HOMEHARVEST_ROW,
+            "street": "821 Folsom St Unit 514",
+            "list_price": 930_000.0,
+            "sqft": 1090,
+        }
+        row_515 = {
+            **HOMEHARVEST_ROW,
+            "street": "821 Folsom St Unit 515",
+            "list_price": 998_000.0,
+            "sqft": 1105,
+        }
+        df = _make_homeharvest_df([row_514, row_515])
+
+        with patch("agent.tools.property_lookup.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+
+            result = await _homeharvest_listing("821 Folsom St #515, San Francisco, CA 94107")
+
+        assert result["price"] == 998_000.0
+        assert result["sqft"] == 1105
+
+    async def test_homeharvest_listing_uses_property_url_unit_token_when_street_lacks_unit(self):
+        """
+        Some rows omit unit in `street` but include it in property_url
+        as `...-Unit-<n>...`; we should still select the matching unit row.
+        """
+        from agent.tools.property_lookup import _homeharvest_listing
+
+        row_other = {
+            **HOMEHARVEST_ROW,
+            "street": "821 Folsom St",
+            "property_url": "https://www.realtor.com/realestateandhomes-detail/821-Folsom-St-Unit-514_San-Francisco_CA_94107_M12345-67890",
+            "list_price": 930_000.0,
+            "sqft": 1090,
+        }
+        row_target = {
+            **HOMEHARVEST_ROW,
+            "street": "821 Folsom St",
+            "property_url": "https://www.realtor.com/realestateandhomes-detail/821-Folsom-St-Unit-515_San-Francisco_CA_94107_M12345-67891",
+            "list_price": 998_000.0,
+            "sqft": 1105,
+        }
+        df = _make_homeharvest_df([row_other, row_target])
+
+        with patch("agent.tools.property_lookup.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+
+            result = await _homeharvest_listing("821 Folsom St #515, San Francisco, CA 94107")
+
+        assert result["price"] == 998_000.0
+        assert result["sqft"] == 1105
+
 
 class TestRentCastDataHelper:
     async def test_rentcast_data_returns_sqft_and_avm_when_key_set(self):
@@ -558,3 +704,70 @@ class TestRentCastDataHelper:
             result = await _rentcast_data("450 Sanchez St, San Francisco, CA 94114")
 
         assert result is None
+
+
+# ---------------------------------------------------------------------------
+# unit field in lookup_property_by_address result
+# ---------------------------------------------------------------------------
+
+class TestUnitField:
+    async def test_unit_extracted_from_address_input_when_hash_present(self):
+        """unit is derived from the user input when no homeharvest row is found."""
+        from agent.tools.property_lookup import lookup_property_by_address
+
+        with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
+             patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh, \
+             patch("agent.tools.property_lookup._rentcast_data", new_callable=AsyncMock) as mock_rc:
+
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.return_value = _make_census_mock()
+            mock_hh.return_value = {}
+            mock_rc.return_value = None
+
+            result = await lookup_property_by_address("66 Cleary Ct #1206, San Francisco, CA 94109")
+
+        assert result["unit"] == "1206"
+
+    async def test_unit_none_when_no_unit_in_address(self):
+        """unit is None when address has no unit designator."""
+        from agent.tools.property_lookup import lookup_property_by_address
+
+        with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
+             patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh, \
+             patch("agent.tools.property_lookup._rentcast_data", new_callable=AsyncMock) as mock_rc:
+
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.return_value = _make_census_mock()
+            mock_hh.return_value = {}
+            mock_rc.return_value = None
+
+            result = await lookup_property_by_address("450 Sanchez St, San Francisco, CA 94114")
+
+        assert result["unit"] is None
+
+    async def test_unit_from_homeharvest_row_preferred_over_address_parse(self):
+        """unit_number from homeharvest row takes precedence over parsing address_input."""
+        from agent.tools.property_lookup import lookup_property_by_address
+
+        import pandas as pd
+        row_with_unit = {**HOMEHARVEST_ROW, "street": "66 Cleary Ct", "unit_number": "1206", "style": "CONDO"}
+        df = pd.DataFrame([row_with_unit])
+
+        with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
+             patch("agent.tools.property_lookup.asyncio.to_thread", new_callable=AsyncMock) as mock_thread, \
+             patch("agent.tools.property_lookup._rentcast_data", new_callable=AsyncMock) as mock_rc:
+
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.return_value = _make_census_mock()
+            mock_thread.return_value = df
+            mock_rc.return_value = None
+
+            result = await lookup_property_by_address("66 Cleary Ct #1206, San Francisco, CA 94109")
+
+        assert result["unit"] == "1206"

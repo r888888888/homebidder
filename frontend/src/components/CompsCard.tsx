@@ -1,5 +1,6 @@
 export interface CompData {
   address: string;
+  unit?: string | null;
   city: string;
   state: string;
   zip_code: string;
@@ -51,6 +52,18 @@ interface Props {
 }
 
 const NEAREST_COUNT = 3;
+
+function compAddressLabel(comp: CompData): string {
+  const addr = comp.address || "";
+  const unit = comp.unit?.toString().trim();
+  if (!unit) return addr;
+  const lower = addr.toLowerCase();
+  // Avoid duplicating unit text already present in the address string.
+  if (lower.includes(`#${unit.toLowerCase()}`) || lower.includes(`unit ${unit.toLowerCase()}`)) {
+    return addr;
+  }
+  return `${addr} #${unit}`;
+}
 
 export function CompsCard({ comps }: Props) {
   // Sort by distance ascending, nulls last
@@ -115,6 +128,7 @@ export function CompsCard({ comps }: Props) {
                     : "—";
 
                 const isNearest = nearestAddresses.has(comp.address);
+                const addressLabel = compAddressLabel(comp);
 
                 return (
                   <tr
@@ -141,10 +155,10 @@ export function CompsCard({ comps }: Props) {
                             rel="noopener noreferrer"
                             className="underline decoration-dotted hover:text-[var(--green)]"
                           >
-                            {comp.address}
+                            {addressLabel}
                           </a>
                         ) : (
-                          comp.address
+                          addressLabel
                         )}
                       </span>
                     </td>

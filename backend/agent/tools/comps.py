@@ -236,6 +236,7 @@ def _process_df(
 
         comps.append({
             "address": _safe(row, "street", ""),
+            "unit": _safe(row, "unit_number") or _safe(row, "unit") or _safe(row, "apartment"),
             "city": _safe(row, "city", ""),
             "state": _safe(row, "state", ""),
             "zip_code": _safe(row, "zip_code", ""),
@@ -409,6 +410,7 @@ def _parse_stingray_csv(text: str, max_results: int) -> list[dict[str, Any]]:
             sqft = _float(row.get("SQUARE FEET"))
             comps.append({
                 "address": row.get("ADDRESS", ""),
+                "unit": row.get("UNIT") or row.get("UNIT NUMBER") or None,
                 "city": row.get("CITY", ""),
                 "state": row.get("STATE OR PROVINCE", ""),
                 "zip_code": row.get("ZIP OR POSTAL CODE", ""),
