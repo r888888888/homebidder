@@ -1,4 +1,4 @@
-import { render, screen, waitFor, act } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { AnalysisPage } from "./analysis";
 import { ToastProvider } from "../components/Toast";
@@ -47,9 +47,7 @@ describe("AnalysisPage", () => {
   });
 
   it("displays the property address as a heading", async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      mockSseStream([`data: ${JSON.stringify({ type: "done" })}\n\n`])
-    );
+    vi.mocked(fetch).mockReturnValue(new Promise(() => {}) as Promise<Response>);
     renderAnalysisPage("450 Sanchez St, San Francisco, CA 94114");
     expect(screen.getByText("450 Sanchez St, San Francisco, CA 94114")).toBeInTheDocument();
   });
@@ -81,9 +79,7 @@ describe("AnalysisPage", () => {
   });
 
   it("shows a link back to the home page", async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      mockSseStream([`data: ${JSON.stringify({ type: "done" })}\n\n`])
-    );
+    vi.mocked(fetch).mockReturnValue(new Promise(() => {}) as Promise<Response>);
     renderAnalysisPage("450 Sanchez St, San Francisco, CA 94114");
     expect(screen.getByRole("link", { name: /new analysis/i })).toBeInTheDocument();
   });

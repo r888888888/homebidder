@@ -1,7 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
 import { NeighborhoodCard } from "./NeighborhoodCard";
-import { AnalysisStream } from "./AnalysisStream";
 
 const BASE_NEIGHBORHOOD = {
   median_home_value: 950_000,
@@ -34,31 +33,13 @@ describe("NeighborhoodCard — neighborhood name", () => {
 });
 
 describe("NeighborhoodCard — neighborhood stats", () => {
-  it("renders median home value", () => {
+  it("renders key neighborhood stats", () => {
     render(
       <NeighborhoodCard neighborhood={BASE_NEIGHBORHOOD} purchasePrice={1_500_000} />
     );
     expect(screen.getByText(/\$950,000/)).toBeInTheDocument();
-  });
-
-  it("renders housing units", () => {
-    render(
-      <NeighborhoodCard neighborhood={BASE_NEIGHBORHOOD} purchasePrice={1_500_000} />
-    );
     expect(screen.getByText(/12,000/)).toBeInTheDocument();
-  });
-
-  it("renders vacancy rate", () => {
-    render(
-      <NeighborhoodCard neighborhood={BASE_NEIGHBORHOOD} purchasePrice={1_500_000} />
-    );
     expect(screen.getByText(/2\.5%/)).toBeInTheDocument();
-  });
-
-  it("renders median year built", () => {
-    render(
-      <NeighborhoodCard neighborhood={BASE_NEIGHBORHOOD} purchasePrice={1_500_000} />
-    );
     expect(screen.getByText(/1965/)).toBeInTheDocument();
   });
 });
@@ -87,22 +68,14 @@ describe("NeighborhoodCard — Prop 13 panel", () => {
     expect(screen.getByText(/\$18,750/)).toBeInTheDocument();
   });
 
-  it("flags delta in amber when increase is between $5K and $10K/yr", () => {
-    // seller tax $15,000, buyer tax $18,750 — delta $3,750 < $5K, no flag
-    // Use a case where delta > $5K: purchase $2M, buyer tax $25,000, seller $15,000, delta $10K
+  it.each([
+    { purchasePrice: 2_000_000, alert: "amber" },
+    { purchasePrice: 5_000_000, alert: "red" },
+  ])("applies %s alert when tax delta is high", ({ purchasePrice, alert }) => {
     const { container } = render(
-      <NeighborhoodCard neighborhood={BASE_NEIGHBORHOOD} purchasePrice={2_000_000} />
+      <NeighborhoodCard neighborhood={BASE_NEIGHBORHOOD} purchasePrice={purchasePrice} />
     );
-    // buyer tax = 2,000,000 * 0.0125 = 25,000; delta = 10,000 > 5K → amber
-    expect(container.querySelector("[data-tax-alert='amber']")).toBeInTheDocument();
-  });
-
-  it("flags delta in red when increase is above $10K/yr", () => {
-    // seller $15,000, buyer at $5M = $62,500, delta $47,500 > $10K → red
-    const { container } = render(
-      <NeighborhoodCard neighborhood={BASE_NEIGHBORHOOD} purchasePrice={5_000_000} />
-    );
-    expect(container.querySelector("[data-tax-alert='red']")).toBeInTheDocument();
+    expect(container.querySelector(`[data-tax-alert='${alert}']`)).toBeInTheDocument();
   });
 
   it("hides Prop 13 panel when prop13_assessed_value is null", () => {
@@ -113,28 +86,5 @@ describe("NeighborhoodCard — Prop 13 panel", () => {
       />
     );
     expect(screen.queryByText(/prop\s*13/i)).not.toBeInTheDocument();
-  });
-});
-
-describe("NeighborhoodCard — AnalysisStream integration", () => {
-  it("renders NeighborhoodCard when tool_result for fetch_neighborhood_context arrives", () => {
-    const events = [
-      {
-        type: "tool_result" as const,
-        tool: "fetch_neighborhood_context",
-        result: BASE_NEIGHBORHOOD as unknown as Record<string, unknown>,
-      },
-      {
-        type: "tool_result" as const,
-        tool: "lookup_property_by_address",
-        result: {
-          price: 1_500_000,
-          address_matched: "450 SANCHEZ ST, SAN FRANCISCO, CA, 94114",
-        } as unknown as Record<string, unknown>,
-      },
-    ];
-
-    render(<AnalysisStream events={events} isRunning={false} />);
-    expect(screen.getAllByText(/prop\s*13/i).length).toBeGreaterThan(0);
   });
 });

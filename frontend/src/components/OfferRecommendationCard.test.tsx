@@ -21,52 +21,24 @@ const BASE: OfferData = {
 };
 
 describe("OfferRecommendationCard", () => {
-  // --- Posture badge ---
-  it("renders competitive posture badge", () => {
+  it("renders key offer numbers and stats", () => {
     render(<OfferRecommendationCard offer={BASE} />);
     expect(screen.getByText(/competitive/i)).toBeInTheDocument();
-  });
-
-  it("renders at-market posture badge", () => {
-    render(<OfferRecommendationCard offer={{ ...BASE, posture: "at-market" }} />);
-    expect(screen.getByText(/at.market/i)).toBeInTheDocument();
-  });
-
-  it("renders negotiating posture badge", () => {
-    render(<OfferRecommendationCard offer={{ ...BASE, posture: "negotiating" }} />);
-    expect(screen.getByText(/negotiating/i)).toBeInTheDocument();
-  });
-
-  // --- Offer range numbers ---
-  it("renders offer_recommended", () => {
-    render(<OfferRecommendationCard offer={BASE} />);
     expect(screen.getByText(/1,187,000/)).toBeInTheDocument();
-  });
-
-  it("renders offer_low", () => {
-    render(<OfferRecommendationCard offer={BASE} />);
     expect(screen.getByText(/1,225,000/)).toBeInTheDocument();
-  });
-
-  it("renders offer_high", () => {
-    render(<OfferRecommendationCard offer={BASE} />);
     expect(screen.getByText(/1,300,000/)).toBeInTheDocument();
-  });
-
-  it("renders fair value estimate", () => {
-    render(<OfferRecommendationCard offer={BASE} />);
     expect(screen.getByText(/1,099,500/)).toBeInTheDocument();
-  });
-
-  // --- Overbid stats ---
-  it("renders median pct over asking", () => {
-    render(<OfferRecommendationCard offer={BASE} />);
     expect(screen.getByText(/8\.0%/)).toBeInTheDocument();
+    expect(screen.getByText(/100(\.0)?%/)).toBeInTheDocument();
   });
 
-  it("renders pct sold over asking", () => {
-    render(<OfferRecommendationCard offer={BASE} />);
-    expect(screen.getByText(/100(\.0)?%/)).toBeInTheDocument();
+  it.each([
+    { posture: "competitive", label: /competitive/i },
+    { posture: "at-market", label: /at.market/i },
+    { posture: "negotiating", label: /negotiating/i },
+  ] as const)("renders posture badge: $posture", ({ posture, label }) => {
+    render(<OfferRecommendationCard offer={{ ...BASE, posture }} />);
+    expect(screen.getByText(label)).toBeInTheDocument();
   });
 
   it("omits overbid stats section when both are null", () => {
@@ -78,7 +50,6 @@ describe("OfferRecommendationCard", () => {
     expect(screen.queryByText(/median overbid/i)).not.toBeInTheDocument();
   });
 
-  // --- Offer review advisory ---
   it("renders offer review advisory when present", () => {
     render(<OfferRecommendationCard offer={BASE} />);
     expect(screen.getByText(/offer review likely/i)).toBeInTheDocument();
@@ -92,13 +63,14 @@ describe("OfferRecommendationCard", () => {
     expect(screen.queryByText(/offer review likely/i)).not.toBeInTheDocument();
   });
 
-  // --- Contingency recommendations ---
-  it("shows keep inspection as recommended", () => {
+  it("renders contingency rows", () => {
     render(<OfferRecommendationCard offer={BASE} />);
     expect(screen.getByText(/keep inspection/i)).toBeInTheDocument();
+    expect(screen.getByText(/waive appraisal/i)).toBeInTheDocument();
+    expect(screen.getByText(/waive loan/i)).toBeInTheDocument();
   });
 
-  it("shows waive appraisal as recommended when true", () => {
+  it("marks waive appraisal as recommended when true", () => {
     render(
       <OfferRecommendationCard
         offer={{
@@ -112,10 +84,5 @@ describe("OfferRecommendationCard", () => {
       />
     );
     expect(screen.getByText(/waive appraisal/i)).toBeInTheDocument();
-  });
-
-  it("shows waive loan as not recommended", () => {
-    render(<OfferRecommendationCard offer={BASE} />);
-    expect(screen.getByText(/waive loan/i)).toBeInTheDocument();
   });
 });
