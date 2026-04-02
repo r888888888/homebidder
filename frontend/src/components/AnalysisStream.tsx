@@ -1,4 +1,6 @@
 import type { AnalysisEvent } from "../routes/index";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { PropertySummaryCard, type PropertyData } from "./PropertySummaryCard";
 import { NeighborhoodCard, type NeighborhoodData } from "./NeighborhoodCard";
 import { CompsCard, type CompData } from "./CompsCard";
@@ -98,23 +100,29 @@ export function AnalysisStream({ events, isRunning }: Props) {
             </p>
           </div>
           <div className="prose prose-sm max-w-none px-6 py-5 text-[var(--ink)]">
-            {finalText.split("\n").map((line, i) =>
-              line.startsWith("# ") ? (
-                <h2 key={i} className="display-title mt-0 text-xl font-semibold">
-                  {line.slice(2)}
-                </h2>
-              ) : line.startsWith("## ") ? (
-                <h3 key={i} className="mt-4 text-base font-semibold">
-                  {line.slice(3)}
-                </h3>
-              ) : line.trim() === "" ? (
-                <br key={i} />
-              ) : (
-                <p key={i} className="my-1">
-                  {line}
-                </p>
-              )
-            )}
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                h1: ({ node: _node, ...props }) => (
+                  <h1 className="display-title mt-0 text-xl font-semibold" {...props} />
+                ),
+                h2: ({ node: _node, ...props }) => (
+                  <h2 className="mt-4 text-base font-semibold" {...props} />
+                ),
+                h3: ({ node: _node, ...props }) => (
+                  <h3 className="mt-4 text-sm font-semibold" {...props} />
+                ),
+                p: ({ node: _node, ...props }) => <p className="my-1" {...props} />,
+                ul: ({ node: _node, ...props }) => (
+                  <ul className="my-2 list-disc pl-5" {...props} />
+                ),
+                ol: ({ node: _node, ...props }) => (
+                  <ol className="my-2 list-decimal pl-5" {...props} />
+                ),
+              }}
+            >
+              {finalText}
+            </ReactMarkdown>
           </div>
         </div>
       )}

@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, it, expect } from "vitest";
 import { CompsCard } from "./CompsCard";
 
@@ -79,5 +80,30 @@ describe("CompsCard", () => {
   it("renders an empty state when comps list is empty", () => {
     render(<CompsCard comps={[]} />);
     expect(screen.getByText(/no comparable sales/i)).toBeInTheDocument();
+  });
+
+  it("paginates comps in memory and navigates pages", async () => {
+    const user = userEvent.setup();
+    const comps = Array.from({ length: 12 }, (_, index) => ({
+      ...BASE_COMP,
+      address: `${index + 1} Comp St`,
+      distance_miles: index * 0.1,
+    }));
+
+    render(<CompsCard comps={comps} />);
+
+    expect(screen.getByText("1 Comp St")).toBeInTheDocument();
+    expect(screen.getByText("10 Comp St")).toBeInTheDocument();
+    expect(screen.queryByText("11 Comp St")).not.toBeInTheDocument();
+    expect(screen.getByText(/Page 1 of 2/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /previous/i })).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: /next/i }));
+
+    expect(screen.queryByText("1 Comp St")).not.toBeInTheDocument();
+    expect(screen.getByText("11 Comp St")).toBeInTheDocument();
+    expect(screen.getByText("12 Comp St")).toBeInTheDocument();
+    expect(screen.getByText(/Page 2 of 2/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /next/i })).toBeDisabled();
   });
 });

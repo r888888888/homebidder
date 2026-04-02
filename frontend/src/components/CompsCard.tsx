@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+
 export interface CompData {
   address: string;
   unit?: string | null;
@@ -52,6 +54,7 @@ interface Props {
 }
 
 const NEAREST_COUNT = 3;
+const PAGE_SIZE = 10;
 
 function compAddressLabel(comp: CompData): string {
   const addr = comp.address || "";
@@ -66,6 +69,8 @@ function compAddressLabel(comp: CompData): string {
 }
 
 export function CompsCard({ comps }: Props) {
+  const [page, setPage] = useState(1);
+
   // Sort by distance ascending, nulls last
   const sorted = [...comps].sort((a, b) => {
     if (a.distance_miles == null && b.distance_miles == null) return 0;
@@ -81,6 +86,14 @@ export function CompsCard({ comps }: Props) {
       .slice(0, NEAREST_COUNT)
       .map((c) => c.address)
   );
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageStart = (currentPage - 1) * PAGE_SIZE;
+  const pageComps = sorted.slice(pageStart, pageStart + PAGE_SIZE);
+
+  useEffect(() => {
+    setPage(1);
+  }, [comps]);
 
   return (
     <div className="card overflow-hidden fade-up">
@@ -113,7 +126,7 @@ export function CompsCard({ comps }: Props) {
               </tr>
             </thead>
             <tbody>
-              {sorted.map((comp, i) => {
+              {pageComps.map((comp, i) => {
                 const pct = comp.pct_over_asking;
                 const pctColor =
                   pct == null
@@ -132,7 +145,7 @@ export function CompsCard({ comps }: Props) {
 
                 return (
                   <tr
-                    key={i}
+                    key={`${comp.address}-${pageStart + i}`}
                     data-nearest={isNearest ? "true" : undefined}
                     className={`border-b border-[var(--line)] last:border-0 ${
                       isNearest
@@ -194,6 +207,30 @@ export function CompsCard({ comps }: Props) {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {comps.length > PAGE_SIZE && (
+        <div className="flex items-center justify-between border-t border-[var(--line)] px-4 py-3 text-sm">
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+            className="rounded-md border border-[var(--line)] px-3 py-1.5 text-[var(--ink)] transition disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Previous
+          </button>
+          <p className="text-[var(--ink-soft)]">
+            Page {currentPage} of {totalPages}
+          </p>
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+            className="rounded-md border border-[var(--line)] px-3 py-1.5 text-[var(--ink)] transition disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Next
+          </button>
         </div>
       )}
     </div>

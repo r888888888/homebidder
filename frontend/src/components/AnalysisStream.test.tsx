@@ -140,4 +140,21 @@ describe("AnalysisStream", () => {
     expect(screen.getByText(/NEW ADDRESS/i)).toBeInTheDocument();
     expect(screen.getByText(/\$1,750,000/)).toBeInTheDocument();
   });
+
+  it("renders final analysis with markdown formatting", () => {
+    const events = [
+      {
+        type: "text" as const,
+        text: "# Summary\n\nThis is **important**.\n\n- Fast close\n- Strong deposit",
+      },
+    ];
+
+    render(<AnalysisStream events={events} isRunning={false} />);
+
+    expect(screen.getByRole("heading", { level: 1, name: /summary/i })).toBeInTheDocument();
+    expect(screen.getByText("important")).toContainHTML("<strong>important</strong>");
+    expect(screen.getByRole("list")).toBeInTheDocument();
+    expect(screen.getByText(/fast close/i)).toBeInTheDocument();
+    expect(screen.getByText(/strong deposit/i)).toBeInTheDocument();
+  });
 });
