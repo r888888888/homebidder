@@ -59,8 +59,11 @@ async def lookup_property_by_address(address: str) -> dict[str, Any]:
     if rentcast is None:
         rentcast = avm_fallback
 
-    avm = rentcast["avm"] if rentcast else None
-    rc_sqft = rentcast["sqft"] if rentcast else None
+    avm = rentcast.get("avm") if rentcast else None
+    rc_sqft = rentcast.get("sqft") if rentcast else None
+    rc_bedrooms = rentcast.get("bedrooms") if rentcast else None
+    rc_bathrooms = rentcast.get("bathrooms") if rentcast else None
+    rc_year_built = rentcast.get("year_built") if rentcast else None
 
     # Determine source
     if listing:
@@ -79,12 +82,12 @@ async def lookup_property_by_address(address: str) -> dict[str, Any]:
         "zip_code": geo["zip_code"],
         # Unit number: prefer homeharvest structured field, fall back to parsing user input
         "unit": listing.get("unit") or _extract_unit_token(address),
-        # Listing fields (None when not found)
+        # Listing fields — RentCast subjectProperty used as fallback for off-market properties
         "price": listing.get("price"),
-        "bedrooms": listing.get("bedrooms"),
-        "bathrooms": listing.get("bathrooms"),
+        "bedrooms": listing.get("bedrooms") or rc_bedrooms,
+        "bathrooms": listing.get("bathrooms") or rc_bathrooms,
         "sqft": listing.get("sqft") or rc_sqft,
-        "year_built": listing.get("year_built"),
+        "year_built": listing.get("year_built") or rc_year_built,
         "lot_size": listing.get("lot_size"),
         "property_type": listing.get("property_type"),
         "hoa_fee": listing.get("hoa_fee"),
@@ -160,6 +163,18 @@ async def _homeharvest_listing(matched_address: str) -> dict[str, Any]:
         return {}
 
     row = _select_best_homeharvest_row(df, matched_address)
+
+    # If the row has no meaningful listing data (e.g. a building-level APARTMENT
+    # record returned by the search), treat it as no listing found.
+    has_data = any([
+        _safe(row, "list_price") is not None,
+        _safe(row, "beds") is not None,
+        _safe(row, "sqft") is not None,
+        _safe(row, "year_built") is not None,
+    ])
+    if not has_data:
+        return {}
+
     full_baths = _safe(row, "full_baths") or 0
     half_baths = _safe(row, "half_baths") or 0
     list_date_raw = _safe(row, "list_date")
@@ -212,8 +227,9 @@ RENTCAST_AVM_URL = "https://api.rentcast.io/v1/avm/value"
 async def _rentcast_data(matched_address: str) -> dict | None:
     """
     Fetch AVM estimate from RentCast's /v1/avm/value endpoint.
-    squareFootage is extracted from subjectProperty in the same response.
-    Returns {"avm": float | None, "sqft": int | None} or None if the call fails.
+    Also extracts property characteristics from subjectProperty for use as
+    fallbacks when homeharvest has no listing data (e.g. off-market condos).
+    Returns {"avm", "sqft", "bedrooms", "bathrooms", "year_built"} or None on failure.
     """
     api_key = os.environ.get("RENTCAST_API_KEY")
     if not api_key:
@@ -228,10 +244,17 @@ async def _rentcast_data(matched_address: str) -> dict | None:
             resp.raise_for_status()
             data = resp.json()
         price = data.get("price")
-        sqft = data.get("subjectProperty", {}).get("squareFootage")
+        subj = data.get("subjectProperty", {})
+        sqft = subj.get("squareFootage")
+        bedrooms = subj.get("bedrooms")
+        bathrooms = subj.get("bathrooms")
+        year_built = subj.get("yearBuilt")
         return {
             "avm": float(price) if price is not None else None,
             "sqft": int(sqft) if sqft is not None else None,
+            "bedrooms": int(bedrooms) if bedrooms is not None else None,
+            "bathrooms": float(bathrooms) if bathrooms is not None else None,
+            "year_built": int(year_built) if year_built is not None else None,
         }
     except Exception:
         return None

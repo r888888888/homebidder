@@ -771,3 +771,190 @@ class TestUnitField:
             result = await lookup_property_by_address("66 Cleary Ct #1206, San Francisco, CA 94109")
 
         assert result["unit"] == "1206"
+
+
+# ---------------------------------------------------------------------------
+# Homeharvest no-data row → treated as missing
+# ---------------------------------------------------------------------------
+
+class TestHomeharvest_NoDataRow:
+    async def test_returns_empty_dict_when_all_key_fields_are_na(self):
+        """
+        When homeharvest returns a row with no price, beds, sqft, or year_built
+        (e.g. a building-level APARTMENT record), treat it as no listing found.
+        """
+        import pandas as pd
+        from agent.tools.property_lookup import _homeharvest_listing
+
+        empty_row = {
+            "street": "66 Cleary Ct",
+            "unit": "Apt 369679",
+            "style": "APARTMENT",
+            "list_price": pd.NA,
+            "beds": pd.NA,
+            "full_baths": pd.NA,
+            "half_baths": pd.NA,
+            "sqft": pd.NA,
+            "year_built": pd.NA,
+            "lot_sqft": pd.NA,
+            "hoa_fee": pd.NA,
+            "days_on_mls": pd.NA,
+            "list_date": pd.NA,
+            "city": "San Francisco",
+            "county": "San Francisco",
+            "neighborhoods": pd.NA,
+            "price_history": [],
+            "property_url": "https://www.realtor.com/apartments/66-Cleary-Ct_San-Francisco_CA_94109",
+        }
+        df = _make_homeharvest_df([empty_row])
+
+        with patch("agent.tools.property_lookup.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+            result = await _homeharvest_listing("66 Cleary Ct #1206, San Francisco, CA 94109")
+
+        assert result == {}
+
+    async def test_returns_data_when_at_least_one_key_field_is_present(self):
+        """A row with only sqft (off-market but known) is still treated as found."""
+        import pandas as pd
+        from agent.tools.property_lookup import _homeharvest_listing
+
+        partial_row = {
+            **{k: pd.NA for k in ["list_price", "beds", "full_baths", "half_baths", "year_built", "lot_sqft", "hoa_fee", "days_on_mls", "list_date"]},
+            "street": "450 Sanchez St",
+            "sqft": 1800,
+            "style": "CONDO",
+            "city": "San Francisco",
+            "county": "San Francisco",
+            "neighborhoods": pd.NA,
+            "price_history": [],
+        }
+        df = _make_homeharvest_df([partial_row])
+
+        with patch("agent.tools.property_lookup.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+            result = await _homeharvest_listing("450 Sanchez St, San Francisco, CA 94114")
+
+        assert result != {}
+        assert result["sqft"] == 1800
+
+
+# ---------------------------------------------------------------------------
+# RentCast subjectProperty fallback for beds/baths/year_built
+# ---------------------------------------------------------------------------
+
+class TestRentCastSubjectPropertyFallback:
+    async def test_rentcast_data_returns_bedrooms_from_subject_property(self):
+        """_rentcast_data extracts bedrooms from subjectProperty."""
+        from agent.tools.property_lookup import _rentcast_data
+        import os
+
+        with patch.dict(os.environ, {"RENTCAST_API_KEY": "test-key"}), \
+             patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls:
+
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.return_value = _make_rentcast_mock()
+
+            result = await _rentcast_data("66 Cleary Ct Unit 1206, San Francisco, CA 94109")
+
+        assert result["bedrooms"] == 3
+
+    async def test_rentcast_data_returns_bathrooms_from_subject_property(self):
+        """_rentcast_data extracts bathrooms from subjectProperty."""
+        from agent.tools.property_lookup import _rentcast_data
+        import os
+
+        with patch.dict(os.environ, {"RENTCAST_API_KEY": "test-key"}), \
+             patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls:
+
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.return_value = _make_rentcast_mock()
+
+            result = await _rentcast_data("66 Cleary Ct Unit 1206, San Francisco, CA 94109")
+
+        assert result["bathrooms"] == 2
+
+    async def test_rentcast_data_returns_year_built_from_subject_property(self):
+        """_rentcast_data extracts yearBuilt from subjectProperty."""
+        from agent.tools.property_lookup import _rentcast_data
+        import os
+
+        with patch.dict(os.environ, {"RENTCAST_API_KEY": "test-key"}), \
+             patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls:
+
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.return_value = _make_rentcast_mock()
+
+            result = await _rentcast_data("66 Cleary Ct Unit 1206, San Francisco, CA 94109")
+
+        assert result["year_built"] == 1928
+
+    async def test_lookup_uses_rentcast_beds_baths_year_built_as_fallback(self):
+        """
+        When homeharvest finds no listing data, beds/baths/year_built from
+        RentCast subjectProperty are used to populate the result.
+        """
+        from agent.tools.property_lookup import lookup_property_by_address
+
+        with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
+             patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh, \
+             patch("agent.tools.property_lookup._rentcast_data", new_callable=AsyncMock) as mock_rc:
+
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.return_value = _make_census_mock()
+            mock_hh.return_value = {}
+            mock_rc.return_value = {
+                "avm": 1_300_000.0,
+                "sqft": 1100,
+                "bedrooms": 3,
+                "bathrooms": 2.0,
+                "year_built": 1962,
+            }
+
+            result = await lookup_property_by_address("66 Cleary Ct #1206, San Francisco, CA 94109")
+
+        assert result["bedrooms"] == 3
+        assert result["bathrooms"] == 2.0
+        assert result["year_built"] == 1962
+
+    async def test_homeharvest_beds_baths_year_built_preferred_over_rentcast(self):
+        """homeharvest listing values win over RentCast subjectProperty values."""
+        from agent.tools.property_lookup import lookup_property_by_address
+
+        with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
+             patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh, \
+             patch("agent.tools.property_lookup._rentcast_data", new_callable=AsyncMock) as mock_rc:
+
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.return_value = _make_census_mock()
+            mock_hh.return_value = {
+                "price": 1_250_000.0,
+                "bedrooms": 3,
+                "bathrooms": 2.0,
+                "sqft": 1800,
+                "year_built": 1928,
+                "source": "homeharvest",
+            }
+            mock_rc.return_value = {
+                "avm": 1_300_000.0,
+                "sqft": 1750,
+                "bedrooms": 2,
+                "bathrooms": 1.0,
+                "year_built": 1935,
+            }
+
+            result = await lookup_property_by_address("450 Sanchez St, San Francisco, CA 94114")
+
+        assert result["bedrooms"] == 3
+        assert result["bathrooms"] == 2.0
+        assert result["year_built"] == 1928
