@@ -23,37 +23,47 @@ export interface OfferData {
     waive_loan: boolean;
     keep_inspection: boolean;
   } | null;
+  hoa_equivalent_sfh_value?: {
+    monthly_hoa_fee: number;
+    extra_purchase_power: number;
+    equivalent_sfh_price_no_hoa: number;
+    assumptions: {
+      mortgage_rate_pct: number;
+      mortgage_term_years: number;
+      down_payment_pct: number;
+    };
+  } | null;
 }
 
 const CI_CONFIDENCE_STYLES: Record<string, { badge: string; label: string }> = {
   high: {
-    badge: "bg-[var(--green)]/10 text-[var(--green)]",
+    badge: "bg-emerald-100 border-emerald-300 text-emerald-900",
     label: "High confidence",
   },
   moderate: {
-    badge: "bg-amber-50 text-amber-700",
+    badge: "bg-amber-100 border-amber-300 text-amber-900",
     label: "Moderate confidence",
   },
   low: {
-    badge: "bg-[var(--coral)]/10 text-[var(--coral)]",
+    badge: "bg-orange-100 border-orange-300 text-orange-900",
     label: "Low confidence",
   },
 };
 
 const POSTURE_STYLES: Record<string, { bg: string; text: string; label: string }> = {
   competitive: {
-    bg: "bg-[var(--coral)]/10 border-[var(--coral)]/30",
-    text: "text-[var(--coral)]",
+    bg: "bg-orange-100 border-orange-300",
+    text: "text-orange-900",
     label: "Competitive",
   },
   "at-market": {
-    bg: "bg-[var(--green)]/10 border-[var(--green)]/30",
-    text: "text-[var(--green)]",
+    bg: "bg-emerald-100 border-emerald-300",
+    text: "text-emerald-900",
     label: "At-Market",
   },
   negotiating: {
-    bg: "bg-blue-50 border-blue-200",
-    text: "text-blue-600",
+    bg: "bg-blue-100 border-blue-300",
+    text: "text-blue-800",
     label: "Negotiating",
   },
 };
@@ -68,12 +78,16 @@ function fmtPct(n: number | null): string {
   return `${n.toFixed(1)}%`;
 }
 
+function fmtPctCompact(n: number): string {
+  return Number.isInteger(n) ? `${n.toFixed(0)}%` : `${n.toFixed(1)}%`;
+}
+
 function ContingencyRow({ label, recommended }: { label: string; recommended: boolean }) {
   return (
     <div className="flex items-center justify-between py-2 text-sm">
       <span className="text-[var(--ink)]">{label}</span>
       <span
-        className={recommended ? "font-semibold text-[var(--coral)]" : "text-[var(--ink-muted)]"}
+        className={recommended ? "font-semibold text-orange-800" : "text-[var(--ink-muted)]"}
       >
         {recommended ? "Recommended" : "Not recommended"}
       </span>
@@ -90,6 +104,7 @@ export function OfferRecommendationCard({ offer }: Props) {
   const hasOverbidStats =
     offer.median_pct_over_asking != null || offer.pct_sold_over_asking != null;
   const contingency = offer.contingency_recommendation;
+  const hoaEquivalent = offer.hoa_equivalent_sfh_value;
 
   // Range bar: position of recommended within [low, high]
   const low = offer.offer_low ?? 0;
@@ -158,7 +173,7 @@ export function OfferRecommendationCard({ offer }: Props) {
                   <p className="text-xs text-[var(--ink-muted)] mt-1">
                     {fmtUsd(ci.low)} – {fmtUsd(ci.high)}
                   </p>
-                  <span className={`inline-block mt-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${style.badge}`}>
+                  <span className={`inline-block mt-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${style.badge}`}>
                     {style.label}
                   </span>
                 </>
@@ -182,6 +197,21 @@ export function OfferRecommendationCard({ offer }: Props) {
               <p className="text-xs text-[var(--ink-muted)] mb-0.5">Sold Over Asking</p>
               <p className="font-semibold text-[var(--ink)]">{fmtPct(offer.pct_sold_over_asking)}</p>
             </div>
+          </div>
+        )}
+
+        {hoaEquivalent && (
+          <div className="rounded-xl bg-[var(--bg)] p-4 text-sm">
+            <p className="text-xs text-[var(--ink-muted)] mb-0.5">No-HOA SFH Equivalent</p>
+            <p className="font-semibold text-[var(--ink)]">
+              {fmtUsd(hoaEquivalent.equivalent_sfh_price_no_hoa)}
+            </p>
+            <p className="text-xs text-[var(--ink-muted)] mt-1">
+              +{fmtUsd(hoaEquivalent.extra_purchase_power)} purchase power from removing HOA
+            </p>
+            <p className="text-xs text-[var(--ink-muted)] mt-1">
+              Assumes {fmtPctCompact(hoaEquivalent.assumptions.mortgage_rate_pct)} {hoaEquivalent.assumptions.mortgage_term_years}-year fixed, {fmtPctCompact(hoaEquivalent.assumptions.down_payment_pct)} down
+            </p>
           </div>
         )}
 

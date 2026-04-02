@@ -25,6 +25,7 @@ const BASE: OfferData = {
     waive_loan: false,
     keep_inspection: true,
   },
+  hoa_equivalent_sfh_value: null,
 };
 
 describe("OfferRecommendationCard", () => {
@@ -119,6 +120,29 @@ describe("OfferRecommendationCard", () => {
     expect(screen.getByText(label)).toBeInTheDocument();
   });
 
+  it("uses high-contrast badge styles for posture and confidence labels", () => {
+    render(
+      <OfferRecommendationCard
+        offer={{
+          ...BASE,
+          posture: "negotiating",
+          fair_value_confidence_interval: {
+            ...BASE.fair_value_confidence_interval!,
+            confidence: "moderate",
+          },
+        }}
+      />
+    );
+
+    const posture = screen.getByText(/negotiating/i);
+    expect(posture).toHaveClass("border-blue-300");
+    expect(posture).toHaveClass("text-blue-800");
+
+    const confidence = screen.getByText(/moderate confidence/i);
+    expect(confidence).toHaveClass("border-amber-300");
+    expect(confidence).toHaveClass("text-amber-900");
+  });
+
   it("omits confidence interval section when field is absent", () => {
     render(
       <OfferRecommendationCard
@@ -126,5 +150,35 @@ describe("OfferRecommendationCard", () => {
       />
     );
     expect(screen.queryByText(/confidence/i)).not.toBeInTheDocument();
+  });
+
+  it("renders no-HOA SFH equivalent value when present", () => {
+    render(
+      <OfferRecommendationCard
+        offer={{
+          ...BASE,
+          hoa_equivalent_sfh_value: {
+            monthly_hoa_fee: 1_443,
+            extra_purchase_power: 285_000,
+            equivalent_sfh_price_no_hoa: 1_472_000,
+            assumptions: {
+              mortgage_rate_pct: 6.5,
+              mortgage_term_years: 30,
+              down_payment_pct: 20,
+            },
+          },
+        }}
+      />
+    );
+
+    expect(screen.getByText(/no-hoa sfh equivalent/i)).toBeInTheDocument();
+    expect(screen.getByText(/\$1,472,000/)).toBeInTheDocument();
+    expect(screen.getByText(/\+\$285,000/)).toBeInTheDocument();
+    expect(screen.getByText(/assumes 6\.5% 30-year fixed/i)).toBeInTheDocument();
+  });
+
+  it("does not render no-HOA SFH equivalent section when absent", () => {
+    render(<OfferRecommendationCard offer={{ ...BASE, hoa_equivalent_sfh_value: null }} />);
+    expect(screen.queryByText(/no-hoa sfh equivalent/i)).not.toBeInTheDocument();
   });
 });
