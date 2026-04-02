@@ -89,9 +89,10 @@ describe("PropertySummaryCard", () => {
     expect(screen.getByText(/\+4\.0%|\+\$50,000/i)).toBeInTheDocument();
   });
 
-  it("shows 'not listed' when price is null", () => {
+  it("shows '—' when price is null", () => {
     render(<PropertySummaryCard property={{ ...BASE_PROPERTY, price: null }} />);
-    expect(screen.getByText(/not listed/i)).toBeInTheDocument();
+    const dt = screen.getByText(/^list price$/i);
+    expect(dt.nextElementSibling?.textContent).toBe("—");
   });
 
   it("shows 'N/A' for AVM when avm_estimate is null", () => {

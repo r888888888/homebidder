@@ -958,3 +958,54 @@ class TestRentCastSubjectPropertyFallback:
         assert result["bedrooms"] == 3
         assert result["bathrooms"] == 2.0
         assert result["year_built"] == 1928
+
+
+# ---------------------------------------------------------------------------
+# _listing_lookup_candidates — unit address should not fall back to bare street
+# ---------------------------------------------------------------------------
+
+class TestListingLookupCandidates:
+    def test_unit_address_excludes_bare_geocoder_matched(self):
+        """
+        When the user's address has a unit, the geocoder-matched address
+        (which strips the unit) must NOT be included as a listing candidate.
+        It would find the wrong building-level record.
+        """
+        from agent.tools.property_lookup import _listing_lookup_candidates
+
+        candidates = _listing_lookup_candidates(
+            "66 Cleary Ct #1206, San Francisco, CA 94109",
+            "66 CLEARY CT, SAN FRANCISCO, CA, 94109",
+        )
+        # Must include the user's original and the Unit wording variant
+        assert "66 Cleary Ct #1206, San Francisco, CA 94109" in candidates
+        assert "66 Cleary Ct Unit 1206, San Francisco, CA 94109" in candidates
+        # Must NOT include the bare (no-unit) geocoder address
+        assert "66 CLEARY CT, SAN FRANCISCO, CA, 94109" not in candidates
+
+    def test_non_unit_address_includes_geocoder_matched(self):
+        """
+        When the user's address has no unit, the geocoder-matched address
+        is included as a candidate (normal SFH lookup).
+        """
+        from agent.tools.property_lookup import _listing_lookup_candidates
+
+        candidates = _listing_lookup_candidates(
+            "450 Sanchez St, San Francisco, CA 94114",
+            "450 SANCHEZ ST, SAN FRANCISCO, CA, 94114",
+        )
+        assert "450 Sanchez St, San Francisco, CA 94114" in candidates
+        assert "450 SANCHEZ ST, SAN FRANCISCO, CA, 94114" in candidates
+
+    def test_unit_address_with_unit_in_geocoder_result_includes_it(self):
+        """
+        If the geocoder somehow preserves the unit in its matched address,
+        include it — it contains unit-specific info.
+        """
+        from agent.tools.property_lookup import _listing_lookup_candidates
+
+        candidates = _listing_lookup_candidates(
+            "821 Folsom St #515, San Francisco, CA 94107",
+            "821 FOLSOM ST UNIT 515, SAN FRANCISCO, CA, 94107",
+        )
+        assert "821 FOLSOM ST UNIT 515, SAN FRANCISCO, CA, 94107" in candidates

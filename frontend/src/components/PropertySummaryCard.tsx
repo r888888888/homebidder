@@ -150,7 +150,7 @@ export function PropertySummaryCard({ property }: Props) {
 
   const delta = avmDelta(property.price, property.avm_estimate);
 
-  const priceDisplay = property.price != null ? fmtUsd(property.price) : "not listed";
+  const priceDisplay = property.price != null ? fmtUsd(property.price) : "—";
 
   const avmDisplay =
     property.avm_estimate != null ? (

@@ -381,7 +381,8 @@ def _listing_lookup_candidates(address: str, matched_address: str | None) -> lis
     Build deduped listing lookup candidates:
     1) exact user input
     2) unit-wording variant (if input includes '#')
-    3) geocoder normalized address
+    3) geocoder normalized address — ONLY when it includes unit info or the
+       original address has no unit (avoids finding the wrong building-level record).
     """
     candidates: list[str] = []
 
@@ -395,5 +396,13 @@ def _listing_lookup_candidates(address: str, matched_address: str | None) -> lis
     _add(address)
     if "#" in address:
         _add(_to_unit_wording(address))
-    _add(matched_address)
+
+    # Include geocoder-matched address only if it won't lose unit information.
+    # When the original has a unit but the geocoder strips it, searching the bare
+    # street address can find the wrong building-level or SINGLE_FAMILY record.
+    has_unit = bool(_extract_unit_token(address))
+    matched_has_unit = bool(_extract_unit_token(matched_address)) if matched_address else False
+    if not has_unit or matched_has_unit:
+        _add(matched_address)
+
     return candidates
