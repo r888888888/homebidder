@@ -56,6 +56,14 @@ async def lookup_property_by_address(address: str) -> dict[str, Any]:
         if rentcast_candidate and rentcast_candidate.get("avm") is not None and avm_fallback is None:
             avm_fallback = rentcast_candidate
 
+    # HomeHarvest direct address search can miss valid condo units for certain
+    # Realtor records. For unit inputs, try a nearby for-sale building search
+    # and select the row matching the requested unit.
+    if not listing and _extract_unit_token(address):
+        base_address = _strip_unit_designator(address)
+        if base_address:
+            listing = await _homeharvest_nearby_unit_listing(base_address, address)
+
     if rentcast is None:
         rentcast = avm_fallback
 
@@ -206,6 +214,60 @@ async def _homeharvest_listing(matched_address: str) -> dict[str, Any]:
     }
 
 
+async def _homeharvest_nearby_unit_listing(base_address: str, query_address: str) -> dict[str, Any]:
+    """
+    Fallback for unit addresses: search nearby for-sale listings around the
+    building and choose the row that best matches the requested unit.
+    """
+    try:
+        df = await asyncio.to_thread(_scrape_homeharvest_nearby, base_address)
+    except Exception:
+        return {}
+
+    if df is None or df.empty:
+        return {}
+
+    row = _select_best_homeharvest_row(df, query_address)
+
+    has_data = any([
+        _safe(row, "list_price") is not None,
+        _safe(row, "beds") is not None,
+        _safe(row, "sqft") is not None,
+        _safe(row, "year_built") is not None,
+    ])
+    if not has_data:
+        return {}
+
+    full_baths = _safe(row, "full_baths") or 0
+    half_baths = _safe(row, "half_baths") or 0
+    list_date_raw = _safe(row, "list_date")
+    neighborhoods_raw = _safe(row, "neighborhoods")
+    unit_raw = (
+        _safe(row, "unit_number")
+        or _safe(row, "unit")
+        or _safe(row, "apartment")
+        or _extract_unit_token(_safe(row, "street", ""))
+    )
+    return {
+        "price": _safe(row, "list_price"),
+        "bedrooms": _safe(row, "beds"),
+        "bathrooms": full_baths + half_baths * 0.5 if (full_baths or half_baths) else None,
+        "sqft": _safe(row, "sqft"),
+        "year_built": _safe(row, "year_built"),
+        "lot_size": _safe(row, "lot_sqft"),
+        "property_type": _safe(row, "style", ""),
+        "hoa_fee": _safe(row, "hoa_fee"),
+        "days_on_market": _safe(row, "days_on_mls"),
+        "list_date": str(list_date_raw) if list_date_raw is not None else None,
+        "city": _safe(row, "city"),
+        "county": _safe(row, "county"),
+        "neighborhoods": str(neighborhoods_raw) if neighborhoods_raw is not None else None,
+        "price_history": _safe(row, "price_history", []) or [],
+        "unit": str(unit_raw).strip() if unit_raw else None,
+        "source": "homeharvest",
+    }
+
+
 def _scrape_homeharvest(location: str):
     """Synchronous — called via asyncio.to_thread."""
     from homeharvest import scrape_property
@@ -214,6 +276,18 @@ def _scrape_homeharvest(location: str):
         listing_type="for_sale",
         location=location,
         limit=20,
+    )
+
+
+def _scrape_homeharvest_nearby(location: str):
+    """Synchronous nearby for-sale search around a building address."""
+    from homeharvest import scrape_property
+
+    return scrape_property(
+        listing_type="for_sale",
+        location=location,
+        radius=0.05,
+        limit=500,
     )
 
 

@@ -787,6 +787,96 @@ class TestHomeharvest_NoDataRow:
 
 
 # ---------------------------------------------------------------------------
+# HomeHarvest unit fallback via nearby building search
+# ---------------------------------------------------------------------------
+
+class TestHomeharvestNearbyUnitFallback:
+    async def test_homeharvest_nearby_unit_listing_picks_requested_unit(self):
+        """
+        Nearby building search should select the row whose unit matches the
+        requested unit when direct address lookup misses.
+        """
+        from agent.tools.property_lookup import _homeharvest_nearby_unit_listing
+
+        row_509 = {
+            **HOMEHARVEST_ROW,
+            "street": "66 Cleary Ct",
+            "unit": "Apt 509",
+            "style": "CONDOS",
+            "list_price": 1_080_000.0,
+            "sqft": 1100,
+            "property_url": "https://www.realtor.com/realestateandhomes-detail/66-Cleary-Ct-Apt-509_San-Francisco_CA_94109_M19499-39329",
+        }
+        row_1206 = {
+            **HOMEHARVEST_ROW,
+            "street": "66 Cleary Ct",
+            "unit": "Apt 1206",
+            "style": "CONDOS",
+            "list_price": 995_000.0,
+            "sqft": 1099,
+            "property_url": "https://www.realtor.com/realestateandhomes-detail/66-Cleary-Ct-Apt-1206_San-Francisco_CA_94109_M21113-00861",
+        }
+        df = _make_homeharvest_df([row_509, row_1206])
+
+        with patch("agent.tools.property_lookup.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+
+            result = await _homeharvest_nearby_unit_listing(
+                "66 Cleary Ct, San Francisco, CA 94109",
+                "66 Cleary Ct #1206, San Francisco, CA 94109",
+            )
+
+        assert result["price"] == 995_000.0
+        assert result["sqft"] == 1099
+        assert result["unit"] == "Apt 1206"
+
+    async def test_lookup_uses_nearby_unit_fallback_when_direct_misses(self):
+        """
+        If direct candidate lookups return no usable HomeHarvest row, lookup
+        should use nearby building search to recover the correct unit listing.
+        """
+        from agent.tools.property_lookup import lookup_property_by_address
+
+        no_match_response = MagicMock()
+        no_match_response.raise_for_status = MagicMock()
+        no_match_response.json.return_value = {"result": {"addressMatches": []}}
+
+        with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
+             patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh, \
+             patch("agent.tools.property_lookup._homeharvest_nearby_unit_listing", new_callable=AsyncMock) as mock_nearby, \
+             patch("agent.tools.property_lookup._rentcast_data", new_callable=AsyncMock) as mock_rc:
+
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            # First geocode call fails on full unit address; second succeeds on stripped.
+            mock_client.get.side_effect = [no_match_response, _make_census_mock()]
+
+            # Direct candidates miss.
+            mock_hh.side_effect = [{}, {}]
+            mock_nearby.return_value = {
+                "price": 995_000.0,
+                "bedrooms": 3,
+                "bathrooms": 2.0,
+                "sqft": 1099,
+                "year_built": 1963,
+                "property_type": "CONDOS",
+                "unit": "Apt 1206",
+                "source": "homeharvest",
+            }
+            mock_rc.return_value = None
+
+            result = await lookup_property_by_address(
+                "66 Cleary Ct #1206, San Francisco, CA 94109"
+            )
+
+        assert result["source"] == "homeharvest"
+        assert result["price"] == 995_000.0
+        assert result["unit"] == "Apt 1206"
+        assert mock_nearby.await_count == 1
+
+
+# ---------------------------------------------------------------------------
 # RentCast subjectProperty fallback for beds/baths/year_built
 # ---------------------------------------------------------------------------
 
