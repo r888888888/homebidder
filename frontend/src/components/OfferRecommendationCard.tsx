@@ -1,6 +1,15 @@
+export interface FairValueCI {
+  low: number;
+  high: number;
+  ci_pct: number;
+  confidence: "high" | "moderate" | "low";
+  factors: string[];
+}
+
 export interface OfferData {
   list_price: number | null;
   fair_value_estimate: number | null;
+  fair_value_confidence_interval?: FairValueCI | null;
   offer_low: number | null;
   offer_recommended: number | null;
   offer_high: number | null;
@@ -15,6 +24,21 @@ export interface OfferData {
     keep_inspection: boolean;
   } | null;
 }
+
+const CI_CONFIDENCE_STYLES: Record<string, { badge: string; label: string }> = {
+  high: {
+    badge: "bg-[var(--green)]/10 text-[var(--green)]",
+    label: "High confidence",
+  },
+  moderate: {
+    badge: "bg-amber-50 text-amber-700",
+    label: "Moderate confidence",
+  },
+  low: {
+    badge: "bg-[var(--coral)]/10 text-[var(--coral)]",
+    label: "Low confidence",
+  },
+};
 
 const POSTURE_STYLES: Record<string, { bg: string; text: string; label: string }> = {
   competitive: {
@@ -126,6 +150,20 @@ export function OfferRecommendationCard({ offer }: Props) {
           <div>
             <p className="text-xs text-[var(--ink-muted)] mb-0.5">Fair Value Estimate</p>
             <p className="font-semibold text-[var(--ink)]">{fmtUsd(offer.fair_value_estimate)}</p>
+            {offer.fair_value_confidence_interval && (() => {
+              const ci = offer.fair_value_confidence_interval;
+              const style = CI_CONFIDENCE_STYLES[ci.confidence] ?? CI_CONFIDENCE_STYLES.moderate;
+              return (
+                <>
+                  <p className="text-xs text-[var(--ink-muted)] mt-1">
+                    {fmtUsd(ci.low)} – {fmtUsd(ci.high)}
+                  </p>
+                  <span className={`inline-block mt-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${style.badge}`}>
+                    {style.label}
+                  </span>
+                </>
+              );
+            })()}
           </div>
           <div>
             <p className="text-xs text-[var(--ink-muted)] mb-0.5">List Price</p>

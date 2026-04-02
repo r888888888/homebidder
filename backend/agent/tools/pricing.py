@@ -41,6 +41,93 @@ def _compute_offer_range_band_pct(
     return _clamp(base_band + vol_adjustment + sample_adjustment, 0.02, 0.06)
 
 
+def _compute_fair_value_ci(
+    fair_value: float,
+    method: str,
+    market_stats: dict[str, Any],
+    total_adjustment: float,
+    avm_blend_used: bool,
+    list_price: float,
+) -> dict[str, Any]:
+    """
+    Return a confidence interval for the fair value estimate.
+
+    Half-width (ci_pct) is computed additively from signals that increase or
+    decrease uncertainty, then clamped to [3%, 15%].
+
+    Confidence label: ≤5% → "high", ≤8% → "moderate", >8% → "low".
+    """
+    ci_pct = 5.0
+    factors: list[str] = []
+
+    # Method penalty
+    if method == "ppsf_fallback":
+        ci_pct += 4.0
+        factors.append("ppsf_fallback")
+    elif method == "list_price_fallback":
+        ci_pct += 5.0
+        factors.append("list_price_fallback")
+
+    # Comp count
+    comp_count = market_stats.get("comp_count")
+    if comp_count is not None:
+        if comp_count < 4:
+            ci_pct += 3.0
+            factors.append("few_comps")
+        elif comp_count < 8:
+            ci_pct += 1.0
+            factors.append("few_comps")
+        elif comp_count >= 12:
+            ci_pct -= 1.0
+
+    # Price dispersion
+    median_comp = market_stats.get("median_sale_price")
+    stdev = market_stats.get("price_stdev")
+    if stdev and median_comp and stdev / median_comp > 0.20:
+        ci_pct += 2.0
+        factors.append("high_dispersion")
+
+    # Mean/median skew (outlier-high comps inflate mean)
+    mean_comp = market_stats.get("mean_sale_price")
+    if mean_comp and median_comp and mean_comp / median_comp > 1.10:
+        ci_pct += 1.0
+        factors.append("skewed_comps")
+
+    # Large lot/sqft adjustment applied — comps are less comparable
+    if abs(total_adjustment) > 0.15:
+        ci_pct += 1.0
+        factors.append("large_adjustment")
+
+    # AVM provides independent corroboration
+    if avm_blend_used:
+        ci_pct -= 1.0
+
+    # List price convergence: only when list price is credible (not an SF underpricing play)
+    # Condition: fair_value ≈ list_price (<3% apart) AND list_price >= 95% of fair_value
+    if list_price and fair_value:
+        spread = abs(fair_value - list_price) / list_price
+        credible = list_price >= fair_value * 0.95
+        if spread < 0.03 and credible:
+            ci_pct -= 0.5
+
+    ci_pct = _clamp(ci_pct, 3.0, 15.0)
+
+    if ci_pct <= 5.0:
+        confidence = "high"
+    elif ci_pct <= 8.0:
+        confidence = "moderate"
+    else:
+        confidence = "low"
+
+    return {
+        "low": round(fair_value * (1 - ci_pct / 100) / 1000) * 1000,
+        "high": round(fair_value * (1 + ci_pct / 100) / 1000) * 1000,
+        "ci_pct": round(ci_pct, 1),
+        "confidence": confidence,
+        "factors": factors,
+    }
+
+
 def analyze_market(comps: list[dict[str, Any]]) -> dict[str, Any]:
     """
     Given a list of comp sales, compute market statistics.
@@ -131,10 +218,11 @@ def recommend_offer(
     # - Anchor to comp median price (Bay Area land-scarcity friendly)
     # - Apply bounded lot-size and sqft adjustments when available
     # - Use ppsf*sqft only as fallback when comp median is missing
+    total_adjustment = 0.0  # tracked for CI width calculation
+
     if median_comp:
         fair_value = median_comp
 
-        total_adjustment = 0.0
         lot_adjustment_pct: float | None = None
         sqft_adjustment_pct: float | None = None
 
@@ -164,6 +252,7 @@ def recommend_offer(
         }
     elif ppsf and sqft:
         fair_value = round(ppsf * sqft)
+        avm_blend_used = False
         fair_value_breakdown = {
             "method": "ppsf_fallback",
             "base_comp_median": None,
@@ -173,6 +262,7 @@ def recommend_offer(
         }
     else:
         fair_value = list_price
+        avm_blend_used = False
         fair_value_breakdown = {
             "method": "list_price_fallback",
             "base_comp_median": None,
@@ -180,6 +270,16 @@ def recommend_offer(
             "sqft_adjustment_pct": None,
             "avm_blend_used": False,
         }
+
+    # --- Fair value confidence interval ---
+    fair_value_ci = _compute_fair_value_ci(
+        fair_value=fair_value,
+        method=fair_value_breakdown["method"],
+        market_stats=market_stats,
+        total_adjustment=total_adjustment,
+        avm_blend_used=avm_blend_used,
+        list_price=list_price,
+    )
 
     # --- Posture determination (lowest to highest priority) ---
 
@@ -264,6 +364,7 @@ def recommend_offer(
         "list_price": list_price,
         "fair_value_estimate": fair_value,
         "fair_value_breakdown": fair_value_breakdown,
+        "fair_value_confidence_interval": fair_value_ci,
         "offer_low": low,
         "offer_recommended": recommended,
         "offer_high": high,

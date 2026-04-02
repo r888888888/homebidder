@@ -379,3 +379,134 @@ class TestDynamicOfferRangeBand:
         }
         result = recommend_offer(listing, stats)
         assert result["offer_range_band_pct"] == pytest.approx(3.0)
+
+
+# ---------------------------------------------------------------------------
+# recommend_offer — fair value confidence interval
+# ---------------------------------------------------------------------------
+
+class TestFairValueCI:
+    def test_ci_present_in_output(self):
+        result = recommend_offer(BASE_LISTING, BASE_STATS)
+        ci = result["fair_value_confidence_interval"]
+        assert "low" in ci and "high" in ci and "ci_pct" in ci and "confidence" in ci
+
+    def test_ci_brackets_fair_value(self):
+        result = recommend_offer(BASE_LISTING, BASE_STATS)
+        ci = result["fair_value_confidence_interval"]
+        assert ci["low"] < result["fair_value_estimate"] < ci["high"]
+
+    def test_ci_high_confidence_when_many_comps_low_dispersion(self):
+        stats = {
+            **BASE_STATS,
+            "comp_count": 15,
+            "price_stdev": 50_000,
+            "mean_sale_price": 1_105_000,
+            "median_sale_price": 1_100_000,
+            "median_pct_over_asking": 0.0,
+        }
+        result = recommend_offer(BASE_LISTING, stats)
+        assert result["fair_value_confidence_interval"]["confidence"] == "high"
+
+    def test_ci_low_confidence_when_few_comps_high_dispersion(self):
+        stats = {
+            **BASE_STATS,
+            "comp_count": 3,
+            "price_stdev": 280_000,
+            "median_sale_price": 1_100_000,
+            "median_pct_over_asking": 0.0,
+        }
+        result = recommend_offer(BASE_LISTING, stats)
+        assert result["fair_value_confidence_interval"]["confidence"] == "low"
+
+    def test_ci_low_confidence_for_ppsf_fallback(self):
+        stats = {"median_price_per_sqft": 700.0, "median_pct_over_asking": 0.0}
+        result = recommend_offer(BASE_LISTING, stats)
+        assert result["fair_value_confidence_interval"]["confidence"] == "low"
+
+    def test_ci_widens_with_large_adjustment(self):
+        """Large lot size difference (>15% total adjustment) should widen CI."""
+        listing_large = {**BASE_LISTING, "sqft": 1500, "lot_size": 8000}
+        listing_small = {**BASE_LISTING, "sqft": 1500, "lot_size": 2600}
+        stats = {
+            **BASE_STATS,
+            "median_sale_price": 1_100_000,
+            "median_lot_size": 2500,
+            "median_comp_sqft": 1500,
+            "median_pct_over_asking": 0.0,
+        }
+        ci_large = recommend_offer(listing_large, stats)["fair_value_confidence_interval"]["ci_pct"]
+        ci_small = recommend_offer(listing_small, stats)["fair_value_confidence_interval"]["ci_pct"]
+        assert ci_large > ci_small
+
+    def test_ci_narrows_with_avm_blend(self):
+        """AVM blend provides independent corroboration — should decrease ci_pct."""
+        stats = {**BASE_STATS, "median_sale_price": 1_100_000, "median_pct_over_asking": 0.0}
+        with_avm = recommend_offer({**BASE_LISTING, "avm_estimate": 1_100_000}, stats)
+        without_avm = recommend_offer(
+            {k: v for k, v in BASE_LISTING.items() if k != "avm_estimate"}, stats
+        )
+        assert (
+            with_avm["fair_value_confidence_interval"]["ci_pct"]
+            < without_avm["fair_value_confidence_interval"]["ci_pct"]
+        )
+
+    def test_ci_narrows_when_fair_value_converges_with_list_price(self):
+        """When comp-based fair value ≈ list price, both signals agree — CI tightens slightly."""
+        stats = {**BASE_STATS, "median_sale_price": 1_250_000, "median_pct_over_asking": 0.0}
+        converged = recommend_offer(BASE_LISTING, stats)  # list_price = 1_250_000
+
+        stats_far = {**BASE_STATS, "median_sale_price": 900_000, "median_pct_over_asking": 0.0}
+        diverged = recommend_offer(BASE_LISTING, stats_far)
+
+        assert (
+            converged["fair_value_confidence_interval"]["ci_pct"]
+            < diverged["fair_value_confidence_interval"]["ci_pct"]
+        )
+
+    def test_ci_convergence_does_not_fire_when_list_price_is_artificially_low(self):
+        """List price $999k on a $1.4M property is an SF underpricing strategy — not a signal."""
+        listing_under = {**BASE_LISTING, "price": 999_000}
+        listing_credible = {**BASE_LISTING, "price": 1_400_000}
+        stats = {**BASE_STATS, "median_sale_price": 1_400_000, "median_pct_over_asking": 0.0}
+
+        result_under = recommend_offer(listing_under, stats)
+        result_credible = recommend_offer(listing_credible, stats)
+
+        # Artificially-low listing should not get a lower CI than the credibly-priced one
+        assert (
+            result_under["fair_value_confidence_interval"]["ci_pct"]
+            >= result_credible["fair_value_confidence_interval"]["ci_pct"]
+        )
+
+    def test_ci_factors_few_comps(self):
+        stats = {**BASE_STATS, "comp_count": 3, "median_pct_over_asking": 0.0}
+        result = recommend_offer(BASE_LISTING, stats)
+        assert "few_comps" in result["fair_value_confidence_interval"]["factors"]
+
+    def test_ci_factors_high_dispersion(self):
+        stats = {
+            **BASE_STATS,
+            "comp_count": 10,
+            "price_stdev": 350_000,
+            "median_sale_price": 1_100_000,
+            "median_pct_over_asking": 0.0,
+        }
+        result = recommend_offer(BASE_LISTING, stats)
+        assert "high_dispersion" in result["fair_value_confidence_interval"]["factors"]
+
+    def test_ci_factors_skewed_comps(self):
+        stats = {
+            **BASE_STATS,
+            "comp_count": 8,
+            "median_sale_price": 1_100_000,
+            "mean_sale_price": 1_250_000,
+            "median_pct_over_asking": 0.0,
+        }
+        result = recommend_offer(BASE_LISTING, stats)
+        assert "skewed_comps" in result["fair_value_confidence_interval"]["factors"]
+
+    def test_ci_factors_ppsf_fallback(self):
+        stats = {"median_price_per_sqft": 700.0, "median_pct_over_asking": 0.0}
+        result = recommend_offer(BASE_LISTING, stats)
+        assert "ppsf_fallback" in result["fair_value_confidence_interval"]["factors"]

@@ -5,6 +5,13 @@ import { OfferRecommendationCard, type OfferData } from "./OfferRecommendationCa
 const BASE: OfferData = {
   list_price: 1_250_000,
   fair_value_estimate: 1_099_500,
+  fair_value_confidence_interval: {
+    low: 1_045_000,
+    high: 1_155_000,
+    ci_pct: 5.0,
+    confidence: "moderate",
+    factors: ["few_comps"],
+  },
   offer_low: 1_225_000,
   offer_recommended: 1_187_000,
   offer_high: 1_300_000,
@@ -84,5 +91,40 @@ describe("OfferRecommendationCard", () => {
       />
     );
     expect(screen.getByText(/waive appraisal/i)).toBeInTheDocument();
+  });
+
+  it("renders confidence interval range and label", () => {
+    render(<OfferRecommendationCard offer={BASE} />);
+    expect(screen.getByText(/1,045,000/)).toBeInTheDocument();
+    expect(screen.getByText(/1,155,000/)).toBeInTheDocument();
+    expect(screen.getByText(/moderate confidence/i)).toBeInTheDocument();
+  });
+
+  it.each([
+    { confidence: "high" as const, label: /high confidence/i },
+    { confidence: "moderate" as const, label: /moderate confidence/i },
+    { confidence: "low" as const, label: /low confidence/i },
+  ])("renders correct confidence label: $confidence", ({ confidence, label }) => {
+    render(
+      <OfferRecommendationCard
+        offer={{
+          ...BASE,
+          fair_value_confidence_interval: {
+            ...BASE.fair_value_confidence_interval!,
+            confidence,
+          },
+        }}
+      />
+    );
+    expect(screen.getByText(label)).toBeInTheDocument();
+  });
+
+  it("omits confidence interval section when field is absent", () => {
+    render(
+      <OfferRecommendationCard
+        offer={{ ...BASE, fair_value_confidence_interval: undefined }}
+      />
+    );
+    expect(screen.queryByText(/confidence/i)).not.toBeInTheDocument();
   });
 });
