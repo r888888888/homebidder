@@ -33,6 +33,11 @@ FEMA_URL = (
     "https://msc.fema.gov/arcgis/rest/services/NFHL/NFHL_National/FeatureServer/28/query"
 )
 
+CALFIRE_FHSZ_URL = (
+    "https://gis.data.cnra.ca.gov/api/download/v1/items/"
+    "901a8f49d4914f4c8d55e4b1d91e5c02/GeoJSON?layers=0"
+)
+
 # ---------------------------------------------------------------------------
 # Shapefile loaders (lazy, module-level cache)
 # ---------------------------------------------------------------------------
@@ -71,6 +76,20 @@ def _load_liquefaction_zones() -> list[dict]:
 def _load_fire_hazard_zones() -> list[dict]:
     global _fire_cache
     if _fire_cache is None:
+        path = DATA_DIR / "fire_hazard_zones.geojson"
+        if not path.exists():
+            log.info("fire_hazard_zones.geojson not found — downloading from CalFire CNRA...")
+            try:
+                DATA_DIR.mkdir(parents=True, exist_ok=True)
+                with httpx.Client(timeout=120.0) as client:
+                    resp = client.get(CALFIRE_FHSZ_URL)
+                    resp.raise_for_status()
+                path.write_bytes(resp.content)
+                log.info("CalFire FHSZ GeoJSON saved to %s (%d bytes)", path, len(resp.content))
+            except Exception as exc:
+                log.warning("Failed to download CalFire FHSZ GeoJSON: %s — fire hazard check disabled", exc)
+                _fire_cache = []
+                return _fire_cache
         _fire_cache = _load_geojson_features("fire_hazard_zones.geojson")
     return _fire_cache
 

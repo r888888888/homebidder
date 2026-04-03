@@ -1,22 +1,31 @@
 """
 FHFA House Price Index (HPI) by ZIP code.
-Downloads and caches the ZIP-level annual HPI data for 7 days.
+Downloads and caches the ZIP-level annual HPI XLSX for 7 days.
 
-The FHFA publishes ZIP-level HPI as a zipped CSV:
-  https://www.fhfa.gov/hpi/download?file=HPI_AT_BDL_ZIP5.csv
-Expected CSV format: zip_code,year,annual_chg[,...]
+The FHFA publishes ZIP-level HPI as an XLSX file:
+  https://www.fhfa.gov/hpi/download/annual/hpi_at_zip5.xlsx
+
+XLSX structure:
+  Rows 0-4: title / notes (skipped)
+  Row 5:    column headers — "Five-Digit ZIP Code", "Year", "Annual Change (%)", ...
+  Row 6+:   data rows; "Annual Change (%)" is NaN for the first recorded year
 """
 import io
 import os
 import time
-import zipfile
 from typing import Any
 
 import httpx
+import pandas as pd
 
-FHFA_URL = "https://www.fhfa.gov/hpi/download?file=HPI_AT_BDL_ZIP5.csv"
-CACHE_PATH = "/tmp/fhfa_hpi.zip"
+FHFA_URL = "https://www.fhfa.gov/hpi/download/annual/hpi_at_zip5.xlsx"
+CACHE_PATH = "/tmp/fhfa_hpi.xlsx"
 CACHE_TTL = 7 * 86_400  # 7 days
+
+_ZIP_COL = "Five-Digit ZIP Code"
+_YEAR_COL = "Year"
+_CHG_COL = "Annual Change (%)"
+_HEADER_ROW = 5  # 0-indexed; rows 0-4 are notes
 
 
 def _cache_valid() -> bool:
@@ -42,46 +51,34 @@ async def _get_hpi_bytes() -> bytes:
     return raw
 
 
-def _extract_csv(raw_bytes: bytes) -> str:
-    """Extract the first CSV file from the zip archive."""
-    with zipfile.ZipFile(io.BytesIO(raw_bytes)) as zf:
-        name = next(n for n in zf.namelist() if n.endswith(".csv"))
-        return zf.read(name).decode("utf-8", errors="replace")
-
-
-def _parse_hpi_csv(csv_text: str, zip_code: str) -> list[dict[str, Any]]:
+def _parse_hpi_xlsx(raw_bytes: bytes, zip_code: str) -> list[dict[str, Any]]:
     """
-    Parse the FHFA ZIP HPI CSV and return rows for the given ZIP sorted newest-first.
-    Expects columns: zip_code, year, annual_chg (additional columns are ignored).
+    Parse the FHFA ZIP5 HPI XLSX and return rows for the given ZIP sorted newest-first.
+    Rows with NaN annual change (first year of recording) are skipped.
     """
-    lines = csv_text.splitlines()
-    if not lines:
+    df = pd.read_excel(io.BytesIO(raw_bytes), engine="openpyxl", header=_HEADER_ROW)
+
+    # Normalize column names (strip whitespace)
+    df.columns = [str(c).strip() for c in df.columns]
+
+    # Filter to the requested ZIP (stored as int in the XLSX)
+    zip_int = int(zip_code)
+    df = df[df[_ZIP_COL] == zip_int]
+
+    # Drop rows where annual change is NaN (first year of recording has no change)
+    df = df.dropna(subset=[_CHG_COL])
+
+    if df.empty:
         return []
 
-    header = [h.strip().lower() for h in lines[0].split(",")]
-    try:
-        zip_idx = header.index("zip_code")
-        year_idx = header.index("year")
-        chg_idx = header.index("annual_chg")
-    except ValueError:
-        return []
-
-    rows: list[dict[str, Any]] = []
-    for line in lines[1:]:
-        parts = line.split(",")
-        if len(parts) <= max(zip_idx, year_idx, chg_idx):
-            continue
-        if parts[zip_idx].strip().lstrip("0") != zip_code.lstrip("0") and parts[zip_idx].strip() != zip_code:
-            continue
-        try:
-            annual_chg = float(parts[chg_idx].strip())
-        except ValueError:
-            continue
-        rows.append({
+    rows = [
+        {
             "zip_code": zip_code,
-            "year": parts[year_idx].strip(),
-            "annual_chg": annual_chg,
-        })
+            "year": str(int(row[_YEAR_COL])),
+            "annual_chg": float(row[_CHG_COL]),
+        }
+        for _, row in df.iterrows()
+    ]
 
     rows.sort(key=lambda r: r["year"], reverse=True)
     return rows
@@ -118,11 +115,14 @@ async def fetch_fhfa_hpi(zip_code: str) -> dict[str, Any]:
     """
     try:
         raw = await _get_hpi_bytes()
-        csv_text = _extract_csv(raw)
     except Exception as exc:
         return {"error": f"Failed to download FHFA HPI data: {exc}"}
 
-    rows = _parse_hpi_csv(csv_text, zip_code)
+    try:
+        rows = _parse_hpi_xlsx(raw, zip_code)
+    except Exception as exc:
+        return {"zip_code": zip_code, "error": f"Failed to parse FHFA HPI data: {exc}"}
+
     if not rows:
         return {"zip_code": zip_code, "error": "No FHFA HPI data found for this ZIP"}
 

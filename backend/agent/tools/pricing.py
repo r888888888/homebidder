@@ -7,8 +7,22 @@ from datetime import datetime, timedelta
 from typing import Any
 
 
+DEFAULT_MORTGAGE_RATE_PCT = 6.5
+DEFAULT_MORTGAGE_TERM_YEARS = 30
+DEFAULT_DOWN_PAYMENT_PCT = 20.0
+
+
 def _clamp(value: float, low: float, high: float) -> float:
     return max(low, min(value, high))
+
+
+def _monthly_payment_per_dollar(annual_rate_pct: float, term_years: int) -> float:
+    """Monthly principal+interest payment for each $1 borrowed."""
+    months = term_years * 12
+    monthly_rate = annual_rate_pct / 100 / 12
+    if monthly_rate == 0:
+        return 1 / months
+    return monthly_rate / (1 - (1 + monthly_rate) ** (-months))
 
 
 def _compute_offer_range_band_pct(
@@ -183,6 +197,7 @@ def recommend_offer(
     listing: dict[str, Any],
     market_stats: dict[str, Any],
     buyer_context: str = "",
+    mortgage_rate_pct: float = DEFAULT_MORTGAGE_RATE_PCT,
 ) -> dict[str, Any]:
     """
     Produce an offer range based on listing price vs. comp market data.
@@ -360,6 +375,27 @@ def recommend_offer(
         "keep_inspection": True,
     }
 
+    hoa_equivalent_sfh_value = None
+    hoa_fee = listing.get("hoa_fee")
+    if hoa_fee is not None and hoa_fee > 0 and recommended:
+        payment_per_dollar = _monthly_payment_per_dollar(
+            mortgage_rate_pct,
+            DEFAULT_MORTGAGE_TERM_YEARS,
+        )
+        down_payment_ratio = DEFAULT_DOWN_PAYMENT_PCT / 100
+        loan_capacity = hoa_fee / payment_per_dollar
+        extra_purchase_power = round(loan_capacity / (1 - down_payment_ratio) / 1000) * 1000
+        hoa_equivalent_sfh_value = {
+            "monthly_hoa_fee": round(hoa_fee),
+            "extra_purchase_power": extra_purchase_power,
+            "equivalent_sfh_price_no_hoa": recommended + extra_purchase_power,
+            "assumptions": {
+                "mortgage_rate_pct": mortgage_rate_pct,
+                "mortgage_term_years": DEFAULT_MORTGAGE_TERM_YEARS,
+                "down_payment_pct": DEFAULT_DOWN_PAYMENT_PCT,
+            },
+        }
+
     return {
         "list_price": list_price,
         "fair_value_estimate": fair_value,
@@ -375,4 +411,5 @@ def recommend_offer(
         "pct_sold_over_asking": pct_sold_over_asking,
         "offer_review_advisory": offer_review_advisory,
         "contingency_recommendation": contingency_recommendation,
+        "hoa_equivalent_sfh_value": hoa_equivalent_sfh_value,
     }

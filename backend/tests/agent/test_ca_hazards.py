@@ -205,3 +205,52 @@ class TestFetchCaHazardZones:
             result = await fetch_ca_hazard_zones(LAT_OUT, LON_OUT)
 
         assert result["flood_zone_sfha"] is False
+
+
+# ---------------------------------------------------------------------------
+# CalFire auto-download when GeoJSON file is missing
+# ---------------------------------------------------------------------------
+
+class TestCalFireAutoDownload:
+    def test_missing_file_triggers_download(self, tmp_path):
+        """If fire_hazard_zones.geojson is absent, _load_fire_hazard_zones downloads it."""
+        import json
+        from agent.tools.ca_hazards import _load_fire_hazard_zones
+
+        fire_geojson = json.dumps(MOCK_FIRE_GEOJSON).encode()
+
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status = MagicMock()
+        mock_resp.content = fire_geojson
+
+        with patch("agent.tools.ca_hazards.DATA_DIR", tmp_path), \
+             patch("agent.tools.ca_hazards._fire_cache", None), \
+             patch("agent.tools.ca_hazards.httpx.Client") as mock_client_cls:
+            mock_client_cls.return_value.__enter__ = MagicMock(return_value=MagicMock(
+                get=MagicMock(return_value=mock_resp)
+            ))
+            mock_client_cls.return_value.__exit__ = MagicMock(return_value=False)
+
+            features = _load_fire_hazard_zones()
+
+        assert len(features) == 1
+        assert features[0]["properties"]["HAZ_CLASS"] == "VHFHSZ"
+        # File should be saved to disk
+        assert (tmp_path / "fire_hazard_zones.geojson").exists()
+
+    def test_download_failure_returns_empty_list(self, tmp_path):
+        """If download fails, _load_fire_hazard_zones returns [] without raising."""
+        import httpx as httpx_mod
+        from agent.tools.ca_hazards import _load_fire_hazard_zones
+
+        with patch("agent.tools.ca_hazards.DATA_DIR", tmp_path), \
+             patch("agent.tools.ca_hazards._fire_cache", None), \
+             patch("agent.tools.ca_hazards.httpx.Client") as mock_client_cls:
+            mock_client_cls.return_value.__enter__ = MagicMock(return_value=MagicMock(
+                get=MagicMock(side_effect=Exception("connection timeout"))
+            ))
+            mock_client_cls.return_value.__exit__ = MagicMock(return_value=False)
+
+            features = _load_fire_hazard_zones()
+
+        assert features == []

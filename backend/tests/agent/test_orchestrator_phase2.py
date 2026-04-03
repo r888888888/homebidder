@@ -184,3 +184,61 @@ class TestToolResultSseEvents:
         result_data = tr["result"]
         assert result_data["address_matched"] == "450 SANCHEZ ST, SAN FRANCISCO, CA, 94114"
         assert result_data["price"] == 1_250_000.0
+
+    async def test_phase2_passes_fetched_mortgage_rate_to_recommend_offer(self):
+        from unittest.mock import MagicMock
+
+        comps_block = MagicMock()
+        comps_block.type = "tool_use"
+        comps_block.name = "fetch_comps"
+        comps_block.id = "tu_comps_1"
+        comps_block.input = {
+            "address": "450 Sanchez St, San Francisco, CA 94114",
+            "city": "San Francisco",
+            "state": "CA",
+            "zip_code": "94114",
+        }
+
+        tool_use_response = MagicMock()
+        tool_use_response.stop_reason = "tool_use"
+        tool_use_response.content = [comps_block]
+
+        end_turn_response = MagicMock()
+        end_turn_response.stop_reason = "end_turn"
+        text_block = MagicMock()
+        text_block.type = "text"
+        text_block.text = "Done."
+        end_turn_response.content = [text_block]
+
+        fake_comps = [
+            {"sold_price": 1_000_000, "price_per_sqft": 700.0, "sqft": 1400, "list_price": 980_000}
+        ]
+        fake_offer = {
+            "list_price": 995000,
+            "fair_value_estimate": 1_000_000,
+            "offer_low": 970000,
+            "offer_recommended": 995000,
+            "offer_high": 1_020_000,
+            "posture": "at-market",
+            "offer_range_band_pct": 3.0,
+            "spread_vs_list_pct": 0.5,
+            "median_pct_over_asking": None,
+            "pct_sold_over_asking": None,
+            "offer_review_advisory": None,
+            "contingency_recommendation": {"waive_appraisal": False, "waive_loan": False, "keep_inspection": True},
+            "hoa_equivalent_sfh_value": None,
+        }
+
+        with patch("agent.orchestrator.anthropic.AsyncAnthropic") as mock_cls, \
+             patch("agent.orchestrator.fetch_comps", new_callable=AsyncMock, return_value=fake_comps), \
+             patch("agent.orchestrator.get_current_mortgage_rate_pct", new_callable=AsyncMock, return_value=5.75), \
+             patch("agent.orchestrator.recommend_offer", return_value=fake_offer) as mock_recommend:
+
+            mock_client = AsyncMock()
+            mock_cls.return_value = mock_client
+            mock_client.messages.create.side_effect = [tool_use_response, end_turn_response]
+
+            await collect_events("450 Sanchez St, San Francisco, CA 94114")
+
+        _, kwargs = mock_recommend.call_args
+        assert kwargs["mortgage_rate_pct"] == 5.75

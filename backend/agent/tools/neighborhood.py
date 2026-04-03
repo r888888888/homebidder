@@ -21,6 +21,25 @@ import httpx
 
 CA_TAX_RATE = 0.0125  # CA effective property tax rate (~1.25%)
 
+# DataSF stores street types in abbreviated form (e.g. AVE→AV, BLVD→BL).
+# Strip the trailing type suffix before building the LIKE search so that
+# "319 PLYMOUTH AVE" matches "0000 0319 PLYMOUTH            AV0000".
+_STREET_SUFFIXES = {
+    "AVE", "AVENUE", "BLVD", "BOULEVARD", "CT", "COURT",
+    "DR", "DRIVE", "LN", "LANE", "PL", "PLACE",
+    "RD", "ROAD", "ST", "STREET", "WAY",
+    "TER", "TERRACE", "CIR", "CIRCLE", "HWY", "HIGHWAY",
+}
+
+
+def _sf_search_term(street: str) -> str:
+    """Return the street string with trailing type suffix removed for LIKE matching."""
+    parts = street.split()
+    if len(parts) > 2 and parts[-1].upper() in _STREET_SUFFIXES:
+        return " ".join(parts[:-1])
+    return street
+
+
 # Counties with primary Prop 13 assessor path
 _SF_COUNTY = "San Francisco"
 _ALAMEDA_COUNTY = "Alameda"
@@ -84,12 +103,15 @@ def _prop13_result(assessed_land: float, assessed_impr: float, base_year: int) -
 
 async def _sf_assessor(address_matched: str) -> dict[str, Any]:
     """DataSF Assessor-Recorder API — keyed on street address."""
-    # Extract street portion: "450 SANCHEZ ST, SAN FRANCISCO, CA, 94114" → "450 SANCHEZ ST"
+    # Extract street portion: "319 PLYMOUTH AVE, SAN FRANCISCO, CA, 94112" → "319 PLYMOUTH AVE"
+    # Strip trailing type suffix so "319 PLYMOUTH AVE" → "319 PLYMOUTH" (DB stores "AV" not "AVE")
     street = address_matched.split(",")[0].strip()
+    search_term = _sf_search_term(street)
     params = {
-        "$where": f"upper(siteaddr) like '%{street}%'",
+        "$where": f"upper(property_location) like '%{search_term}%'",
+        "$order": "closed_roll_year DESC",
         "$limit": 1,
-        "$select": "assessedland,assessedimpr,yrbuilt,rollyr",
+        "$select": "assessed_land_value,assessed_improvement_value,closed_roll_year,property_location",
     }
     url = "https://data.sfgov.org/resource/wv5m-vpq2.json?" + urlencode(params)
 
@@ -102,9 +124,9 @@ async def _sf_assessor(address_matched: str) -> dict[str, Any]:
         return {"prop13_assessed_value": None, "prop13_base_year": None, "prop13_annual_tax": None}
 
     row = rows[0]
-    land = float(row.get("assessedland") or 0)
-    impr = float(row.get("assessedimpr") or 0)
-    base_year = int(row.get("rollyr") or 0) or None
+    land = float(row.get("assessed_land_value") or 0)
+    impr = float(row.get("assessed_improvement_value") or 0)
+    base_year = int(row.get("closed_roll_year") or 0) or None
     if base_year is None:
         return {"prop13_assessed_value": None, "prop13_base_year": None, "prop13_annual_tax": None}
     return _prop13_result(land, impr, base_year)

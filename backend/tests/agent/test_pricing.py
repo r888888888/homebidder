@@ -274,6 +274,44 @@ class TestPassthroughFields:
 
 
 # ---------------------------------------------------------------------------
+# recommend_offer — HOA equivalent no-HOA SFH value
+# ---------------------------------------------------------------------------
+
+class TestHoaEquivalentSfhValue:
+    def test_returns_equivalent_sfh_value_when_hoa_fee_present(self):
+        listing = {**BASE_LISTING, "hoa_fee": 1_443}
+        result = recommend_offer(listing, BASE_STATS)
+
+        hoa_equiv = result["hoa_equivalent_sfh_value"]
+        assert hoa_equiv is not None
+        assert hoa_equiv["monthly_hoa_fee"] == 1_443
+        assert hoa_equiv["extra_purchase_power"] == 285_000
+        assert hoa_equiv["equivalent_sfh_price_no_hoa"] == (
+            result["offer_recommended"] + 285_000
+        )
+
+    def test_omits_equivalent_sfh_value_when_no_hoa_fee(self):
+        listing = {**BASE_LISTING, "hoa_fee": None}
+        result = recommend_offer(listing, BASE_STATS)
+        assert result["hoa_equivalent_sfh_value"] is None
+
+    def test_omits_equivalent_sfh_value_when_hoa_fee_zero(self):
+        listing = {**BASE_LISTING, "hoa_fee": 0}
+        result = recommend_offer(listing, BASE_STATS)
+        assert result["hoa_equivalent_sfh_value"] is None
+
+    def test_lower_mortgage_rate_increases_extra_purchase_power(self):
+        listing = {**BASE_LISTING, "hoa_fee": 1_443}
+        at_default_rate = recommend_offer(listing, BASE_STATS)
+        at_lower_rate = recommend_offer(listing, BASE_STATS, mortgage_rate_pct=5.0)
+
+        assert (
+            at_lower_rate["hoa_equivalent_sfh_value"]["extra_purchase_power"]
+            > at_default_rate["hoa_equivalent_sfh_value"]["extra_purchase_power"]
+        )
+
+
+# ---------------------------------------------------------------------------
 # recommend_offer — fair value algorithm (land-aware)
 # ---------------------------------------------------------------------------
 

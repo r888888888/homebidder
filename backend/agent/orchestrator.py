@@ -19,9 +19,11 @@ from .tools.property_lookup import lookup_property_by_address
 from .tools.neighborhood import fetch_neighborhood_context
 from .tools.comps import fetch_comps
 from .tools.pricing import analyze_market, recommend_offer
+from .tools.mortgage_rate import get_current_mortgage_rate_pct
 from .tools.market_trends import fetch_market_trends
 from .tools.fhfa import fetch_fhfa_hpi
 from .tools.ca_hazards import fetch_ca_hazard_zones
+from .tools.risk import assess_risk
 
 MODEL = "claude-sonnet-4-6"
 
@@ -192,6 +194,10 @@ async def run_agent(address: str, buyer_context: str = "") -> AsyncIterator[str]
 
     # State tracked across turns
     property_result: dict | None = None
+    neighborhood_result: dict | None = None
+    phase6_trends: dict | None = None
+    phase6_fhfa: dict | None = None
+    phase6_hazards: dict | None = None
     analysis_done = False
 
     # Data-gathering tools Claude is allowed to call
@@ -276,6 +282,9 @@ async def run_agent(address: str, buyer_context: str = "") -> AsyncIterator[str]
                         "content": result_str,
                     })
 
+            if "fetch_neighborhood_context" in dispatched:
+                neighborhood_result = dispatched["fetch_neighborhood_context"]
+
             if "lookup_property_by_address" in dispatched:
                 property_result = dispatched["lookup_property_by_address"]
 
@@ -319,6 +328,13 @@ async def run_agent(address: str, buyer_context: str = "") -> AsyncIterator[str]
                             if isinstance(result, Exception):
                                 log.warning("Phase 6 tool %s failed: %s", tool_name, result)
                             continue
+                        # Cache in state for downstream assess_risk
+                        if tool_name == "fetch_market_trends":
+                            phase6_trends = result
+                        elif tool_name == "fetch_fhfa_hpi":
+                            phase6_fhfa = result
+                        elif tool_name == "fetch_ca_hazard_zones":
+                            phase6_hazards = result
                         yield f"data: {json.dumps({'type': 'tool_call', 'tool': tool_name, 'input': {}})}\n\n"
                         yield f"data: {json.dumps({'type': 'tool_result', 'tool': tool_name, 'result': result})}\n\n"
                         log.info("Phase 6 auto-computed %s", tool_name)
@@ -336,15 +352,36 @@ async def run_agent(address: str, buyer_context: str = "") -> AsyncIterator[str]
 
                 # recommend_offer
                 yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'recommend_offer', 'input': {'listing': '...', 'market_stats': '...'}})}\n\n"
-                offer_result = recommend_offer(listing, market_stats, buyer_context)
+                mortgage_rate_pct = await get_current_mortgage_rate_pct()
+                offer_result = recommend_offer(
+                    listing,
+                    market_stats,
+                    buyer_context,
+                    mortgage_rate_pct=mortgage_rate_pct,
+                )
                 log.info("Auto-computed recommend_offer: posture=%s", offer_result.get("posture"))
                 yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'recommend_offer', 'result': offer_result})}\n\n"
+
+                # Phase 7: auto-compute risk assessment
+                yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'assess_risk', 'input': {}})}\n\n"
+                risk_result = assess_risk(
+                    listing=listing,
+                    market_stats=market_stats,
+                    offer_result=offer_result,
+                    neighborhood=neighborhood_result,
+                    market_trends=phase6_trends,
+                    fhfa_hpi=phase6_fhfa,
+                    hazard_zones=phase6_hazards,
+                )
+                log.info("Auto-computed assess_risk: overall=%s score=%s", risk_result.get("overall_risk"), risk_result.get("score"))
+                yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'assess_risk', 'result': risk_result})}\n\n"
 
                 # Inject results into conversation as a concise summary (avoids re-sending full comps)
                 summary = (
                     "The following analysis has been automatically computed.\n\n"
                     f"**Market Analysis:**\n{json.dumps(market_stats)}\n\n"
                     f"**Offer Recommendation:**\n{json.dumps(offer_result)}\n\n"
+                    f"**Risk Assessment:**\n{json.dumps(risk_result)}\n\n"
                     "Please now write your final narrative for the buyer."
                 )
                 messages.append({"role": "assistant", "content": response.content})

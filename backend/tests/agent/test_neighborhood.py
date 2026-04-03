@@ -20,11 +20,11 @@ def _http_mock(json_data):
 
 SF_ASSESSOR_ROWS = [
     {
-        "blklot": "3582008",
-        "assessedland": "250000",
-        "assessedimpr": "950000",
-        "yrbuilt": "1928",
-        "rollyr": "2019",
+        "parcel_number": "3582008",
+        "assessed_land_value": "250000",
+        "assessed_improvement_value": "950000",
+        "closed_roll_year": "2019",
+        "property_location": "0000 0450 SANCHEZ              ST0000",
     }
 ]
 
@@ -56,6 +56,34 @@ SANTA_CLARA_RESPONSE = [
         "tax_year": "2020",
     }
 ]
+
+
+# ---------------------------------------------------------------------------
+# _sf_search_term — street suffix stripping
+# ---------------------------------------------------------------------------
+
+class TestSfSearchTerm:
+    def test_strips_ave_suffix(self):
+        from agent.tools.neighborhood import _sf_search_term
+        assert _sf_search_term("319 PLYMOUTH AVE") == "319 PLYMOUTH"
+
+    def test_strips_st_suffix(self):
+        from agent.tools.neighborhood import _sf_search_term
+        assert _sf_search_term("450 SANCHEZ ST") == "450 SANCHEZ"
+
+    def test_preserves_multi_word_name_without_suffix(self):
+        from agent.tools.neighborhood import _sf_search_term
+        # "123 VAN NESS AVE" → strips "AVE" → "123 VAN NESS"
+        assert _sf_search_term("123 VAN NESS AVE") == "123 VAN NESS"
+
+    def test_no_suffix_returned_unchanged(self):
+        from agent.tools.neighborhood import _sf_search_term
+        # Only 2 tokens — don't strip (could be "1 MARKET" with no type)
+        assert _sf_search_term("1 MARKET") == "1 MARKET"
+
+    def test_unknown_suffix_not_stripped(self):
+        from agent.tools.neighborhood import _sf_search_term
+        assert _sf_search_term("100 MAIN XYZ") == "100 MAIN XYZ"
 
 
 # ---------------------------------------------------------------------------

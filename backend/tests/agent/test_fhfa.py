@@ -4,14 +4,14 @@ Tests for fhfa.py — fetch_fhfa_hpi.
 import io
 import os
 import time
-import zipfile
 from unittest.mock import AsyncMock, patch
 
+import openpyxl
 import pytest
 
 from agent.tools.fhfa import (
     _compute_hpi_stats,
-    _parse_hpi_csv,
+    _parse_hpi_xlsx,
     fetch_fhfa_hpi,
 )
 
@@ -19,18 +19,23 @@ from agent.tools.fhfa import (
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_hpi_csv(rows: list[dict]) -> str:
-    """Build a minimal CSV matching the FHFA ZIP-level HPI format."""
-    lines = ["zip_code,year,annual_chg"]
+def _make_xlsx_bytes(rows: list[dict]) -> bytes:
+    """
+    Build a minimal XLSX matching the FHFA ZIP5 format.
+    Rows 0-4 are junk (matching FHFA's title/notes header).
+    Row 5 is the column header.
+    Rows 6+ are data.
+    """
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    # Five junk/header rows matching real FHFA file structure
+    for _ in range(5):
+        ws.append([""])
+    ws.append(["Five-Digit ZIP Code", "Year", "Annual Change (%)"])
     for r in rows:
-        lines.append(f"{r['zip_code']},{r['year']},{r['annual_chg']}")
-    return "\n".join(lines)
-
-
-def _make_zipped_csv(csv_text: str, filename: str = "HPI_AT_BDL_ZIP5.csv") -> bytes:
+        ws.append([int(r["zip_code"]), int(r["year"]), float(r["annual_chg"])])
     buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w") as zf:
-        zf.writestr(filename, csv_text)
+    wb.save(buf)
     return buf.getvalue()
 
 
@@ -45,31 +50,38 @@ SAMPLE_ROWS = [
 
 
 # ---------------------------------------------------------------------------
-# _parse_hpi_csv
+# _parse_hpi_xlsx
 # ---------------------------------------------------------------------------
 
-class TestParseHpiCsv:
+class TestParseHpiXlsx:
     def test_returns_rows_for_matching_zip(self):
-        csv_text = _make_hpi_csv(SAMPLE_ROWS)
-        rows = _parse_hpi_csv(csv_text, "94114")
+        xlsx = _make_xlsx_bytes(SAMPLE_ROWS)
+        rows = _parse_hpi_xlsx(xlsx, "94114")
         assert len(rows) == 4
         assert all(r["zip_code"] == "94114" for r in rows)
 
     def test_returns_empty_for_unknown_zip(self):
-        csv_text = _make_hpi_csv(SAMPLE_ROWS)
-        rows = _parse_hpi_csv(csv_text, "99999")
+        xlsx = _make_xlsx_bytes(SAMPLE_ROWS)
+        rows = _parse_hpi_xlsx(xlsx, "99999")
         assert rows == []
 
     def test_rows_sorted_newest_first(self):
-        csv_text = _make_hpi_csv(SAMPLE_ROWS)
-        rows = _parse_hpi_csv(csv_text, "94114")
+        xlsx = _make_xlsx_bytes(SAMPLE_ROWS)
+        rows = _parse_hpi_xlsx(xlsx, "94114")
         years = [r["year"] for r in rows]
         assert years == sorted(years, reverse=True)
 
     def test_annual_chg_is_float(self):
-        csv_text = _make_hpi_csv(SAMPLE_ROWS)
-        rows = _parse_hpi_csv(csv_text, "94114")
+        xlsx = _make_xlsx_bytes(SAMPLE_ROWS)
+        rows = _parse_hpi_xlsx(xlsx, "94114")
         assert isinstance(rows[0]["annual_chg"], float)
+
+    def test_skips_rows_with_nan_annual_chg(self):
+        """First year of HPI always has NaN annual change — skip it."""
+        rows_with_nan = SAMPLE_ROWS + [{"zip_code": "94114", "year": "1976", "annual_chg": "nan"}]
+        xlsx = _make_xlsx_bytes(rows_with_nan)
+        result = _parse_hpi_xlsx(xlsx, "94114")
+        assert all(r["year"] != "1976" for r in result)
 
 
 # ---------------------------------------------------------------------------
@@ -126,31 +138,30 @@ class TestComputeHpiStats:
 
 class TestFetchFhfaHpi:
     @pytest.fixture()
-    def mock_zip_bytes(self):
-        csv_text = _make_hpi_csv(SAMPLE_ROWS)
-        return _make_zipped_csv(csv_text)
+    def mock_xlsx_bytes(self):
+        return _make_xlsx_bytes(SAMPLE_ROWS)
 
-    async def test_returns_hpi_stats_for_zip(self, mock_zip_bytes, tmp_path):
-        cache = str(tmp_path / "fhfa.zip")
+    async def test_returns_hpi_stats_for_zip(self, mock_xlsx_bytes, tmp_path):
+        cache = str(tmp_path / "fhfa.xlsx")
         with patch("agent.tools.fhfa.CACHE_PATH", cache), \
-             patch("agent.tools.fhfa._download_hpi", AsyncMock(return_value=mock_zip_bytes)):
+             patch("agent.tools.fhfa._download_hpi", AsyncMock(return_value=mock_xlsx_bytes)):
             result = await fetch_fhfa_hpi("94114")
 
         assert "yoy_change_pct" in result
         assert "hpi_trend" in result
         assert "as_of_year" in result
 
-    async def test_returns_error_for_unknown_zip(self, mock_zip_bytes, tmp_path):
-        cache = str(tmp_path / "fhfa.zip")
+    async def test_returns_error_for_unknown_zip(self, mock_xlsx_bytes, tmp_path):
+        cache = str(tmp_path / "fhfa.xlsx")
         with patch("agent.tools.fhfa.CACHE_PATH", cache), \
-             patch("agent.tools.fhfa._download_hpi", AsyncMock(return_value=mock_zip_bytes)):
+             patch("agent.tools.fhfa._download_hpi", AsyncMock(return_value=mock_xlsx_bytes)):
             result = await fetch_fhfa_hpi("00000")
 
         assert "error" in result
 
-    async def test_uses_cache_on_second_call(self, mock_zip_bytes, tmp_path):
-        cache = str(tmp_path / "fhfa.zip")
-        download_mock = AsyncMock(return_value=mock_zip_bytes)
+    async def test_uses_cache_on_second_call(self, mock_xlsx_bytes, tmp_path):
+        cache = str(tmp_path / "fhfa.xlsx")
+        download_mock = AsyncMock(return_value=mock_xlsx_bytes)
         with patch("agent.tools.fhfa.CACHE_PATH", cache), \
              patch("agent.tools.fhfa._download_hpi", download_mock):
             await fetch_fhfa_hpi("94114")
@@ -158,14 +169,14 @@ class TestFetchFhfaHpi:
 
         assert download_mock.call_count == 1
 
-    async def test_re_downloads_when_cache_stale(self, mock_zip_bytes, tmp_path):
-        cache = str(tmp_path / "fhfa.zip")
+    async def test_re_downloads_when_cache_stale(self, mock_xlsx_bytes, tmp_path):
+        cache = str(tmp_path / "fhfa.xlsx")
         with open(cache, "wb") as f:
-            f.write(mock_zip_bytes)
+            f.write(mock_xlsx_bytes)
         stale_mtime = time.time() - 8 * 86400  # 8 days ago
         os.utime(cache, (stale_mtime, stale_mtime))
 
-        download_mock = AsyncMock(return_value=mock_zip_bytes)
+        download_mock = AsyncMock(return_value=mock_xlsx_bytes)
         with patch("agent.tools.fhfa.CACHE_PATH", cache), \
              patch("agent.tools.fhfa._download_hpi", download_mock):
             await fetch_fhfa_hpi("94114")

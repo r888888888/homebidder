@@ -5,6 +5,7 @@ import { PropertySummaryCard, type PropertyData } from "./PropertySummaryCard";
 import { NeighborhoodCard, type NeighborhoodData } from "./NeighborhoodCard";
 import { CompsCard, type CompData } from "./CompsCard";
 import { OfferRecommendationCard, type OfferData } from "./OfferRecommendationCard";
+import { RiskAnalysisCard, type RiskData } from "./RiskAnalysisCard";
 
 interface Props {
   events: AnalysisEvent[];
@@ -17,6 +18,7 @@ const TOOL_LABELS: Record<string, string> = {
   fetch_comps: "Fetching comparable sales",
   analyze_market: "Analyzing market data",
   recommend_offer: "Computing offer range",
+  assess_risk: "Assessing risk factors",
 };
 
 export function AnalysisStream({ events, isRunning }: Props) {
@@ -44,6 +46,11 @@ export function AnalysisStream({ events, isRunning }: Props) {
   );
   const offerData = offerEvent?.result as OfferData | undefined;
 
+  const riskEvent = events.find(
+    (e) => e.type === "tool_result" && e.tool === "assess_risk"
+  );
+  const riskData = riskEvent?.result as RiskData | undefined;
+
   return (
     <div className="space-y-4 fade-up">
       {/* Property summary card */}
@@ -63,6 +70,9 @@ export function AnalysisStream({ events, isRunning }: Props) {
 
       {/* Offer recommendation */}
       {offerData && <OfferRecommendationCard offer={offerData} />}
+
+      {/* Risk assessment */}
+      {riskData && <RiskAnalysisCard risk={riskData} />}
 
       {/* Agent step progress */}
       {toolCalls.length > 0 && (
