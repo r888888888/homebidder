@@ -62,6 +62,8 @@ MYHAZARDS_FIRE_URL = (
     "MyHazards_Hazard_Areas/FeatureServer/9/query"
 )
 
+ARCGIS_PAGE_SIZE = 2000
+
 # ---------------------------------------------------------------------------
 # Shapefile loaders (lazy, module-level cache)
 # ---------------------------------------------------------------------------
@@ -149,9 +151,54 @@ async def prefetch_ca_hazard_geojson(force: bool = False) -> dict[str, bool]:
         "fire_hazard_zones.geojson": False,
     }
 
+    log.info("Starting CA hazard prefetch (force=%s)", force)
+
     async with httpx.AsyncClient(timeout=120.0, follow_redirects=True) as client:
+        async def fetch_geojson_paginated(url: str, params: dict[str, str]) -> dict:
+            features: list[dict] = []
+            offset = 0
+            page = 1
+            while True:
+                page_params = dict(params)
+                page_params["resultOffset"] = str(offset)
+                page_params["resultRecordCount"] = str(ARCGIS_PAGE_SIZE)
+                log.info(
+                    "Prefetch page %d from %s (offset=%d, page_size=%d)",
+                    page,
+                    url,
+                    offset,
+                    ARCGIS_PAGE_SIZE,
+                )
+                resp = await client.get(url, params=page_params)
+                resp.raise_for_status()
+                data = resp.json()
+                batch = data.get("features", []) or []
+                features.extend(batch)
+                log.info(
+                    "Fetched page %d from %s: batch=%d cumulative=%d",
+                    page,
+                    url,
+                    len(batch),
+                    len(features),
+                )
+
+                exceeded = bool((data.get("properties") or {}).get("exceededTransferLimit"))
+                if not exceeded or not batch:
+                    log.info(
+                        "Completed paginated fetch for %s (pages=%d total_features=%d)",
+                        url,
+                        page,
+                        len(features),
+                    )
+                    break
+                offset += len(batch)
+                page += 1
+
+            return {"type": "FeatureCollection", "features": features}
+
         fault_path = DATA_DIR / "ap_fault_zones.geojson"
         if force or not fault_path.exists():
+            log.info("Prefetching AP fault zones to %s", fault_path)
             try:
                 params = {
                     "where": "1=1",
@@ -159,16 +206,22 @@ async def prefetch_ca_hazard_geojson(force: bool = False) -> dict[str, bool]:
                     "returnGeometry": "true",
                     "f": "geojson",
                 }
-                resp = await client.get(CGS_FAULT_GEOJSON_URL, params=params)
-                resp.raise_for_status()
-                data = resp.json()
+                data = await fetch_geojson_paginated(CGS_FAULT_GEOJSON_URL, params)
                 fault_path.write_text(json.dumps(data), encoding="utf-8")
                 results["ap_fault_zones.geojson"] = True
+                log.info(
+                    "Saved AP fault zones (%d features) to %s",
+                    len(data.get("features", [])),
+                    fault_path,
+                )
             except Exception as exc:
                 log.warning("Failed to prefetch fault zones: %s", exc)
+        else:
+            log.info("Skipping AP fault zones prefetch; file already exists at %s", fault_path)
 
         liq_path = DATA_DIR / "liquefaction_zones.geojson"
         if force or not liq_path.exists():
+            log.info("Prefetching liquefaction zones to %s", liq_path)
             try:
                 params = {
                     "where": "1=1",
@@ -176,21 +229,29 @@ async def prefetch_ca_hazard_geojson(force: bool = False) -> dict[str, bool]:
                     "returnGeometry": "true",
                     "f": "geojson",
                 }
-                resp = await client.get(CGS_LIQUEFACTION_GEOJSON_URL, params=params)
-                resp.raise_for_status()
-                normalized = _normalize_liquefaction_geojson(resp.json())
+                data = await fetch_geojson_paginated(CGS_LIQUEFACTION_GEOJSON_URL, params)
+                normalized = _normalize_liquefaction_geojson(data)
                 liq_path.write_text(json.dumps(normalized), encoding="utf-8")
                 results["liquefaction_zones.geojson"] = True
+                log.info(
+                    "Saved liquefaction zones (%d features) to %s",
+                    len(normalized.get("features", [])),
+                    liq_path,
+                )
             except Exception as exc:
                 log.warning("Failed to prefetch liquefaction zones: %s", exc)
+        else:
+            log.info("Skipping liquefaction prefetch; file already exists at %s", liq_path)
 
         fire_path = DATA_DIR / "fire_hazard_zones.geojson"
         if force or not fire_path.exists():
+            log.info("Prefetching fire hazard zones to %s", fire_path)
             try:
                 resp = await client.get(CALFIRE_FHSZ_URL)
                 resp.raise_for_status()
                 fire_path.write_bytes(resp.content)
                 results["fire_hazard_zones.geojson"] = True
+                log.info("Saved CalFire fire hazard zones to %s (%d bytes)", fire_path, len(resp.content))
             except Exception as exc:
                 log.warning("Failed to prefetch CalFire FHSZ, trying fallback: %s", exc)
                 try:
@@ -200,18 +261,25 @@ async def prefetch_ca_hazard_geojson(force: bool = False) -> dict[str, bool]:
                         "returnGeometry": "true",
                         "f": "geojson",
                     }
-                    fallback_resp = await client.get(MYHAZARDS_FIRE_GEOJSON_URL, params=params)
-                    fallback_resp.raise_for_status()
-                    normalized = _normalize_myhazards_geojson(fallback_resp.json())
+                    data = await fetch_geojson_paginated(MYHAZARDS_FIRE_GEOJSON_URL, params)
+                    normalized = _normalize_myhazards_geojson(data)
                     fire_path.write_text(json.dumps(normalized), encoding="utf-8")
                     results["fire_hazard_zones.geojson"] = True
+                    log.info(
+                        "Saved MyHazards fire fallback (%d features) to %s",
+                        len(normalized.get("features", [])),
+                        fire_path,
+                    )
                 except Exception as fallback_exc:
                     log.warning("Failed to prefetch MyHazards fire fallback: %s", fallback_exc)
+        else:
+            log.info("Skipping fire hazard prefetch; file already exists at %s", fire_path)
 
     global _fault_cache, _liq_cache, _fire_cache
     _fault_cache = None
     _liq_cache = None
     _fire_cache = None
+    log.info("Completed CA hazard prefetch: %s", results)
     return results
 
 
