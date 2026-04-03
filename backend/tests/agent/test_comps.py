@@ -9,6 +9,7 @@ All homeharvest / HTTP calls are mocked.
 """
 
 import os
+import datetime as dt
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 import pandas as pd
@@ -261,6 +262,41 @@ class TestPropertyTypeFilter:
             )
 
         assert len(comps) == 2
+
+
+class TestSubjectResaleFilter:
+    async def test_excludes_same_address_and_unit_sold_within_last_30_days(self):
+        """Ignore comp when it is the same unit and sold within the past month."""
+        from agent.tools.comps import fetch_comps
+
+        recent_sale_date = dt.date.today() - dt.timedelta(days=10)
+        same_unit_recent = {
+            **BASE_COMP_ROW,
+            "street": "821 Folsom St",
+            "unit_number": "515",
+            "last_sold_date": recent_sale_date,
+        }
+        different_unit_recent = {
+            **BASE_COMP_ROW,
+            "street": "821 Folsom St",
+            "unit_number": "516",
+            "last_sold_date": recent_sale_date,
+        }
+        df = _make_df([same_unit_recent, different_unit_recent])
+
+        with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+            comps = await fetch_comps(
+                address="821 Folsom St #515",
+                city="San Francisco",
+                state="CA",
+                zip_code="94107",
+                subject_lat=SF_LAT,
+                subject_lon=SF_LON,
+            )
+
+        assert len(comps) == 1
+        assert comps[0]["unit"] == "516"
 
     async def test_comps_outside_25pct_sqft_excluded(self):
         """Comp outside ±25% of subject sqft is filtered out."""
