@@ -34,3 +34,10 @@ node_modules/
 # OS
 .DS_Store
 Thumbs.db
+
+# Runtime logs
+*.log
+backend/homebidder.log*
+
+# Large prefetched hazard datasets (keep curated static data like caltrain_stations.json)
+backend/data/*.geojson
