@@ -6,11 +6,14 @@ Fetch San Francisco permit and complaint history from DBI (dbiweb02) only.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import json
 import html
+import os
 import re
 from typing import Any
 from urllib.parse import urlencode
 
+import anthropic
 import httpx
 
 _DBI_BASE = "https://dbiweb02.sfgov.org/dbipts"
@@ -42,6 +45,9 @@ _PANEL_MAP = {
     "BID": "building",
 }
 
+_PERMIT_LLM_MODEL = "claude-3-5-haiku-latest"
+_PERMIT_LLM_MAX_CHARS = 3000
+
 
 def _empty_result(address: str | None = None, source_detail: str | None = None) -> dict[str, Any]:
     return {
@@ -69,6 +75,93 @@ def _clean_text(raw: str) -> str:
     no_tags = re.sub(r"<[^>]+>", " ", raw or "")
     unescaped = html.unescape(no_tags).replace("\xa0", " ")
     return re.sub(r"\s+", " ", unescaped).strip()
+
+
+def _extract_json_object(text: str) -> dict[str, Any] | None:
+    cleaned = (text or "").strip()
+    if not cleaned:
+        return None
+    try:
+        parsed = json.loads(cleaned)
+        if isinstance(parsed, dict):
+            return parsed
+    except Exception:
+        pass
+
+    m = re.search(r"\{.*\}", cleaned, flags=re.DOTALL)
+    if not m:
+        return None
+    try:
+        parsed = json.loads(m.group(0))
+        if isinstance(parsed, dict):
+            return parsed
+    except Exception:
+        return None
+    return None
+
+
+def _permit_llm_enabled() -> bool:
+    return os.getenv("ENABLE_PERMIT_LLM", "").strip() == "1" and bool(os.getenv("ANTHROPIC_API_KEY"))
+
+
+def _permit_detail_text_from_html(html_text: str) -> str:
+    # Keep only visible text, then compact whitespace.
+    no_script = re.sub(r"<script[^>]*>.*?</script>", " ", html_text or "", flags=re.IGNORECASE | re.DOTALL)
+    no_style = re.sub(r"<style[^>]*>.*?</style>", " ", no_script, flags=re.IGNORECASE | re.DOTALL)
+    return _clean_text(no_style)[:_PERMIT_LLM_MAX_CHARS]
+
+
+async def _summarize_permit_with_llm(
+    client: anthropic.AsyncAnthropic,
+    permit: dict[str, Any],
+    detail_text: str,
+) -> tuple[str | None, str | None]:
+    permit_no = str(permit.get("permit_number") or "").strip()
+    permit_type = str(permit.get("permit_type") or "").strip()
+    status = str(permit.get("status") or "").strip()
+    work_description = str(permit.get("work_description") or "").strip()
+
+    prompt = (
+        "You are analyzing a San Francisco building permit record.\n"
+        "Return JSON only with keys: summary, impact.\n"
+        "summary: one plain-English sentence (max 24 words) describing what this permit appears to cover.\n"
+        "impact: either 'positive' or 'negative' from a home-buyer perspective.\n"
+        "Use conservative judgment. If the work indicates upgrades/safety/completion, lean positive.\n"
+        "If it suggests unresolved issues, violations, or risky unknown scope, lean negative.\n"
+        f"Permit number: {permit_no or 'unknown'}\n"
+        f"Permit type: {permit_type or 'unknown'}\n"
+        f"Status: {status or 'unknown'}\n"
+        f"Work description: {work_description or 'unknown'}\n"
+        f"Permit detail page text: {detail_text or 'none'}\n"
+    )
+
+    try:
+        resp = await client.messages.create(
+            model=os.getenv("PERMIT_LLM_MODEL", _PERMIT_LLM_MODEL),
+            max_tokens=220,
+            temperature=0,
+            messages=[{"role": "user", "content": prompt}],
+        )
+    except Exception:
+        return None, None
+
+    text_parts: list[str] = []
+    for block in resp.content:
+        if getattr(block, "type", None) == "text":
+            text_parts.append(getattr(block, "text", ""))
+
+    payload = _extract_json_object("\n".join(text_parts))
+    if not payload:
+        return None, None
+
+    summary = str(payload.get("summary") or "").strip()
+    impact = str(payload.get("impact") or "").strip().lower()
+    if impact not in ("positive", "negative"):
+        impact = ""
+    if not summary:
+        summary = ""
+
+    return (summary or None), (impact or None)
 
 
 def _extract_hidden(html_text: str, name: str) -> str | None:
@@ -299,6 +392,8 @@ def _parse_permits(panel_html: str, panel_code: str) -> list[dict[str, Any]]:
             "address": f"{row.get('Street #', '').strip()} {row.get('Street Name', '').strip()}".strip() or None,
             "unit": row.get("Unit") or None,
             "source_url": href,
+            "llm_summary": None,
+            "llm_impact": None,
         })
     return permits
 
@@ -371,6 +466,28 @@ async def fetch_sf_permits(
             complaints_resp = await client.get(complaints_url)
             complaints_resp.raise_for_status()
             complaints = _parse_complaints(complaints_resp.text)
+
+            # Optional LLM enrichment: summarize each permit and classify impact.
+            if permits and _permit_llm_enabled():
+                permit_llm_client = anthropic.AsyncAnthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+                for permit in permits:
+                    detail_text = ""
+                    source_url = str(permit.get("source_url") or "")
+                    if source_url:
+                        try:
+                            detail_resp = await client.get(source_url)
+                            detail_resp.raise_for_status()
+                            detail_text = _permit_detail_text_from_html(detail_resp.text)
+                        except Exception:
+                            detail_text = ""
+
+                    summary, impact = await _summarize_permit_with_llm(
+                        permit_llm_client,
+                        permit,
+                        detail_text,
+                    )
+                    permit["llm_summary"] = summary
+                    permit["llm_impact"] = impact
 
     except Exception as exc:
         return _empty_result(address=address_matched, source_detail=f"dbi_error:{type(exc).__name__}")

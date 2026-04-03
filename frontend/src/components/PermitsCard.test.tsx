@@ -79,4 +79,22 @@ describe("PermitsCard", () => {
       "https://dbiweb02.sfgov.org/dbipts/default.aspx?page=AddressComplaint&ComplaintNo=202295394"
     );
   });
+
+  it("renders llm permit summary and impact label when available", () => {
+    const withLlm = {
+      ...PERMITS_RESULT,
+      permits: [
+        {
+          ...PERMITS_RESULT.permits[0],
+          llm_summary: "Main panel upgrade and branch rewiring completed.",
+          llm_impact: "positive",
+        },
+      ],
+    } as unknown as PermitsData;
+
+    render(<PermitsCard permits={withLlm} />);
+
+    expect(screen.getByText(/main panel upgrade and branch rewiring completed/i)).toBeInTheDocument();
+    expect(screen.getByText(/impact: positive/i)).toBeInTheDocument();
+  });
 });

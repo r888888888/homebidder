@@ -3,6 +3,7 @@ Tests for fetch_sf_permits tool.
 All external HTTP calls are mocked — no real network requests.
 """
 
+import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -135,3 +136,37 @@ class TestFetchSfPermits:
         assert result["complaints"] == []
         assert result["open_permits_count"] == 0
         assert result["complaints_open_count"] == 0
+
+    async def test_enriches_permit_with_llm_summary_and_impact_when_enabled(self):
+        from agent.tools.sf_permits import fetch_sf_permits
+
+        llm_response = MagicMock()
+        llm_response.content = [MagicMock(type="text", text='{"summary":"Main panel upgrade and new branch circuits.","impact":"positive"}')]
+
+        with patch.dict(os.environ, {"ENABLE_PERMIT_LLM": "1", "ANTHROPIC_API_KEY": "test-key"}, clear=True), \
+             patch("agent.tools.sf_permits.httpx.AsyncClient") as mock_http_cls, \
+             patch("agent.tools.sf_permits.anthropic.AsyncAnthropic") as mock_anthropic_cls:
+            mock_client = AsyncMock()
+            mock_http_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_http_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.side_effect = [
+                _http_html_mock(_ADDRESS_LIST_HTML),
+                _http_html_mock(_SELECTED_ADDRESS_HTML),
+                _http_html_mock(_EID_PANEL_HTML),
+                _http_html_mock(_PID_PANEL_HTML),
+                _http_html_mock(_BID_PANEL_HTML),
+                _http_html_mock(_CTS_PANEL_HTML),
+            ]
+
+            mock_anthropic_client = AsyncMock()
+            mock_anthropic_cls.return_value = mock_anthropic_client
+            mock_anthropic_client.messages.create.return_value = llm_response
+
+            result = await fetch_sf_permits(
+                address_matched="319 PLYMOUTH AVE, SAN FRANCISCO, CA, 94112",
+                unit=None,
+            )
+
+        permit = result["permits"][0]
+        assert permit["llm_summary"] == "Main panel upgrade and new branch circuits."
+        assert permit["llm_impact"] == "positive"

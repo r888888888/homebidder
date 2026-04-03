@@ -10,6 +10,8 @@ export interface PermitRecord {
   address: string | null;
   unit: string | null;
   source_url: string | null;
+  llm_summary?: string | null;
+  llm_impact?: "positive" | "negative" | null;
 }
 
 export interface PermitsData {
@@ -169,6 +171,12 @@ export function PermitsCard({ permits }: Props) {
                 <p className="mt-1 text-xs text-[var(--ink-soft)]">
                   {`${titleCase(permit.permit_type)} permit ${permit.permit_number} is ${(permit.status ?? "status unknown").toLowerCase()}.`}
                 </p>
+                {(permit.llm_summary || permit.llm_impact) && (
+                  <p className="mt-1 text-xs text-[var(--ink-soft)]">
+                    {permit.llm_summary ?? "No summary available."}
+                    {permit.llm_impact ? ` Impact: ${permit.llm_impact}.` : ""}
+                  </p>
+                )}
                 {permit.source_url && (
                   <a
                     href={permit.source_url}
