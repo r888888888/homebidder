@@ -134,23 +134,14 @@ async def _summarize_permit_with_llm(
     permit: dict[str, Any],
     detail_text: str,
 ) -> tuple[str | None, str | None]:
-    permit_no = str(permit.get("permit_number") or "").strip()
-    permit_type = str(permit.get("permit_type") or "").strip()
-    status = str(permit.get("status") or "").strip()
-    work_description = str(permit.get("work_description") or "").strip()
-
     prompt = (
         "You are analyzing a San Francisco building permit record.\n"
         "Return JSON only with keys: summary, impact.\n"
-        "summary: one plain-English sentence (max 24 words) describing what this permit appears to cover.\n"
+        "summary: one plain-English sentence describing what this permit covers.\n"
         "impact: either 'positive' or 'negative' from a home-buyer perspective.\n"
         "Use conservative judgment. If the work indicates upgrades/safety/completion, lean positive.\n"
         "If it suggests unresolved issues, violations, or risky unknown scope, lean negative.\n"
-        f"Permit number: {permit_no or 'unknown'}\n"
-        f"Permit type: {permit_type or 'unknown'}\n"
-        f"Status: {status or 'unknown'}\n"
-        f"Work description: {work_description or 'unknown'}\n"
-        f"Permit detail page text: {detail_text or 'none'}\n"
+        f"Permit details: {detail_text or 'none'}\n"
     )
 
     try:

@@ -42,20 +42,13 @@ export interface PermitsData {
   }>;
 }
 
-function fmtUsd(n: number | null | undefined): string {
-  if (n == null) return "—";
-  return n.toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  });
-}
-
 function flagLabel(flag: string): string {
   if (flag === "open_over_365_days") return "Open permit older than 1 year";
-  if (flag === "recent_structural_work") return "Major permit activity in last 10 years";
+  if (flag === "recent_structural_work")
+    return "Major permit activity in last 10 years";
   if (flag === "recent_complaints") return "Recent complaint activity";
-  if (flag === "no_recent_permit_history") return "No permit activity in last 5 years";
+  if (flag === "no_recent_permit_history")
+    return "No permit activity in last 5 years";
   return flag;
 }
 
@@ -71,6 +64,41 @@ function titleCase(raw: string | null | undefined): string {
     .replace(/_/g, " ")
     .toLowerCase()
     .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function badgeToneForStatus(status: string | null | undefined): string {
+  const normalized = (status ?? "").toLowerCase();
+  if (
+    normalized.includes("complete") ||
+    normalized.includes("closed") ||
+    normalized.includes("final") ||
+    normalized.includes("resolved")
+  ) {
+    return "border-emerald-300 bg-emerald-50 text-emerald-800";
+  }
+  if (
+    normalized.includes("cancel") ||
+    normalized.includes("expired") ||
+    normalized.includes("void") ||
+    normalized.includes("hold") ||
+    normalized.includes("suspend")
+  ) {
+    return "border-rose-300 bg-rose-50 text-rose-800";
+  }
+  return "border-amber-300 bg-amber-50 text-amber-800";
+}
+
+function badgeToneForImpact(
+  impact: "positive" | "negative" | null | undefined,
+): string {
+  if (impact === "positive")
+    return "border-emerald-300 bg-emerald-50 text-emerald-800";
+  if (impact === "negative") return "border-rose-300 bg-rose-50 text-rose-800";
+  return "border-slate-300 bg-slate-50 text-slate-700";
+}
+
+function badgeBaseClass(tone: string): string {
+  return `inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold tracking-wide ${tone}`;
 }
 
 interface Props {
@@ -132,7 +160,9 @@ export function PermitsCard({ permits }: Props) {
 
         {permits.permit_counts_by_type && (
           <p className="mt-3 text-xs text-[var(--ink-soft)]">
-            Electrical {permits.permit_counts_by_type.electrical} · Plumbing {permits.permit_counts_by_type.plumbing} · Building {permits.permit_counts_by_type.building}
+            Electrical {permits.permit_counts_by_type.electrical} · Plumbing{" "}
+            {permits.permit_counts_by_type.plumbing} · Building{" "}
+            {permits.permit_counts_by_type.building}
           </p>
         )}
 
@@ -157,25 +187,42 @@ export function PermitsCard({ permits }: Props) {
           </p>
           <ul className="space-y-3">
             {topPermits.map((permit) => (
-              <li key={permit.permit_number} className="rounded-lg border border-[var(--line)] bg-[var(--bg)] p-3">
+              <li
+                key={permit.permit_number}
+                className="rounded-lg border border-[var(--line)] bg-[var(--bg)] p-3"
+              >
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm font-semibold text-[var(--ink)]">{permit.permit_number}</p>
-                  <p className="text-xs text-[var(--ink-soft)]">{permit.status ?? "status unknown"}</p>
-                </div>
-                <p className="mt-1 text-sm text-[var(--ink-soft)]">
-                  {permit.work_description ?? permit.permit_type ?? "No description available"}
-                </p>
-                <p className="mt-1 text-xs text-[var(--ink-soft)]">
-                  Filed {permit.filed_date ?? "—"} · Estimated cost {fmtUsd(permit.estimated_cost)}
-                </p>
-                <p className="mt-1 text-xs text-[var(--ink-soft)]">
-                  {`${titleCase(permit.permit_type)} permit ${permit.permit_number} is ${(permit.status ?? "status unknown").toLowerCase()}.`}
-                </p>
-                {(permit.llm_summary || permit.llm_impact) && (
-                  <p className="mt-1 text-xs text-[var(--ink-soft)]">
-                    {permit.llm_summary ?? "No summary available."}
-                    {permit.llm_impact ? ` Impact: ${permit.llm_impact}.` : ""}
+                  <p className="text-sm font-semibold text-[var(--ink)]">
+                    {permit.permit_number}
+                    <span className="ml-2 text-xs font-normal text-[var(--ink-soft)]">
+                      {`Filed ${permit.filed_date ?? "—"}`}
+                    </span>
                   </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {permit.llm_impact && (
+                      <span
+                        className={badgeBaseClass(
+                          badgeToneForImpact(permit.llm_impact),
+                        )}
+                      >
+                        {`Impact: ${permit.llm_impact}`}
+                      </span>
+                    )}
+                    <span
+                      className={badgeBaseClass(
+                        badgeToneForStatus(permit.status),
+                      )}
+                    >
+                      {`Status: ${String(permit.status ?? "unknown").toLowerCase()}`}
+                    </span>
+                  </div>
+                </div>
+                {(permit.llm_summary || permit.llm_impact) && (
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    <p className="text-xs text-[var(--ink-soft)]">
+                      {permit.llm_summary ?? "No summary available."}
+                    </p>
+                  </div>
                 )}
                 {permit.source_url && (
                   <a
@@ -200,13 +247,25 @@ export function PermitsCard({ permits }: Props) {
           </p>
           <ul className="space-y-3">
             {topComplaints.map((complaint) => (
-              <li key={complaint.complaint_number} className="rounded-lg border border-[var(--line)] bg-[var(--bg)] p-3">
+              <li
+                key={complaint.complaint_number}
+                className="rounded-lg border border-[var(--line)] bg-[var(--bg)] p-3"
+              >
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm font-semibold text-[var(--ink)]">{complaint.complaint_number}</p>
-                  <p className="text-xs text-[var(--ink-soft)]">{complaint.status ?? "status unknown"}</p>
+                  <p className="text-sm font-semibold text-[var(--ink)]">
+                    {complaint.complaint_number}
+                  </p>
+                  <span
+                    className={badgeBaseClass(
+                      badgeToneForStatus(complaint.status),
+                    )}
+                  >
+                    {`Status: ${String(complaint.status ?? "unknown").toLowerCase()}`}
+                  </span>
                 </div>
                 <p className="mt-1 text-xs text-[var(--ink-soft)]">
-                  Filed {complaint.date_filed ?? "—"} · Division {complaint.division ?? "—"}
+                  Filed {complaint.date_filed ?? "—"} · Division{" "}
+                  {complaint.division ?? "—"}
                 </p>
                 <p className="mt-1 text-xs text-[var(--ink-soft)]">
                   {`Complaint ${complaint.complaint_number} is ${(complaint.status ?? "status unknown").toLowerCase()}.`}

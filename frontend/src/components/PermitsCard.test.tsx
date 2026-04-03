@@ -60,7 +60,7 @@ describe("PermitsCard", () => {
     render(<PermitsCard permits={PERMITS_RESULT} />);
 
     expect(screen.getByText(/kitchen and bath remodel/i)).toBeInTheDocument();
-    expect(screen.getByText(/^issued$/i)).toBeInTheDocument();
+    expect(screen.getByText(/status: issued/i)).toBeInTheDocument();
     expect(screen.getByText(/alteration permit 202401011234 is issued/i)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /view permit/i })).toHaveAttribute(
       "href",
@@ -72,6 +72,7 @@ describe("PermitsCard", () => {
     render(<PermitsCard permits={PERMITS_RESULT} />);
 
     expect(screen.getByText(/^Complaints$/i)).toBeInTheDocument();
+    expect(screen.getByText(/status: closed/i)).toBeInTheDocument();
     expect(screen.getByText(/division his/i)).toBeInTheDocument();
     expect(screen.getByText(/complaint 202295394 is closed/i)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /view complaint/i })).toHaveAttribute(
