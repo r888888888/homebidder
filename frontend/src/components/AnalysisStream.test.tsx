@@ -78,6 +78,28 @@ const OFFER_RESULT = {
   },
 };
 
+const INVESTMENT_RESULT = {
+  gross_yield_pct: 3.8,
+  price_to_rent_ratio: 21.0,
+  monthly_cashflow_estimate: -1150,
+  adu_gross_yield_boost_pct: 5.6,
+  projected_value_1yr: 1300000,
+  projected_value_3yr: 1406080,
+  projected_value_5yr: 1520824,
+  investment_rating: "Buy",
+  rate_30yr_fixed: 6.63,
+  as_of_date: "2026-03-26",
+  hpi_yoy_assumption_pct: 4.0,
+  adu_potential: true,
+  adu_rent_estimate: 2600,
+  rent_controlled: true,
+  rent_control_city: "San Francisco",
+  rent_control_implications: "Likely subject to SF Rent Ordinance for older rentals.",
+  nearest_bart_station: "16TH ST MISSION",
+  bart_distance_miles: 0.31,
+  transit_premium_likely: true,
+};
+
 describe("AnalysisStream", () => {
   it("renders cards from tool_result events", () => {
     const events = [
@@ -139,6 +161,22 @@ describe("AnalysisStream", () => {
 
     expect(screen.getByText(/NEW ADDRESS/i)).toBeInTheDocument();
     expect(screen.getByText(/\$1,750,000/)).toBeInTheDocument();
+  });
+
+  it("renders investment card from compute_investment_metrics tool result", () => {
+    const events = [
+      {
+        type: "tool_result" as const,
+        tool: "compute_investment_metrics",
+        result: INVESTMENT_RESULT as unknown as Record<string, unknown>,
+      },
+    ];
+
+    render(<AnalysisStream events={events} isRunning={false} />);
+
+    expect(screen.getByText(/investment analysis/i)).toBeInTheDocument();
+    expect(screen.getByText(/assumes 6.63% 30yr fixed/i)).toBeInTheDocument();
+    expect(screen.getByText(/transit premium likely/i)).toBeInTheDocument();
   });
 
   it("renders final analysis with markdown formatting", () => {

@@ -242,3 +242,55 @@ class TestToolResultSseEvents:
 
         _, kwargs = mock_recommend.call_args
         assert kwargs["mortgage_rate_pct"] == 5.75
+
+
+class TestPhase8AutoComputation:
+    async def test_phase8_emits_investment_tool_events(self):
+        from unittest.mock import MagicMock
+
+        comps_block = MagicMock()
+        comps_block.type = "tool_use"
+        comps_block.name = "fetch_comps"
+        comps_block.id = "tu_comps_2"
+        comps_block.input = {
+            "address": "450 Sanchez St, San Francisco, CA 94114",
+            "city": "San Francisco",
+            "state": "CA",
+            "zip_code": "94114",
+        }
+
+        tool_use_response = MagicMock()
+        tool_use_response.stop_reason = "tool_use"
+        tool_use_response.content = [comps_block]
+
+        end_turn_response = MagicMock()
+        end_turn_response.stop_reason = "end_turn"
+        text_block = MagicMock()
+        text_block.type = "text"
+        text_block.text = "Done."
+        end_turn_response.content = [text_block]
+
+        fake_comps = [{"sold_price": 1_000_000, "price_per_sqft": 700.0, "sqft": 1400, "list_price": 980_000}]
+        fake_market = {"median_price_per_sqft": 700.0}
+        fake_offer = {"offer_recommended": 1_200_000, "posture": "competitive"}
+        fake_risk = {"overall_risk": "Moderate", "score": 4.0}
+        fake_rates = {"rate_30yr_fixed": 6.6, "rate_15yr_fixed": 5.8, "as_of_date": "2026-03-26", "source": "Freddie Mac PMMS via FRED"}
+        fake_rent = {"rent_estimate": 4900, "rent_low": 4600, "rent_high": 5200, "confidence": 0.7, "source": "rentcast"}
+        fake_drivers = {"adu_potential": True, "adu_rent_estimate": 2800, "rent_controlled": True}
+        fake_investment = {"investment_rating": "Hold", "gross_yield_pct": 3.1}
+
+        with patch("agent.orchestrator.anthropic.AsyncAnthropic") as mock_cls,              patch("agent.orchestrator.fetch_comps", new_callable=AsyncMock, return_value=fake_comps),              patch("agent.orchestrator.analyze_market", return_value=fake_market),              patch("agent.orchestrator.get_current_mortgage_rate_pct", new_callable=AsyncMock, return_value=5.75),              patch("agent.orchestrator.recommend_offer", return_value=fake_offer),              patch("agent.orchestrator.assess_risk", return_value=fake_risk),              patch("agent.orchestrator.fetch_mortgage_rates", new_callable=AsyncMock, return_value=fake_rates),              patch("agent.orchestrator.fetch_rental_estimate", new_callable=AsyncMock, return_value=fake_rent),              patch("agent.orchestrator.fetch_ba_value_drivers", new_callable=AsyncMock, return_value=fake_drivers),              patch("agent.orchestrator.compute_investment_metrics", return_value=fake_investment):
+
+            mock_client = AsyncMock()
+            mock_cls.return_value = mock_client
+            mock_client.messages.create.side_effect = [tool_use_response, end_turn_response]
+
+            events = await collect_events("450 Sanchez St, San Francisco, CA 94114")
+
+        tool_result_events = [e for e in events if e.get("type") == "tool_result"]
+        tools = [e["tool"] for e in tool_result_events]
+
+        assert "fetch_mortgage_rates" in tools
+        assert "fetch_rental_estimate" in tools
+        assert "fetch_ba_value_drivers" in tools
+        assert "compute_investment_metrics" in tools
