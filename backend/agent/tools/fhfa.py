@@ -1,6 +1,6 @@
 """
 FHFA House Price Index (HPI) by ZIP code.
-Downloads and caches the ZIP-level annual HPI XLSX for 7 days.
+Reads a prefetched ZIP-level annual HPI XLSX cache.
 
 The FHFA publishes ZIP-level HPI as an XLSX file:
   https://www.fhfa.gov/hpi/download/annual/hpi_at_zip5.xlsx
@@ -42,13 +42,22 @@ async def _download_hpi() -> bytes:
 
 
 async def _get_hpi_bytes() -> bytes:
-    if _cache_valid():
-        with open(CACHE_PATH, "rb") as f:
-            return f.read()
+    with open(CACHE_PATH, "rb") as f:
+        return f.read()
+
+
+async def prefetch_fhfa_hpi_dataset(force: bool = False) -> bool:
+    """
+    Download and cache the national FHFA ZIP5 HPI workbook.
+    Returns True when a download happened, False when cache was already fresh.
+    """
+    if not force and _cache_valid():
+        return False
+
     raw = await _download_hpi()
     with open(CACHE_PATH, "wb") as f:
         f.write(raw)
-    return raw
+    return True
 
 
 def _parse_hpi_xlsx(raw_bytes: bytes, zip_code: str) -> list[dict[str, Any]]:
@@ -111,12 +120,17 @@ async def fetch_fhfa_hpi(zip_code: str) -> dict[str, Any]:
     """
     Fetch FHFA ZIP-level HPI for the given ZIP code.
     Returns YoY change, 3-year average, and trend direction.
-    Caches the national file for 7 days.
+    Does not perform network downloads at request time.
     """
     try:
         raw = await _get_hpi_bytes()
+    except FileNotFoundError:
+        return {
+            "zip_code": zip_code,
+            "error": "FHFA HPI cache missing. Run prefetch_backend_data.py to download datasets.",
+        }
     except Exception as exc:
-        return {"error": f"Failed to download FHFA HPI data: {exc}"}
+        return {"zip_code": zip_code, "error": f"Failed to read FHFA HPI cache: {exc}"}
 
     try:
         rows = _parse_hpi_xlsx(raw, zip_code)

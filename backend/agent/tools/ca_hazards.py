@@ -18,7 +18,6 @@ Data download URLs (run once to populate backend/data/):
 """
 import json
 import logging
-from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -86,112 +85,114 @@ def _load_fault_zones() -> list:
     """Return list of shapely Polygon/MultiPolygon objects for AP fault zones."""
     global _fault_cache
     if _fault_cache is None:
-        path = DATA_DIR / "ap_fault_zones.geojson"
-        if not path.exists():
-            try:
-                DATA_DIR.mkdir(parents=True, exist_ok=True)
-                params = {
-                    "where": "1=1",
-                    "outFields": "*",
-                    "returnGeometry": "true",
-                    "f": "geojson",
-                }
-                with httpx.Client(timeout=120.0) as client:
-                    resp = client.get(CGS_FAULT_GEOJSON_URL, params=params)
-                    resp.raise_for_status()
-                    data = resp.json()
-                path.write_text(json.dumps(data), encoding="utf-8")
-                log.info(
-                    "CGS fault GeoJSON saved to %s (%d features)",
-                    path,
-                    len(data.get("features", [])),
-                )
-            except Exception as exc:
-                log.warning("Failed to download CGS fault GeoJSON: %s — fault hazard check disabled", exc)
         features = _load_geojson_features("ap_fault_zones.geojson")
         _fault_cache = [shape(f["geometry"]) for f in features if f.get("geometry")]
     return _fault_cache
 
 
-def _load_liquefaction_zones() -> list[dict]:
-    def _normalize_liquefaction_geojson(data: dict) -> dict:
-        out_features: list[dict] = []
-        for f in data.get("features", []):
-            props = dict(f.get("properties", {}))
-            # CGS service does not expose LIQSUSCEP directly; use conservative class
-            props.setdefault("LIQSUSCEP", "MODERATE")
-            out_features.append(
-                {
-                    "type": "Feature",
-                    "geometry": f.get("geometry"),
-                    "properties": props,
-                }
-            )
-        return {"type": "FeatureCollection", "features": out_features}
+def _normalize_liquefaction_geojson(data: dict) -> dict:
+    out_features: list[dict] = []
+    for f in data.get("features", []):
+        props = dict(f.get("properties", {}))
+        # CGS service does not expose LIQSUSCEP directly; use conservative class
+        props.setdefault("LIQSUSCEP", "MODERATE")
+        out_features.append(
+            {
+                "type": "Feature",
+                "geometry": f.get("geometry"),
+                "properties": props,
+            }
+        )
+    return {"type": "FeatureCollection", "features": out_features}
 
+
+def _load_liquefaction_zones() -> list[dict]:
     global _liq_cache
     if _liq_cache is None:
-        path = DATA_DIR / "liquefaction_zones.geojson"
-        if not path.exists():
+        _liq_cache = _load_geojson_features("liquefaction_zones.geojson")
+    return _liq_cache
+
+
+def _normalize_myhazards_geojson(data: dict) -> dict:
+    out_features: list[dict] = []
+    for f in data.get("features", []):
+        props = dict(f.get("properties", {}))
+        sev = str(props.get("potential_severity", "")).upper().strip()
+        if sev:
+            props["HAZ_CLASS"] = sev
+        out_features.append(
+            {
+                "type": "Feature",
+                "geometry": f.get("geometry"),
+                "properties": props,
+            }
+        )
+    return {"type": "FeatureCollection", "features": out_features}
+
+
+def _load_fire_hazard_zones() -> list[dict]:
+    global _fire_cache
+    if _fire_cache is None:
+        _fire_cache = _load_geojson_features("fire_hazard_zones.geojson")
+    return _fire_cache
+
+
+async def prefetch_ca_hazard_geojson(force: bool = False) -> dict[str, bool]:
+    """
+    Download and cache statewide CA hazard GeoJSON files used by request-time checks.
+    Returns per-file booleans indicating whether each file was refreshed.
+    """
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    results = {
+        "ap_fault_zones.geojson": False,
+        "liquefaction_zones.geojson": False,
+        "fire_hazard_zones.geojson": False,
+    }
+
+    async with httpx.AsyncClient(timeout=120.0, follow_redirects=True) as client:
+        fault_path = DATA_DIR / "ap_fault_zones.geojson"
+        if force or not fault_path.exists():
             try:
-                DATA_DIR.mkdir(parents=True, exist_ok=True)
                 params = {
                     "where": "1=1",
                     "outFields": "*",
                     "returnGeometry": "true",
                     "f": "geojson",
                 }
-                with httpx.Client(timeout=120.0) as client:
-                    resp = client.get(CGS_LIQUEFACTION_GEOJSON_URL, params=params)
-                    resp.raise_for_status()
-                    data = resp.json()
-                normalized = _normalize_liquefaction_geojson(data)
-                path.write_text(json.dumps(normalized), encoding="utf-8")
-                log.info(
-                    "CGS liquefaction GeoJSON saved to %s (%d features)",
-                    path,
-                    len(normalized.get("features", [])),
-                )
+                resp = await client.get(CGS_FAULT_GEOJSON_URL, params=params)
+                resp.raise_for_status()
+                data = resp.json()
+                fault_path.write_text(json.dumps(data), encoding="utf-8")
+                results["ap_fault_zones.geojson"] = True
             except Exception as exc:
-                log.warning(
-                    "Failed to download CGS liquefaction GeoJSON: %s — liquefaction hazard check disabled",
-                    exc,
-                )
-        _liq_cache = _load_geojson_features("liquefaction_zones.geojson")
-    return _liq_cache
+                log.warning("Failed to prefetch fault zones: %s", exc)
 
-
-def _load_fire_hazard_zones() -> list[dict]:
-    def _normalize_myhazards_geojson(data: dict) -> dict:
-        out_features: list[dict] = []
-        for f in data.get("features", []):
-            props = dict(f.get("properties", {}))
-            sev = str(props.get("potential_severity", "")).upper().strip()
-            if sev:
-                props["HAZ_CLASS"] = sev
-            out_features.append(
-                {
-                    "type": "Feature",
-                    "geometry": f.get("geometry"),
-                    "properties": props,
-                }
-            )
-        return {"type": "FeatureCollection", "features": out_features}
-
-    global _fire_cache
-    if _fire_cache is None:
-        path = DATA_DIR / "fire_hazard_zones.geojson"
-        if not path.exists():
-            log.info("fire_hazard_zones.geojson not found — downloading from CalFire CNRA...")
+        liq_path = DATA_DIR / "liquefaction_zones.geojson"
+        if force or not liq_path.exists():
             try:
-                DATA_DIR.mkdir(parents=True, exist_ok=True)
-                with httpx.Client(timeout=120.0) as client:
-                    resp = client.get(CALFIRE_FHSZ_URL)
-                    resp.raise_for_status()
-                path.write_bytes(resp.content)
-                log.info("CalFire FHSZ GeoJSON saved to %s (%d bytes)", path, len(resp.content))
+                params = {
+                    "where": "1=1",
+                    "outFields": "*",
+                    "returnGeometry": "true",
+                    "f": "geojson",
+                }
+                resp = await client.get(CGS_LIQUEFACTION_GEOJSON_URL, params=params)
+                resp.raise_for_status()
+                normalized = _normalize_liquefaction_geojson(resp.json())
+                liq_path.write_text(json.dumps(normalized), encoding="utf-8")
+                results["liquefaction_zones.geojson"] = True
             except Exception as exc:
-                log.warning("Failed to download CalFire FHSZ GeoJSON: %s — trying MyHazards fallback", exc)
+                log.warning("Failed to prefetch liquefaction zones: %s", exc)
+
+        fire_path = DATA_DIR / "fire_hazard_zones.geojson"
+        if force or not fire_path.exists():
+            try:
+                resp = await client.get(CALFIRE_FHSZ_URL)
+                resp.raise_for_status()
+                fire_path.write_bytes(resp.content)
+                results["fire_hazard_zones.geojson"] = True
+            except Exception as exc:
+                log.warning("Failed to prefetch CalFire FHSZ, trying fallback: %s", exc)
                 try:
                     params = {
                         "where": "1=1",
@@ -199,23 +200,19 @@ def _load_fire_hazard_zones() -> list[dict]:
                         "returnGeometry": "true",
                         "f": "geojson",
                     }
-                    with httpx.Client(timeout=120.0) as client:
-                        fallback_resp = client.get(MYHAZARDS_FIRE_GEOJSON_URL, params=params)
-                        fallback_resp.raise_for_status()
-                        fallback_data = fallback_resp.json()
-                    normalized = _normalize_myhazards_geojson(fallback_data)
-                    path.write_text(json.dumps(normalized), encoding="utf-8")
-                    log.info(
-                        "MyHazards fire GeoJSON fallback saved to %s (%d features)",
-                        path,
-                        len(normalized.get("features", [])),
-                    )
+                    fallback_resp = await client.get(MYHAZARDS_FIRE_GEOJSON_URL, params=params)
+                    fallback_resp.raise_for_status()
+                    normalized = _normalize_myhazards_geojson(fallback_resp.json())
+                    fire_path.write_text(json.dumps(normalized), encoding="utf-8")
+                    results["fire_hazard_zones.geojson"] = True
                 except Exception as fallback_exc:
-                    log.warning("MyHazards fire fallback download failed: %s — fire hazard check disabled", fallback_exc)
-                    _fire_cache = []
-                    return _fire_cache
-        _fire_cache = _load_geojson_features("fire_hazard_zones.geojson")
-    return _fire_cache
+                    log.warning("Failed to prefetch MyHazards fire fallback: %s", fallback_exc)
+
+    global _fault_cache, _liq_cache, _fire_cache
+    _fault_cache = None
+    _liq_cache = None
+    _fire_cache = None
+    return results
 
 
 # ---------------------------------------------------------------------------
@@ -375,18 +372,6 @@ async def fetch_ca_hazard_zones(lat: float, lon: float) -> dict[str, Any]:
     alquist_priolo = _check_fault_zone(lat, lon, fault_zones)
     liquefaction_risk = _check_liquefaction(lat, lon, liq_features)
     fire_hazard_zone = _check_fire_hazard(lat, lon, fire_features)
-
-    # Fallback to CA MyHazards live queries when local datasets are missing/stale.
-    if liquefaction_risk is None and not liq_features:
-        try:
-            liquefaction_risk = await _query_myhazards_liquefaction(lat, lon)
-        except Exception as exc:
-            log.warning("MyHazards liquefaction query failed: %s", exc)
-    if fire_hazard_zone is None and not fire_features:
-        try:
-            fire_hazard_zone = await _query_myhazards_fire(lat, lon)
-        except Exception as exc:
-            log.warning("MyHazards fire query failed: %s", exc)
 
     flood_zone: str | None = None
     flood_zone_sfha: bool = False

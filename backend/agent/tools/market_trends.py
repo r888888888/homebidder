@@ -1,6 +1,6 @@
 """
 Redfin Data Center market trends for a given ZIP code.
-Downloads and caches the national ZIP-level TSV file for 24 hours.
+Reads a prefetched national ZIP-level TSV file.
 """
 import gzip
 import io
@@ -32,13 +32,22 @@ async def _download_tsv() -> bytes:
 
 
 async def _get_tsv_bytes() -> bytes:
-    if _cache_valid():
-        with open(CACHE_PATH, "rb") as f:
-            return f.read()
+    with open(CACHE_PATH, "rb") as f:
+        return f.read()
+
+
+async def prefetch_market_trends_dataset(force: bool = False) -> bool:
+    """
+    Download and cache the national Redfin TSV for offline request-time use.
+    Returns True when a download happened, False when cache was already fresh.
+    """
+    if not force and _cache_valid():
+        return False
+
     raw = await _download_tsv()
     with open(CACHE_PATH, "wb") as f:
         f.write(raw)
-    return raw
+    return True
 
 
 def _col(header: list[str], name: str) -> int | None:
@@ -125,12 +134,17 @@ def _compute_trend(months: list[dict[str, Any]]) -> str:
 async def fetch_market_trends(zip_code: str) -> dict[str, Any]:
     """
     Fetch Redfin Data Center ZIP-level market stats for the last 6 months.
-    Caches the national TSV for 24 hours.
+    Does not perform network downloads at request time.
     """
     try:
         raw = await _get_tsv_bytes()
+    except FileNotFoundError:
+        return {
+            "zip_code": zip_code,
+            "error": "Market data cache missing. Run prefetch_backend_data.py to download datasets.",
+        }
     except Exception as exc:
-        return {"error": f"Failed to download market data: {exc}"}
+        return {"zip_code": zip_code, "error": f"Failed to read market data cache: {exc}"}
 
     months = _parse_tsv_for_zip(raw, zip_code)
 
