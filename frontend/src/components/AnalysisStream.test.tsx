@@ -110,12 +110,19 @@ const INVESTMENT_RESULT = {
 };
 
 const PERMITS_RESULT = {
-  source: "datasf",
+  source: "dbi",
   address: "450 SANCHEZ ST, SAN FRANCISCO, CA, 94114",
   open_permits_count: 1,
   recent_permits_5y: 3,
   major_permits_10y: 1,
   oldest_open_permit_age_days: 480,
+  permit_counts_by_type: {
+    electrical: 1,
+    plumbing: 0,
+    building: 0,
+  },
+  complaints_open_count: 0,
+  complaints_recent_3y: 2,
   flags: ["open_over_365_days", "recent_structural_work"],
   permits: [
     {
@@ -129,7 +136,19 @@ const PERMITS_RESULT = {
       estimated_cost: 120000,
       address: "450 SANCHEZ ST",
       unit: "2",
-      source_url: null,
+      source_url:
+        "https://dbiweb02.sfgov.org/dbipts/default.aspx?page=EID_PermitDetails&PermitNo=202401011234",
+    },
+  ],
+  complaints: [
+    {
+      complaint_number: "202295394",
+      date_filed: "2022-09-09",
+      status: "CLOSED",
+      division: "HIS",
+      expired: null,
+      address: "319 PLYMOUTH AV",
+      source_url: "https://dbiweb02.sfgov.org/dbipts/default.aspx?page=AddressComplaint&ComplaintNo=202295394",
     },
   ],
 };
@@ -225,6 +244,10 @@ describe("AnalysisStream", () => {
     render(<AnalysisStream events={events} isRunning={false} />);
 
     expect(screen.getByText(/permit history/i)).toBeInTheDocument();
+    expect(screen.getByText(/department of building inspection/i)).toBeInTheDocument();
+    expect(screen.getByText(/complaint 202295394 is closed/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /view permit/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /view complaint/i })).toBeInTheDocument();
     expect(screen.getByText(/open permit older than 1 year/i)).toBeInTheDocument();
   });
 

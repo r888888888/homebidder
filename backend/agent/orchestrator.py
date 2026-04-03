@@ -24,6 +24,7 @@ from .tools.mortgage_rates import fetch_mortgage_rates
 from .tools.market_trends import fetch_market_trends
 from .tools.fhfa import fetch_fhfa_hpi
 from .tools.ca_hazards import fetch_ca_hazard_zones
+from .tools.sf_permits import fetch_sf_permits
 from .tools.risk import assess_risk
 from .tools.rentcast import fetch_rental_estimate
 from .tools.ba_value_drivers import fetch_ba_value_drivers
@@ -275,6 +276,7 @@ async def run_agent(address: str, buyer_context: str = "") -> AsyncIterator[str]
     phase6_trends: dict | None = None
     phase6_fhfa: dict | None = None
     phase6_hazards: dict | None = None
+    phase6_permits: dict | None = None
     phase8_investment: dict | None = None
     analysis_done = False
 
@@ -368,40 +370,38 @@ async def run_agent(address: str, buyer_context: str = "") -> AsyncIterator[str]
 
                 # Phase 6: auto-fetch market trends, FHFA HPI, and CA hazard zones
                 # in parallel as soon as we have lat/lon and zip_code.
+                # For San Francisco properties, also fetch permit history.
                 zip_code = property_result.get("zip_code")
                 lat = property_result.get("latitude")
                 lon = property_result.get("longitude")
+                county = str(property_result.get("county") or "").strip().lower()
+                address_matched = str(property_result.get("address_matched") or "")
+                unit = property_result.get("unit")
 
-                if zip_code or (lat and lon):
-                    phase6_tasks = []
-                    if zip_code:
-                        phase6_tasks.append(fetch_market_trends(zip_code))
-                        phase6_tasks.append(fetch_fhfa_hpi(zip_code))
-                    else:
-                        phase6_tasks.extend([None, None])
-                    if lat and lon:
-                        phase6_tasks.append(fetch_ca_hazard_zones(lat, lon))
-                    else:
-                        phase6_tasks.append(None)
+                phase6_tools: list[tuple[str, object, dict]] = []
+                if zip_code:
+                    phase6_tools.append(("fetch_market_trends", fetch_market_trends(zip_code), {}))
+                    phase6_tools.append(("fetch_fhfa_hpi", fetch_fhfa_hpi(zip_code), {}))
+                if lat and lon:
+                    phase6_tools.append(("fetch_ca_hazard_zones", fetch_ca_hazard_zones(lat, lon), {}))
+                if county == "san francisco" and address_matched:
+                    permit_inputs = {"address_matched": address_matched}
+                    if unit:
+                        permit_inputs["unit"] = unit
+                    phase6_tools.append((
+                        "fetch_sf_permits",
+                        fetch_sf_permits(address_matched=address_matched, unit=unit),
+                        permit_inputs,
+                    ))
 
-                    # Run non-None tasks concurrently
-                    real_tasks = [t for t in phase6_tasks if t is not None]
+                if phase6_tools:
+                    real_tasks = [coro for _, coro, _ in phase6_tools]
                     try:
                         real_results = await asyncio.gather(*real_tasks, return_exceptions=True)
                     except Exception:
                         real_results = []
 
-                    result_iter = iter(real_results)
-
-                    trends_result = next(result_iter) if zip_code else None
-                    fhfa_result = next(result_iter) if zip_code else None
-                    hazard_result = next(result_iter) if (lat and lon) else None
-
-                    for tool_name, result in [
-                        ("fetch_market_trends", trends_result),
-                        ("fetch_fhfa_hpi", fhfa_result),
-                        ("fetch_ca_hazard_zones", hazard_result),
-                    ]:
+                    for (tool_name, _, tool_input), result in zip(phase6_tools, real_results):
                         if result is None or isinstance(result, Exception):
                             if isinstance(result, Exception):
                                 log.warning("Phase 6 tool %s failed: %s", tool_name, result)
@@ -413,7 +413,9 @@ async def run_agent(address: str, buyer_context: str = "") -> AsyncIterator[str]
                             phase6_fhfa = result
                         elif tool_name == "fetch_ca_hazard_zones":
                             phase6_hazards = result
-                        yield f"data: {json.dumps({'type': 'tool_call', 'tool': tool_name, 'input': {}})}\n\n"
+                        elif tool_name == "fetch_sf_permits":
+                            phase6_permits = result
+                        yield f"data: {json.dumps({'type': 'tool_call', 'tool': tool_name, 'input': tool_input})}\n\n"
                         yield f"data: {json.dumps({'type': 'tool_result', 'tool': tool_name, 'result': result})}\n\n"
                         log.info("Phase 6 auto-computed %s", tool_name)
 
@@ -495,6 +497,7 @@ async def run_agent(address: str, buyer_context: str = "") -> AsyncIterator[str]
                     f"**Market Analysis:**\n{json.dumps(market_stats)}\n\n"
                     f"**Offer Recommendation:**\n{json.dumps(offer_result)}\n\n"
                     f"**Risk Assessment:**\n{json.dumps(risk_result)}\n\n"
+                    f"**Permit History (SF only):**\n{json.dumps(phase6_permits)}\n\n"
                     f"**Investment Analysis:**\n{json.dumps(phase8_investment)}\n\n"
                     "Please now write your final narrative for the buyer."
                 )

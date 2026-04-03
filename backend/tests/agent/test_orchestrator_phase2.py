@@ -411,13 +411,18 @@ class TestSfPermitAutoFetch:
             "longitude": None,
         }
         permits_result = {
-            "source": "datasf",
+            "source": "dbi",
+            "source_detail": None,
             "open_permits_count": 1,
             "recent_permits_5y": 3,
             "major_permits_10y": 1,
             "oldest_open_permit_age_days": 480,
+            "permit_counts_by_type": {"electrical": 1, "plumbing": 0, "building": 0},
+            "complaints_open_count": 0,
+            "complaints_recent_3y": 1,
             "flags": ["open_over_365_days"],
             "permits": [],
+            "complaints": [],
         }
 
         with patch("agent.orchestrator.anthropic.AsyncAnthropic") as mock_cls, \

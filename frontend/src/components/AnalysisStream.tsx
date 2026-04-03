@@ -7,6 +7,7 @@ import { CompsCard, type CompData } from "./CompsCard";
 import { OfferRecommendationCard, type OfferData } from "./OfferRecommendationCard";
 import { RiskAnalysisCard, type RiskData } from "./RiskAnalysisCard";
 import { InvestmentCard, type InvestmentData } from "./InvestmentCard";
+import { PermitsCard, type PermitsData } from "./PermitsCard";
 
 interface Props {
   events: AnalysisEvent[];
@@ -24,6 +25,7 @@ const TOOL_LABELS: Record<string, string> = {
   fetch_rental_estimate: "Fetching rental estimate",
   fetch_ba_value_drivers: "Computing Bay Area value drivers",
   compute_investment_metrics: "Computing investment metrics",
+  fetch_sf_permits: "Fetching SF permit history",
 };
 
 export function AnalysisStream({ events, isRunning }: Props) {
@@ -61,6 +63,11 @@ export function AnalysisStream({ events, isRunning }: Props) {
   );
   const investmentData = investmentEvent?.result as InvestmentData | undefined;
 
+  const permitsEvent = events.find(
+    (e) => e.type === "tool_result" && e.tool === "fetch_sf_permits"
+  );
+  const permitsData = permitsEvent?.result as PermitsData | undefined;
+
   return (
     <div className="space-y-4 fade-up">
       {/* Property summary card */}
@@ -86,6 +93,9 @@ export function AnalysisStream({ events, isRunning }: Props) {
 
       {/* Investment analysis */}
       {investmentData && <InvestmentCard investment={investmentData} />}
+
+      {/* Permit history */}
+      {permitsData && <PermitsCard permits={permitsData} />}
 
       {/* Agent step progress */}
       {toolCalls.length > 0 && (
