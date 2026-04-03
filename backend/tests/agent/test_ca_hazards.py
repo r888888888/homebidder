@@ -9,6 +9,7 @@ import pytest
 from shapely.geometry import Point, shape
 
 from agent.tools.ca_hazards import (
+    FEMA_URL,
     _check_fault_zone,
     _check_fire_hazard,
     _check_liquefaction,
@@ -206,6 +207,27 @@ class TestFetchCaHazardZones:
 
         assert result["flood_zone_sfha"] is False
 
+    async def test_falls_back_to_live_queries_when_local_data_missing(self):
+        """When local hazard GeoJSON files are absent, live fallback queries populate fire/liquefaction."""
+        with patch("agent.tools.ca_hazards._load_fault_zones", return_value=[]), \
+             patch("agent.tools.ca_hazards._load_liquefaction_zones", return_value=[]), \
+             patch("agent.tools.ca_hazards._load_fire_hazard_zones", return_value=[]), \
+             patch("agent.tools.ca_hazards._query_myhazards_fire", new=AsyncMock(return_value="High"), create=True) as fire_mock, \
+             patch("agent.tools.ca_hazards._query_myhazards_liquefaction", new=AsyncMock(return_value="Moderate"), create=True) as liq_mock, \
+             patch("agent.tools.ca_hazards._query_fema_flood_zone", new=AsyncMock(return_value={"features": []})):
+            result = await fetch_ca_hazard_zones(LAT_IN, LON_IN)
+
+        assert result["fire_hazard_zone"] == "High"
+        assert result["liquefaction_risk"] == "Moderate"
+        fire_mock.assert_awaited_once()
+        liq_mock.assert_awaited_once()
+
+
+class TestHazardEndpointConfig:
+    def test_fema_uses_nfhl_print_query_layer(self):
+        """FEMA NFHL endpoint migrated under NFHL_Print/NFHLQuery MapServer layer 28."""
+        assert "NFHL_Print/NFHLQuery/MapServer/28/query" in FEMA_URL
+
 
 # ---------------------------------------------------------------------------
 # CalFire auto-download when GeoJSON file is missing
@@ -254,3 +276,116 @@ class TestCalFireAutoDownload:
             features = _load_fire_hazard_zones()
 
         assert features == []
+
+    def test_legacy_download_failure_falls_back_to_myhazards_geojson(self, tmp_path):
+        """If legacy CalFire URL fails, fallback MyHazards GeoJSON should populate fire features."""
+        from agent.tools.ca_hazards import _load_fire_hazard_zones
+
+        myhaz_geojson = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": {"potential_severity": "Very High"},
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [[[-122.41, 37.79], [-122.39, 37.79], [-122.39, 37.81], [-122.41, 37.81], [-122.41, 37.79]]],
+                    },
+                }
+            ],
+        }
+
+        mock_legacy_resp = MagicMock()
+        mock_legacy_resp.raise_for_status = MagicMock(side_effect=Exception("legacy url failed"))
+
+        mock_fallback_resp = MagicMock()
+        mock_fallback_resp.raise_for_status = MagicMock()
+        mock_fallback_resp.json = MagicMock(return_value=myhaz_geojson)
+
+        mock_client = MagicMock()
+        mock_client.get = MagicMock(side_effect=[mock_legacy_resp, mock_fallback_resp])
+
+        with patch("agent.tools.ca_hazards.DATA_DIR", tmp_path), \
+             patch("agent.tools.ca_hazards._fire_cache", None), \
+             patch("agent.tools.ca_hazards.httpx.Client") as mock_client_cls:
+            mock_client_cls.return_value.__enter__ = MagicMock(return_value=mock_client)
+            mock_client_cls.return_value.__exit__ = MagicMock(return_value=False)
+
+            features = _load_fire_hazard_zones()
+
+        assert len(features) == 1
+        # Fallback loader should normalize MyHazards potential_severity -> HAZ_CLASS-like field
+        assert features[0]["properties"]["HAZ_CLASS"] == "VERY HIGH"
+
+
+class TestCgsAutoDownload:
+    def test_missing_liquefaction_file_triggers_cgs_download(self, tmp_path):
+        """If liquefaction GeoJSON is absent, loader should download from CGS service."""
+        from agent.tools.ca_hazards import _load_liquefaction_zones
+
+        liq_geojson = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": {"LIQSUSCEP": "MODERATE"},
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [[[-122.41, 37.79], [-122.39, 37.79], [-122.39, 37.81], [-122.41, 37.81], [-122.41, 37.79]]],
+                    },
+                }
+            ],
+        }
+
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status = MagicMock()
+        mock_resp.json = MagicMock(return_value=liq_geojson)
+
+        with patch("agent.tools.ca_hazards.DATA_DIR", tmp_path), \
+             patch("agent.tools.ca_hazards._liq_cache", None), \
+             patch("agent.tools.ca_hazards.httpx.Client") as mock_client_cls:
+            mock_client_cls.return_value.__enter__ = MagicMock(return_value=MagicMock(
+                get=MagicMock(return_value=mock_resp)
+            ))
+            mock_client_cls.return_value.__exit__ = MagicMock(return_value=False)
+
+            features = _load_liquefaction_zones()
+
+        assert len(features) == 1
+        assert features[0]["properties"]["LIQSUSCEP"] == "MODERATE"
+        assert (tmp_path / "liquefaction_zones.geojson").exists()
+
+    def test_missing_fault_file_triggers_cgs_download(self, tmp_path):
+        """If fault GeoJSON is absent, loader should download from CGS service."""
+        from agent.tools.ca_hazards import _load_fault_zones
+
+        fault_geojson = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": {},
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [[[-122.41, 37.79], [-122.39, 37.79], [-122.39, 37.81], [-122.41, 37.81], [-122.41, 37.79]]],
+                    },
+                }
+            ],
+        }
+
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status = MagicMock()
+        mock_resp.json = MagicMock(return_value=fault_geojson)
+
+        with patch("agent.tools.ca_hazards.DATA_DIR", tmp_path), \
+             patch("agent.tools.ca_hazards._fault_cache", None), \
+             patch("agent.tools.ca_hazards.httpx.Client") as mock_client_cls:
+            mock_client_cls.return_value.__enter__ = MagicMock(return_value=MagicMock(
+                get=MagicMock(return_value=mock_resp)
+            ))
+            mock_client_cls.return_value.__exit__ = MagicMock(return_value=False)
+
+            polygons = _load_fault_zones()
+
+        assert len(polygons) == 1
+        assert (tmp_path / "ap_fault_zones.geojson").exists()
