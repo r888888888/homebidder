@@ -56,6 +56,20 @@ _CTS_PANEL_HTML = """
 </table>
 """
 
+_EID_DETAIL_HTML = """
+<html>
+  <body>
+    <p>
+      Permit Details Report
+      Application Number: EW202109018103
+      Address(es): 2175 / 006J : 2142 43RD AV
+      Description: UPGRADE EXISTING 70 AMP MAIN SERVICE PANEL TO 125 AMP ONLY, NO ADDING LOAD.
+      Stage: Action Date Stage Comments
+    </p>
+  </body>
+</html>
+"""
+
 
 class TestFetchSfPermits:
     async def test_returns_dbi_permits_and_complaints(self):
@@ -73,6 +87,7 @@ class TestFetchSfPermits:
                 _http_html_mock(_PID_PANEL_HTML),
                 _http_html_mock(_BID_PANEL_HTML),
                 _http_html_mock(_CTS_PANEL_HTML),
+                _http_html_mock(_EID_DETAIL_HTML),
             ]
 
             result = await fetch_sf_permits(
@@ -88,6 +103,11 @@ class TestFetchSfPermits:
         assert len(result["permits"]) == 1
         assert len(result["complaints"]) == 1
         assert result["permits"][0]["permit_number"] == "E200304106449"
+        assert "UPGRADE EXISTING 70 AMP MAIN SERVICE PANEL TO 125 AMP ONLY, NO ADDING LOAD." in (
+            result["permits"][0]["work_description"] or ""
+        )
+        assert result["permits"][0]["llm_summary"] is not None
+        assert result["permits"][0]["llm_impact"] in ("positive", "negative")
         assert result["complaints"][0]["complaint_number"] == "202295394"
 
     async def test_uses_exact_suffix_match_when_multiple_address_ids_exist(self):
@@ -105,6 +125,7 @@ class TestFetchSfPermits:
                 _http_html_mock(_PID_PANEL_HTML),
                 _http_html_mock(_BID_PANEL_HTML),
                 _http_html_mock(_CTS_PANEL_HTML),
+                _http_html_mock(_EID_DETAIL_HTML),
             ]
 
             await fetch_sf_permits(
@@ -156,6 +177,7 @@ class TestFetchSfPermits:
                 _http_html_mock(_PID_PANEL_HTML),
                 _http_html_mock(_BID_PANEL_HTML),
                 _http_html_mock(_CTS_PANEL_HTML),
+                _http_html_mock(_EID_DETAIL_HTML),
             ]
 
             mock_anthropic_client = AsyncMock()

@@ -101,7 +101,10 @@ def _extract_json_object(text: str) -> dict[str, Any] | None:
 
 
 def _permit_llm_enabled() -> bool:
-    return os.getenv("ENABLE_PERMIT_LLM", "").strip() == "1" and bool(os.getenv("ANTHROPIC_API_KEY"))
+    toggle = os.getenv("ENABLE_PERMIT_LLM", "").strip().lower()
+    if toggle in {"0", "false", "off"}:
+        return False
+    return bool(os.getenv("ANTHROPIC_API_KEY"))
 
 
 def _permit_detail_text_from_html(html_text: str) -> str:
@@ -109,6 +112,21 @@ def _permit_detail_text_from_html(html_text: str) -> str:
     no_script = re.sub(r"<script[^>]*>.*?</script>", " ", html_text or "", flags=re.IGNORECASE | re.DOTALL)
     no_style = re.sub(r"<style[^>]*>.*?</style>", " ", no_script, flags=re.IGNORECASE | re.DOTALL)
     return _clean_text(no_style)[:_PERMIT_LLM_MAX_CHARS]
+
+
+def _extract_work_description_from_detail_text(detail_text: str) -> str | None:
+    if not detail_text:
+        return None
+    match = re.search(r"\bDescription:\s*(.*?)\s+Stage:", detail_text, flags=re.IGNORECASE | re.DOTALL)
+    if match:
+        desc = re.sub(r"\s+", " ", match.group(1)).strip()
+        return desc or None
+
+    match = re.search(r"\bDescription:\s*(.*?)(?:\s+Contractor Details:|\s+Application Number:|$)", detail_text, flags=re.IGNORECASE | re.DOTALL)
+    if match:
+        desc = re.sub(r"\s+", " ", match.group(1)).strip()
+        return desc or None
+    return None
 
 
 async def _summarize_permit_with_llm(
@@ -162,6 +180,33 @@ async def _summarize_permit_with_llm(
         summary = ""
 
     return (summary or None), (impact or None)
+
+
+def _fallback_permit_summary_and_impact(permit: dict[str, Any]) -> tuple[str | None, str | None]:
+    permit_no = str(permit.get("permit_number") or "").strip() or "Unknown permit"
+    permit_type = str(permit.get("permit_type") or "permit").strip()
+    status = str(permit.get("status") or "status unknown").strip()
+    address = str(permit.get("address") or "").strip()
+    work_description = str(permit.get("work_description") or "").strip()
+
+    work_hint = ""
+    if work_description and work_description.lower() not in {"", "none"}:
+        # DBI tables often only include street name in this field; skip if it looks like just a street token.
+        if not re.fullmatch(r"[A-Z0-9\s]{2,20}", work_description):
+            work_hint = f" Work noted: {work_description}."
+
+    address_part = f" at {address}" if address else ""
+    summary = f"{permit_type.capitalize()} permit {permit_no}{address_part} is {status.lower()}.{work_hint}".strip()
+
+    status_l = status.lower()
+    if any(term in status_l for term in ("complete", "completed", "final", "issued")):
+        impact = "positive"
+    elif any(term in status_l for term in ("expired", "cancel", "hold", "suspend", "open")):
+        impact = "negative"
+    else:
+        impact = "negative"
+
+    return summary, impact
 
 
 def _extract_hidden(html_text: str, name: str) -> str | None:
@@ -467,27 +512,39 @@ async def fetch_sf_permits(
             complaints_resp.raise_for_status()
             complaints = _parse_complaints(complaints_resp.text)
 
-            # Optional LLM enrichment: summarize each permit and classify impact.
+            # Always provide summary/impact with deterministic fallback.
+            permit_llm_client: anthropic.AsyncAnthropic | None = None
             if permits and _permit_llm_enabled():
                 permit_llm_client = anthropic.AsyncAnthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-                for permit in permits:
-                    detail_text = ""
-                    source_url = str(permit.get("source_url") or "")
-                    if source_url:
-                        try:
-                            detail_resp = await client.get(source_url)
-                            detail_resp.raise_for_status()
-                            detail_text = _permit_detail_text_from_html(detail_resp.text)
-                        except Exception:
-                            detail_text = ""
 
-                    summary, impact = await _summarize_permit_with_llm(
+            for permit in permits:
+                detail_text = ""
+                source_url = str(permit.get("source_url") or "")
+                if source_url:
+                    try:
+                        detail_resp = await client.get(source_url)
+                        detail_resp.raise_for_status()
+                        detail_text = _permit_detail_text_from_html(detail_resp.text)
+                    except Exception:
+                        detail_text = ""
+
+                detail_description = _extract_work_description_from_detail_text(detail_text)
+                if detail_description:
+                    permit["work_description"] = detail_description
+
+                summary, impact = _fallback_permit_summary_and_impact(permit)
+
+                if permit_llm_client is not None:
+                    llm_summary, llm_impact = await _summarize_permit_with_llm(
                         permit_llm_client,
                         permit,
                         detail_text,
                     )
-                    permit["llm_summary"] = summary
-                    permit["llm_impact"] = impact
+                    summary = llm_summary or summary
+                    impact = llm_impact or impact
+
+                permit["llm_summary"] = summary
+                permit["llm_impact"] = impact
 
     except Exception as exc:
         return _empty_result(address=address_matched, source_detail=f"dbi_error:{type(exc).__name__}")
