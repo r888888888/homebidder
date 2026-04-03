@@ -1,5 +1,7 @@
 """Mortgage rates tool (Freddie Mac PMMS via FRED)."""
 
+import csv
+import io
 import os
 import time
 from typing import Any
@@ -7,6 +9,7 @@ from typing import Any
 import httpx
 
 FRED_URL = "https://api.stlouisfed.org/fred/series/observations"
+FRED_CSV_URL_TEMPLATE = "https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}"
 CACHE_TTL_SECONDS = 24 * 60 * 60
 
 _cache: dict[str, Any] = {
@@ -38,6 +41,36 @@ async def _fetch_latest_series_value(series_id: str, api_key: str) -> tuple[floa
     return round(value, 2), as_of_date
 
 
+
+
+async def _fetch_latest_series_value_csv(series_id: str) -> tuple[float, str]:
+    url = FRED_CSV_URL_TEMPLATE.format(series_id=series_id)
+    async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+        response = await client.get(url)
+        response.raise_for_status()
+
+    rows = csv.DictReader(io.StringIO(response.text))
+    latest_date: str | None = None
+    latest_value: float | None = None
+
+    for row in rows:
+        date = (row.get("DATE") or "").strip()
+        value_raw = (row.get(series_id) or "").strip()
+        if not date:
+            continue
+        try:
+            value = float(value_raw)
+        except ValueError:
+            continue
+        latest_date = date
+        latest_value = value
+
+    if latest_date is None or latest_value is None:
+        raise ValueError(f"No numeric observations returned for {series_id} CSV")
+
+    return round(latest_value, 2), latest_date
+
+
 async def fetch_mortgage_rates() -> dict[str, Any]:
     """Return latest 30-year and 15-year fixed mortgage rates from FRED with a 24h memory cache."""
     now = time.time()
@@ -47,11 +80,14 @@ async def fetch_mortgage_rates() -> dict[str, Any]:
         return cached_value
 
     api_key = os.environ.get("FRED_API_KEY")
-    if not api_key:
-        raise ValueError("FRED_API_KEY is required")
 
-    rate30, as_of_30 = await _fetch_latest_series_value("MORTGAGE30US", api_key)
-    rate15, as_of_15 = await _fetch_latest_series_value("MORTGAGE15US", api_key)
+    if api_key:
+        rate30, as_of_30 = await _fetch_latest_series_value("MORTGAGE30US", api_key)
+        rate15, as_of_15 = await _fetch_latest_series_value("MORTGAGE15US", api_key)
+    else:
+        # Fallback path for local/dev environments without a FRED key.
+        rate30, as_of_30 = await _fetch_latest_series_value_csv("MORTGAGE30US")
+        rate15, as_of_15 = await _fetch_latest_series_value_csv("MORTGAGE15US")
 
     as_of_date = max(as_of_30, as_of_15)
     result = {

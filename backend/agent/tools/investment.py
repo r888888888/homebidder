@@ -20,6 +20,15 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
         return default
 
 
+def _optional_float(value: Any) -> float | None:
+    try:
+        if value is None:
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _rating_from_yield(gross_yield_pct: float) -> str:
     if gross_yield_pct >= 3.5:
         return "Buy"
@@ -42,7 +51,8 @@ def compute_investment_metrics(
     hoa = _safe_float(property.get("hoa_fee"))
     annual_tax = _safe_float(prop13_annual_tax)
 
-    rate_30 = _safe_float(mortgage_rates.get("rate_30yr_fixed"))
+    raw_rate_30 = _optional_float(mortgage_rates.get("rate_30yr_fixed"))
+    rate_30 = raw_rate_30 if raw_rate_30 is not None else 6.5
     as_of_date = mortgage_rates.get("as_of_date")
 
     annual_rent = monthly_rent * 12
@@ -58,7 +68,12 @@ def compute_investment_metrics(
     monthly_tax = annual_tax / 12.0
     monthly_cashflow = monthly_rent - (mortgage_monthly + monthly_tax + hoa + vacancy + maintenance)
 
-    yoy_pct = _safe_float(hpi_trend.get("yoy_appreciation_pct"))
+    # FHFA tool emits yoy_change_pct; keep yoy_appreciation_pct as backward-compatible fallback.
+    yoy_pct = _optional_float(hpi_trend.get("yoy_change_pct"))
+    if yoy_pct is None:
+        yoy_pct = _optional_float(hpi_trend.get("yoy_appreciation_pct"))
+    if yoy_pct is None:
+        yoy_pct = 0.0
     growth = 1.0 + (yoy_pct / 100.0)
 
     projected_1yr = round(price * pow(growth, 1), 0) if price > 0 else None

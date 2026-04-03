@@ -79,3 +79,29 @@ class TestFetchMortgageRates:
 
         assert result["rate_30yr_fixed"] == 6.73
         assert result["rate_15yr_fixed"] == 5.99
+
+
+    async def test_uses_csv_fallback_when_fred_key_missing(self):
+        from agent.tools.mortgage_rates import _cache, fetch_mortgage_rates
+
+        _cache["value"] = None
+        _cache["fetched_at_epoch"] = None
+
+        csv_30 = "DATE,MORTGAGE30US\n2026-03-19,6.62\n2026-03-26,6.64\n"
+        csv_15 = "DATE,MORTGAGE15US\n2026-03-19,5.81\n2026-03-26,5.84\n"
+
+        from unittest.mock import Mock
+        with patch.dict("os.environ", {}, clear=True), \
+             patch("agent.tools.mortgage_rates.httpx.AsyncClient") as mock_cls:
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__.return_value = mock_client
+            mock_client.get.side_effect = [
+                Mock(text=csv_30, raise_for_status=Mock()),
+                Mock(text=csv_15, raise_for_status=Mock()),
+            ]
+
+            result = await fetch_mortgage_rates()
+
+        assert result["rate_30yr_fixed"] == 6.64
+        assert result["rate_15yr_fixed"] == 5.84
+        assert result["as_of_date"] == "2026-03-26"

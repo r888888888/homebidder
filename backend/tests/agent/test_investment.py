@@ -76,3 +76,20 @@ class TestComputeInvestmentMetrics:
         )
 
         assert high_tax["monthly_cashflow_estimate"] < low_tax["monthly_cashflow_estimate"]
+
+
+    def test_uses_fhfa_yoy_change_pct_for_projection_growth(self):
+        from agent.tools.investment import compute_investment_metrics
+
+        result = compute_investment_metrics(
+            property={"price": 1_000_000, "hoa_fee": 0},
+            rental_estimate={"rent_estimate": 3500},
+            mortgage_rates={"rate_30yr_fixed": 6.2, "as_of_date": "2026-03-26"},
+            hpi_trend={"yoy_change_pct": 4.0},
+            ba_value_drivers={"adu_potential": False, "adu_rent_estimate": None},
+            prop13_annual_tax=12_000,
+        )
+
+        assert result["projected_value_1yr"] > 1_000_000
+        assert result["projected_value_3yr"] > result["projected_value_1yr"]
+        assert result["projected_value_5yr"] > result["projected_value_3yr"]
