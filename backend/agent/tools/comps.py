@@ -8,9 +8,11 @@ Fallback path: Redfin Stingray /gis-csv endpoint with a shapely bounding-box pol
 
 import asyncio
 import csv
+import datetime as dt
 import io
 import math
 import random
+import re
 from typing import Any
 from urllib.parse import urlencode
 
@@ -137,6 +139,7 @@ async def fetch_comps(
         if df is not None and not df.empty:
             comps = _process_df(
                 df,
+                address,
                 subject_lat,
                 subject_lon,
                 subject_sqft,
@@ -195,6 +198,7 @@ def _fmt_date(val: Any) -> str | None:
 
 def _process_df(
     df,
+    subject_address: str,
     subject_lat: float | None,
     subject_lon: float | None,
     subject_sqft: int | None,
@@ -207,10 +211,17 @@ def _process_df(
         sqft = _safe(row, "sqft")
         comp_property_type = _safe(row, "style") or _safe(row, "property_type")
         comp_type_norm = _normalize_property_type(comp_property_type)
+        comp_address = _safe(row, "street", "")
+        comp_unit = _safe(row, "unit_number") or _safe(row, "unit") or _safe(row, "apartment")
+        comp_sold_date = _fmt_date(_safe(row, "last_sold_date"))
 
         if subject_property_type:
             if comp_type_norm != subject_property_type:
                 continue
+
+        # Ignore the subject property itself when it sold recently (last 30 days).
+        if _is_recent_same_property_sale(subject_address, comp_address, comp_unit, comp_sold_date):
+            continue
 
         # sqft similarity filter (±25%) — only when subject_sqft provided
         if subject_sqft is not None and sqft is not None:
@@ -235,14 +246,14 @@ def _process_df(
             distance_miles = None
 
         comps.append({
-            "address": _safe(row, "street", ""),
-            "unit": _safe(row, "unit_number") or _safe(row, "unit") or _safe(row, "apartment"),
+            "address": comp_address,
+            "unit": comp_unit,
             "city": _safe(row, "city", ""),
             "state": _safe(row, "state", ""),
             "zip_code": _safe(row, "zip_code", ""),
             "sold_price": sold_price,
             "list_price": list_price,
-            "sold_date": _fmt_date(_safe(row, "last_sold_date")),
+            "sold_date": comp_sold_date,
             "bedrooms": _safe(row, "beds"),
             "bathrooms": (_safe(row, "full_baths") or 0) + (_safe(row, "half_baths") or 0) * 0.5 or None,
             "sqft": sqft,
@@ -457,6 +468,80 @@ def _normalize_property_type(value: str | None) -> str | None:
     if any(token in v for token in ("single", "sfh", "sfr", "house")):
         return "sfh"
     return None
+
+
+def _extract_unit_token(text: str | None) -> str | None:
+    if not text:
+        return None
+    raw = str(text).strip()
+    if not raw:
+        return None
+    normalized = re.sub(r"[-_/]+", " ", raw)
+    m = re.search(
+        r"(?i)(?:#\s*([\w-]+)|\bunit\s+([\w-]+)|\bapt\.?\s+([\w-]+)|\bsuite\s+([\w-]+)|\bste\.?\s+([\w-]+))",
+        normalized,
+    )
+    if m:
+        for g in m.groups():
+            if g:
+                return g.lower()
+
+    # Comp feeds sometimes provide a plain unit token (e.g. "515").
+    plain = re.sub(r"[^a-zA-Z0-9-]", "", raw).lower()
+    return plain or None
+
+
+def _strip_unit_designator(address: str) -> str:
+    cleaned = re.sub(
+        r"(?i)(?:,\s*|\s+)(?:#\s*[\w-]+|apt\.?\s*[\w-]+|apartment\s*[\w-]+|unit\s*[\w-]+|suite\s*[\w-]+|ste\.?\s*[\w-]+)\b",
+        "",
+        address,
+    )
+    cleaned = re.sub(r"\s{2,}", " ", cleaned)
+    cleaned = re.sub(r"\s+,", ",", cleaned)
+    return cleaned.strip(" ,")
+
+
+def _normalize_street_base(text: str | None) -> str:
+    if not text:
+        return ""
+    head = str(text).split(",")[0]
+    no_unit = _strip_unit_designator(head)
+    out = re.sub(r"[^a-zA-Z0-9 ]", " ", no_unit).lower()
+    out = re.sub(r"\s{2,}", " ", out).strip()
+    return out
+
+
+def _parse_iso_date(value: str | None) -> dt.date | None:
+    if not value:
+        return None
+    try:
+        return dt.date.fromisoformat(str(value)[:10])
+    except ValueError:
+        return None
+
+
+def _is_recent_same_property_sale(
+    subject_address: str,
+    comp_address: str | None,
+    comp_unit: str | None,
+    comp_sold_date: str | None,
+    days: int = 30,
+) -> bool:
+    sold_date = _parse_iso_date(comp_sold_date)
+    if sold_date is None:
+        return False
+
+    today = dt.date.today()
+    if sold_date < today - dt.timedelta(days=days) or sold_date > today:
+        return False
+
+    if _normalize_street_base(subject_address) != _normalize_street_base(comp_address):
+        return False
+
+    subject_unit = _extract_unit_token(subject_address)
+    comp_unit_norm = _extract_unit_token(comp_unit)
+    return subject_unit == comp_unit_norm
 
 
 def _redfin_sf_filter_value(subject_property_type: str | None) -> str:
