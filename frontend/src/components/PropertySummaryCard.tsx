@@ -175,30 +175,28 @@ export function PropertySummaryCard({ property }: Props) {
   const coreFields: Field[] = [
     { label: "List Price", value: priceDisplay },
     { label: "AVM Estimate", value: avmDisplay },
+    { label: "HOA / mo", value: fmtUsd(property.hoa_fee) },
     { label: "Beds", value: fmt(property.bedrooms) },
     { label: "Baths", value: fmt(property.bathrooms) },
+    { label: "Type", value: formatPropertyType(property.property_type) },
     { label: "Sqft", value: property.sqft != null ? fmt(property.sqft) : "—" },
+    ...(!isCondo
+      ? [
+          {
+            label: "Lot Size (sqft)",
+            value: property.lot_size != null ? fmt(property.lot_size) : "—",
+          },
+        ]
+      : []),
     { label: "Year Built", value: property.year_built ?? "—" },
     { label: "City", value: property.city ?? "—" },
     { label: "County", value: property.county || "—" },
-    { label: "Type", value: formatPropertyType(property.property_type) },
     { label: "Days on Market", value: domLabel(property.list_date, property.days_on_market) },
   ];
 
   if (property.unit) {
-    coreFields.splice(2, 0, { label: "Unit", value: property.unit });
-  }
-
-  if (!isCondo) {
-    coreFields.splice(
-      coreFields.findIndex((f) => f.label === "Year Built") + 1,
-      0,
-      { label: "Lot Size (sqft)", value: property.lot_size != null ? fmt(property.lot_size) : "—" }
-    );
-  }
-
-  if (property.hoa_fee != null) {
-    coreFields.push({ label: "HOA / mo", value: fmtUsd(property.hoa_fee) });
+    const typeIndex = coreFields.findIndex((f) => f.label === "Type");
+    coreFields.splice(typeIndex + 1, 0, { label: "Unit", value: property.unit });
   }
 
   return (

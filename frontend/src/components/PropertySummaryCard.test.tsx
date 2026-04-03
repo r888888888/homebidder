@@ -164,4 +164,30 @@ describe("PropertySummaryCard", () => {
       expect(screen.queryByText(/lot size/i)).not.toBeInTheDocument();
     }
   });
+
+  it("uses the requested property summary layout order", () => {
+    render(<PropertySummaryCard property={BASE_PROPERTY} />);
+
+    const labels = screen
+      .getAllByRole("term")
+      .map((node) => node.textContent?.trim().toLowerCase() ?? "");
+
+    expect(labels).toEqual([
+      "list price",
+      "avm estimate",
+      "hoa / mo",
+      "beds",
+      "baths",
+      "type",
+      "sqft",
+      "lot size (sqft)",
+      "year built",
+      "city",
+      "county",
+      "days on market",
+    ]);
+
+    const grid = document.querySelector("dl");
+    expect(grid).toHaveClass("sm:grid-cols-3");
+  });
 });
