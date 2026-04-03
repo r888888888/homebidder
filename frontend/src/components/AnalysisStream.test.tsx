@@ -25,6 +25,13 @@ const PROPERTY_RESULT = {
   list_date: null,
   price_history: [],
   avm_estimate: 1_300_000,
+  listing_description: "Contractor special, tenant occupied",
+  description_signals: {
+    version: "v1",
+    raw_description_present: true,
+    net_adjustment_pct: -1.5,
+    detected_signals: [{ label: "Tenant Occupied" }],
+  },
   source: "homeharvest" as const,
 };
 
@@ -68,6 +75,8 @@ const OFFER_RESULT = {
   offer_high: 1_300_000,
   posture: "competitive" as const,
   spread_vs_list_pct: -12.0,
+  condition_adjustment_pct: -1.5,
+  condition_signals: [{ label: "Tenant Occupied" }],
   median_pct_over_asking: 8.0,
   pct_sold_over_asking: 100.0,
   offer_review_advisory: "Offer review likely — submit by 2026-04-08",
@@ -98,6 +107,31 @@ const INVESTMENT_RESULT = {
   nearest_bart_station: "16TH ST MISSION",
   bart_distance_miles: 0.31,
   transit_premium_likely: true,
+};
+
+const PERMITS_RESULT = {
+  source: "datasf",
+  address: "450 SANCHEZ ST, SAN FRANCISCO, CA, 94114",
+  open_permits_count: 1,
+  recent_permits_5y: 3,
+  major_permits_10y: 1,
+  oldest_open_permit_age_days: 480,
+  flags: ["open_over_365_days", "recent_structural_work"],
+  permits: [
+    {
+      permit_number: "202401011234",
+      filed_date: "2024-01-10",
+      issued_date: "2024-03-05",
+      completed_date: null,
+      status: "issued",
+      permit_type: "ALTERATION",
+      work_description: "Kitchen and bath remodel",
+      estimated_cost: 120000,
+      address: "450 SANCHEZ ST",
+      unit: "2",
+      source_url: null,
+    },
+  ],
 };
 
 describe("AnalysisStream", () => {
@@ -177,6 +211,21 @@ describe("AnalysisStream", () => {
     expect(screen.getByText(/investment analysis/i)).toBeInTheDocument();
     expect(screen.getByText(/assumes 6.63% 30yr fixed/i)).toBeInTheDocument();
     expect(screen.getByText(/transit premium likely/i)).toBeInTheDocument();
+  });
+
+  it("renders permits card from fetch_sf_permits tool result", () => {
+    const events = [
+      {
+        type: "tool_result" as const,
+        tool: "fetch_sf_permits",
+        result: PERMITS_RESULT as unknown as Record<string, unknown>,
+      },
+    ];
+
+    render(<AnalysisStream events={events} isRunning={false} />);
+
+    expect(screen.getByText(/permit history/i)).toBeInTheDocument();
+    expect(screen.getByText(/open permit older than 1 year/i)).toBeInTheDocument();
   });
 
   it("renders final analysis with markdown formatting", () => {

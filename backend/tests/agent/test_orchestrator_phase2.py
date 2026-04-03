@@ -216,12 +216,15 @@ class TestToolResultSseEvents:
         fake_offer = {
             "list_price": 995000,
             "fair_value_estimate": 1_000_000,
+            "fair_value_breakdown": {"method": "median_comp_anchor", "condition_adjustment_pct": -1.5},
             "offer_low": 970000,
             "offer_recommended": 995000,
             "offer_high": 1_020_000,
             "posture": "at-market",
             "offer_range_band_pct": 3.0,
             "spread_vs_list_pct": 0.5,
+            "condition_adjustment_pct": -1.5,
+            "condition_signals": [{"label": "Tenant Occupied"}],
             "median_pct_over_asking": None,
             "pct_sold_over_asking": None,
             "offer_review_advisory": None,
@@ -242,6 +245,87 @@ class TestToolResultSseEvents:
 
         _, kwargs = mock_recommend.call_args
         assert kwargs["mortgage_rate_pct"] == 5.75
+
+    async def test_recommend_offer_tool_result_includes_condition_fields(self):
+        from unittest.mock import MagicMock
+
+        lookup_block = MagicMock()
+        lookup_block.type = "tool_use"
+        lookup_block.name = "lookup_property_by_address"
+        lookup_block.id = "tu_lookup_3"
+        lookup_block.input = {"address": "450 Sanchez St, San Francisco, CA 94114"}
+
+        comps_block = MagicMock()
+        comps_block.type = "tool_use"
+        comps_block.name = "fetch_comps"
+        comps_block.id = "tu_comps_3"
+        comps_block.input = {
+            "address": "450 Sanchez St, San Francisco, CA 94114",
+            "city": "San Francisco",
+            "state": "CA",
+            "zip_code": "94114",
+        }
+
+        lookup_response = MagicMock()
+        lookup_response.stop_reason = "tool_use"
+        lookup_response.content = [lookup_block]
+
+        comps_response = MagicMock()
+        comps_response.stop_reason = "tool_use"
+        comps_response.content = [comps_block]
+
+        end_turn_response = MagicMock()
+        end_turn_response.stop_reason = "end_turn"
+        text_block = MagicMock()
+        text_block.type = "text"
+        text_block.text = "Done."
+        end_turn_response.content = [text_block]
+
+        fake_property = {
+            "address_matched": "450 SANCHEZ ST, SAN FRANCISCO, CA, 94114",
+            "county": "San Francisco",
+            "state": "CA",
+            "zip_code": "94114",
+            "price": 995000,
+            "description_signals": {"net_adjustment_pct": -1.5, "detected_signals": [{"label": "Tenant Occupied"}]},
+        }
+        fake_comps = [{"sold_price": 1_000_000, "price_per_sqft": 700.0, "sqft": 1400, "list_price": 980_000}]
+
+        with patch("agent.orchestrator.anthropic.AsyncAnthropic") as mock_cls, \
+             patch("agent.orchestrator.fetch_comps", new_callable=AsyncMock, return_value=fake_comps), \
+             patch("agent.orchestrator.recommend_offer", return_value={
+                 "list_price": 995000,
+                 "fair_value_estimate": 980000,
+                 "fair_value_breakdown": {"method": "median_comp_anchor", "condition_adjustment_pct": -1.5},
+                 "offer_low": 960000,
+                 "offer_recommended": 980000,
+                 "offer_high": 1_000_000,
+                 "posture": "at-market",
+                 "offer_range_band_pct": 3.0,
+                 "spread_vs_list_pct": -1.5,
+                 "condition_adjustment_pct": -1.5,
+                 "condition_signals": [{"label": "Tenant Occupied"}],
+                 "median_pct_over_asking": None,
+                 "pct_sold_over_asking": None,
+                 "offer_review_advisory": None,
+                 "contingency_recommendation": {"waive_appraisal": False, "waive_loan": False, "keep_inspection": True},
+                 "hoa_equivalent_sfh_value": None,
+             }) as mock_recommend, \
+             patch("agent.orchestrator.lookup_property_by_address", new_callable=AsyncMock, return_value=fake_property):
+
+            mock_client = AsyncMock()
+            mock_cls.return_value = mock_client
+            mock_client.messages.create.side_effect = [lookup_response, comps_response, end_turn_response]
+
+            events = await collect_events("450 Sanchez St, San Francisco, CA 94114")
+
+        recommend_event = next(
+            e for e in events if e.get("type") == "tool_result" and e.get("tool") == "recommend_offer"
+        )
+        assert "condition_adjustment_pct" in recommend_event["result"]
+        assert "condition_signals" in recommend_event["result"]
+        args, _ = mock_recommend.call_args
+        assert args[0]["description_signals"]["net_adjustment_pct"] == -1.5
 
 
 class TestPhase8AutoComputation:
@@ -294,3 +378,102 @@ class TestPhase8AutoComputation:
         assert "fetch_rental_estimate" in tools
         assert "fetch_ba_value_drivers" in tools
         assert "compute_investment_metrics" in tools
+
+
+class TestSfPermitAutoFetch:
+    async def test_sf_lookup_triggers_sf_permit_tool_events(self):
+        from unittest.mock import MagicMock
+
+        lookup_block = MagicMock()
+        lookup_block.type = "tool_use"
+        lookup_block.name = "lookup_property_by_address"
+        lookup_block.id = "tu_lookup_sf"
+        lookup_block.input = {"address": "450 Sanchez St, San Francisco, CA 94114"}
+
+        tool_use_response = MagicMock()
+        tool_use_response.stop_reason = "tool_use"
+        tool_use_response.content = [lookup_block]
+
+        end_turn_response = MagicMock()
+        end_turn_response.stop_reason = "end_turn"
+        text_block = MagicMock()
+        text_block.type = "text"
+        text_block.text = "Done."
+        end_turn_response.content = [text_block]
+
+        property_result = {
+            "address_matched": "450 SANCHEZ ST, SAN FRANCISCO, CA, 94114",
+            "county": "San Francisco",
+            "state": "CA",
+            "zip_code": "",
+            "unit": "2",
+            "latitude": None,
+            "longitude": None,
+        }
+        permits_result = {
+            "source": "datasf",
+            "open_permits_count": 1,
+            "recent_permits_5y": 3,
+            "major_permits_10y": 1,
+            "oldest_open_permit_age_days": 480,
+            "flags": ["open_over_365_days"],
+            "permits": [],
+        }
+
+        with patch("agent.orchestrator.anthropic.AsyncAnthropic") as mock_cls, \
+             patch("agent.orchestrator.lookup_property_by_address", new_callable=AsyncMock, return_value=property_result), \
+             patch("agent.orchestrator.fetch_sf_permits", new_callable=AsyncMock, return_value=permits_result):
+            mock_client = AsyncMock()
+            mock_cls.return_value = mock_client
+            mock_client.messages.create.side_effect = [tool_use_response, end_turn_response]
+
+            events = await collect_events("450 Sanchez St, San Francisco, CA 94114")
+
+        permit_tool_calls = [e for e in events if e.get("type") == "tool_call" and e.get("tool") == "fetch_sf_permits"]
+        permit_tool_results = [e for e in events if e.get("type") == "tool_result" and e.get("tool") == "fetch_sf_permits"]
+        assert len(permit_tool_calls) == 1
+        assert len(permit_tool_results) == 1
+        assert permit_tool_results[0]["result"]["open_permits_count"] == 1
+
+    async def test_non_sf_lookup_skips_sf_permit_tool(self):
+        from unittest.mock import MagicMock
+
+        lookup_block = MagicMock()
+        lookup_block.type = "tool_use"
+        lookup_block.name = "lookup_property_by_address"
+        lookup_block.id = "tu_lookup_non_sf"
+        lookup_block.input = {"address": "1 Main St, Oakland, CA 94607"}
+
+        tool_use_response = MagicMock()
+        tool_use_response.stop_reason = "tool_use"
+        tool_use_response.content = [lookup_block]
+
+        end_turn_response = MagicMock()
+        end_turn_response.stop_reason = "end_turn"
+        text_block = MagicMock()
+        text_block.type = "text"
+        text_block.text = "Done."
+        end_turn_response.content = [text_block]
+
+        property_result = {
+            "address_matched": "1 MAIN ST, OAKLAND, CA, 94607",
+            "county": "Alameda",
+            "state": "CA",
+            "zip_code": "",
+            "unit": None,
+            "latitude": None,
+            "longitude": None,
+        }
+
+        with patch("agent.orchestrator.anthropic.AsyncAnthropic") as mock_cls, \
+             patch("agent.orchestrator.lookup_property_by_address", new_callable=AsyncMock, return_value=property_result), \
+             patch("agent.orchestrator.fetch_sf_permits", new_callable=AsyncMock) as mock_permits:
+            mock_client = AsyncMock()
+            mock_cls.return_value = mock_client
+            mock_client.messages.create.side_effect = [tool_use_response, end_turn_response]
+
+            events = await collect_events("1 Main St, Oakland, CA 94607")
+
+        permit_events = [e for e in events if e.get("tool") == "fetch_sf_permits"]
+        assert not permit_events
+        mock_permits.assert_not_called()

@@ -15,6 +15,9 @@ from urllib.parse import urlencode, quote
 
 import httpx
 
+from .description_signals import extract_description_signals
+from .condition_llm import evaluate_condition_with_llm, merge_signal_results
+
 CENSUS_GEOCODER_URL = (
     "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress"
 )
@@ -79,6 +82,11 @@ async def lookup_property_by_address(address: str) -> dict[str, Any]:
     else:
         source = "rentcast" if avm is not None else "none"
 
+    listing_description = listing.get("listing_description")
+    rule_signals = extract_description_signals(listing_description)
+    llm_signals = await evaluate_condition_with_llm(listing_description)
+    description_signals = merge_signal_results(rule_signals, llm_signals)
+
     return {
         "address_input": address,
         # Geocoder fields (county falls back to homeharvest — geocoder omits it)
@@ -103,6 +111,8 @@ async def lookup_property_by_address(address: str) -> dict[str, Any]:
         "list_date": listing.get("list_date"),
         "city": listing.get("city"),
         "neighborhoods": listing.get("neighborhoods"),
+        "listing_description": listing_description,
+        "description_signals": description_signals,
         "price_history": listing.get("price_history", []),
         # AVM
         "avm_estimate": avm,
@@ -208,6 +218,12 @@ async def _homeharvest_listing(matched_address: str) -> dict[str, Any]:
         "city": _safe(row, "city"),
         "county": _safe(row, "county"),
         "neighborhoods": str(neighborhoods_raw) if neighborhoods_raw is not None else None,
+        "listing_description": _first_nonempty_text(
+            _safe(row, "description"),
+            _safe(row, "remarks"),
+            _safe(row, "listing_remarks"),
+            _safe(row, "public_remarks"),
+        ),
         "price_history": _safe(row, "price_history", []) or [],
         "unit": str(unit_raw).strip() if unit_raw else None,
         "source": "homeharvest",
@@ -262,6 +278,12 @@ async def _homeharvest_nearby_unit_listing(base_address: str, query_address: str
         "city": _safe(row, "city"),
         "county": _safe(row, "county"),
         "neighborhoods": str(neighborhoods_raw) if neighborhoods_raw is not None else None,
+        "listing_description": _first_nonempty_text(
+            _safe(row, "description"),
+            _safe(row, "remarks"),
+            _safe(row, "listing_remarks"),
+            _safe(row, "public_remarks"),
+        ),
         "price_history": _safe(row, "price_history", []) or [],
         "unit": str(unit_raw).strip() if unit_raw else None,
         "source": "homeharvest",
@@ -355,6 +377,16 @@ def _safe(row: Any, key: str, default: Any = None) -> Any:
     if isinstance(val, np.floating):
         return float(val)
     return val
+
+
+def _first_nonempty_text(*values: Any) -> str | None:
+    for value in values:
+        if value is None:
+            continue
+        text = str(value).strip()
+        if text:
+            return text
+    return None
 
 
 def _strip_unit_designator(address: str) -> str:

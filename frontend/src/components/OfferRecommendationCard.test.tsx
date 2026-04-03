@@ -17,6 +17,16 @@ const BASE: OfferData = {
   offer_high: 1_300_000,
   posture: "competitive",
   spread_vs_list_pct: -12.0,
+  condition_adjustment_pct: -1.5,
+  condition_signals: [
+    {
+      label: "Tenant Occupied",
+      category: "occupancy_negative",
+      direction: "negative",
+      weight_pct: -1.5,
+      matched_phrases: ["tenant occupied"],
+    },
+  ],
   median_pct_over_asking: 8.0,
   pct_sold_over_asking: 100.0,
   offer_review_advisory: "Offer review likely — submit by 2026-04-08",
@@ -180,5 +190,27 @@ describe("OfferRecommendationCard", () => {
   it("does not render no-HOA SFH equivalent section when absent", () => {
     render(<OfferRecommendationCard offer={{ ...BASE, hoa_equivalent_sfh_value: null }} />);
     expect(screen.queryByText(/no-hoa sfh equivalent/i)).not.toBeInTheDocument();
+  });
+
+  it("renders description signal impact section with net adjustment", () => {
+    render(<OfferRecommendationCard offer={BASE} />);
+
+    expect(screen.getByText(/description signals impact/i)).toBeInTheDocument();
+    expect(screen.getByText(/-1\.5%/)).toBeInTheDocument();
+    expect(screen.getByText(/tenant occupied/i)).toBeInTheDocument();
+  });
+
+  it("hides description signal impact section when no signals", () => {
+    render(
+      <OfferRecommendationCard
+        offer={{
+          ...BASE,
+          condition_adjustment_pct: 0,
+          condition_signals: [],
+        }}
+      />
+    );
+
+    expect(screen.queryByText(/description signals impact/i)).not.toBeInTheDocument();
   });
 });

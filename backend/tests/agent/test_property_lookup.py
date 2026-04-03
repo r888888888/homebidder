@@ -452,7 +452,7 @@ class TestResultStructure:
             "city", "neighborhoods",
             "price", "bedrooms", "bathrooms", "sqft", "year_built", "lot_size",
             "property_type", "hoa_fee", "days_on_market", "list_date", "price_history",
-            "avm_estimate", "source",
+            "avm_estimate", "source", "listing_description", "description_signals",
         }
 
         with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
@@ -471,6 +471,80 @@ class TestResultStructure:
         assert required_keys.issubset(result.keys()), (
             f"Missing keys: {required_keys - result.keys()}"
         )
+
+    async def test_result_includes_description_signals_when_listing_has_remarks(self):
+        from agent.tools.property_lookup import lookup_property_by_address
+
+        with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
+             patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh, \
+             patch("agent.tools.property_lookup._rentcast_data", new_callable=AsyncMock) as mock_rc:
+
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.return_value = _make_census_mock()
+            mock_hh.return_value = {
+                "price": 1_250_000.0,
+                "listing_description": "Contractor special, tenant occupied",
+                "source": "homeharvest",
+            }
+            mock_rc.return_value = None
+
+            result = await lookup_property_by_address("450 Sanchez St, San Francisco, CA 94114")
+
+        assert result["listing_description"] == "Contractor special, tenant occupied"
+        assert result["description_signals"]["net_adjustment_pct"] < 0
+
+    async def test_result_has_stable_description_schema_when_missing(self):
+        from agent.tools.property_lookup import lookup_property_by_address
+
+        with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
+             patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh, \
+             patch("agent.tools.property_lookup._rentcast_data", new_callable=AsyncMock) as mock_rc:
+
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.return_value = _make_census_mock()
+            mock_hh.return_value = {"price": 1_250_000.0, "source": "homeharvest"}
+            mock_rc.return_value = None
+
+            result = await lookup_property_by_address("450 Sanchez St, San Francisco, CA 94114")
+
+        assert result["listing_description"] is None
+        assert result["description_signals"]["detected_signals"] == []
+        assert result["description_signals"]["net_adjustment_pct"] == 0.0
+
+    async def test_result_includes_llm_metadata_when_llm_signal_available(self):
+        from agent.tools.property_lookup import lookup_property_by_address
+
+        with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
+             patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh, \
+             patch("agent.tools.property_lookup._rentcast_data", new_callable=AsyncMock) as mock_rc, \
+             patch("agent.tools.property_lookup.evaluate_condition_with_llm", new_callable=AsyncMock) as mock_llm:
+
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.return_value = _make_census_mock()
+            mock_hh.return_value = {
+                "price": 1_250_000.0,
+                "listing_description": "tenant occupied fixer",
+                "source": "homeharvest",
+            }
+            mock_rc.return_value = None
+            mock_llm.return_value = {
+                "source": "llm",
+                "confidence": 0.91,
+                "model": "test-model",
+                "detected_signals": [{"label": "Tenant Occupied", "weight_pct": -1.5}],
+                "net_adjustment_pct": -1.5,
+            }
+
+            result = await lookup_property_by_address("450 Sanchez St, San Francisco, CA 94114")
+
+        assert result["description_signals"]["llm"]["used"] is True
+        assert result["description_signals"]["llm"]["confidence"] == 0.91
 
 
 # ---------------------------------------------------------------------------

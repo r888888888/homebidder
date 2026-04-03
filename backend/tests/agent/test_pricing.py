@@ -260,6 +260,74 @@ class TestContingencyRecommendations:
         assert result["contingency_recommendation"]["keep_inspection"] is True
 
 
+class TestDescriptionSignalAdjustments:
+    def test_applies_negative_condition_adjustment_to_fair_value(self):
+        listing = {
+            **BASE_LISTING,
+            "description_signals": {
+                "net_adjustment_pct": -2.0,
+                "detected_signals": [
+                    {
+                        "label": "Fixer / Contractor Special",
+                        "category": "condition_negative",
+                        "direction": "negative",
+                        "weight_pct": -2.0,
+                        "matched_phrases": ["fixer"],
+                    }
+                ],
+            },
+        }
+        stats = {**BASE_STATS, "median_pct_over_asking": 1.0}
+
+        result = recommend_offer(listing, stats)
+        assert result["condition_adjustment_pct"] == pytest.approx(-2.0)
+        assert result["fair_value_estimate"] < stats["median_sale_price"]
+        assert result["fair_value_breakdown"]["condition_adjustment_pct"] == pytest.approx(-2.0)
+
+    def test_applies_positive_condition_adjustment_and_keeps_avm_blend(self):
+        listing = {
+            **BASE_LISTING,
+            "avm_estimate": 1_150_000,
+            "description_signals": {
+                "net_adjustment_pct": 2.5,
+                "detected_signals": [
+                    {
+                        "label": "Renovated / Updated",
+                        "category": "condition_positive",
+                        "direction": "positive",
+                        "weight_pct": 1.5,
+                        "matched_phrases": ["renovated"],
+                    }
+                ],
+            },
+        }
+        stats = {**BASE_STATS, "median_pct_over_asking": 1.0}
+        result = recommend_offer(listing, stats)
+
+        assert result["condition_adjustment_pct"] == pytest.approx(2.5)
+        assert result["fair_value_breakdown"]["avm_blend_used"] is True
+        assert result["condition_signals"]
+
+    def test_offer_range_invariant_holds_with_description_adjustment(self):
+        listing = {
+            **BASE_LISTING,
+            "description_signals": {
+                "net_adjustment_pct": -3.0,
+                "detected_signals": [
+                    {
+                        "label": "Tenant Occupied",
+                        "category": "occupancy_negative",
+                        "direction": "negative",
+                        "weight_pct": -1.5,
+                        "matched_phrases": ["tenant occupied"],
+                    }
+                ],
+            },
+        }
+        result = recommend_offer(listing, BASE_STATS)
+        assert result["offer_low"] <= result["offer_recommended"] <= result["offer_high"]
+
+
 # ---------------------------------------------------------------------------
 # recommend_offer — passthrough fields
 # ---------------------------------------------------------------------------

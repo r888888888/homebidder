@@ -25,6 +25,13 @@ const BASE_PROPERTY = {
   list_date: null,
   price_history: [],
   avm_estimate: 1_300_000,
+  listing_description: null,
+  description_signals: {
+    version: "v1",
+    raw_description_present: false,
+    detected_signals: [],
+    net_adjustment_pct: 0,
+  },
   source: "homeharvest" as const,
 };
 
@@ -189,5 +196,32 @@ describe("PropertySummaryCard", () => {
 
     const grid = document.querySelector("dl");
     expect(grid).toHaveClass("sm:grid-cols-3");
+  });
+
+  it("renders description signal chips only when detected", () => {
+    render(
+      <PropertySummaryCard
+        property={{
+          ...BASE_PROPERTY,
+          description_signals: {
+            version: "v1",
+            raw_description_present: true,
+            net_adjustment_pct: -1.5,
+            detected_signals: [
+              { label: "Fixer / Contractor Special" },
+              { label: "Tenant Occupied" },
+            ],
+          },
+        }}
+      />
+    );
+
+    expect(screen.getByText(/fixer/i)).toBeInTheDocument();
+    expect(screen.getByText(/tenant occupied/i)).toBeInTheDocument();
+  });
+
+  it("hides description signal chips when there are none", () => {
+    render(<PropertySummaryCard property={BASE_PROPERTY} />);
+    expect(screen.queryByText(/description signals/i)).not.toBeInTheDocument();
   });
 });

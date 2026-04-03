@@ -19,6 +19,19 @@ export interface PropertyData {
   list_date: string | null;
   city: string | null;
   neighborhoods: string | null;
+  listing_description?: string | null;
+  description_signals?: {
+    version?: string;
+    raw_description_present?: boolean;
+    detected_signals?: Array<{
+      label?: string;
+      category?: string;
+      direction?: string;
+      weight_pct?: number;
+      matched_phrases?: string[];
+    }>;
+    net_adjustment_pct?: number;
+  } | null;
   price_history: unknown[];
   avm_estimate: number | null;
   source: string;
@@ -171,6 +184,7 @@ export function PropertySummaryCard({ property }: Props) {
     );
 
   const isCondo = /condo|townhome|townhouse/i.test(property.property_type ?? "");
+  const descriptionSignals = property.description_signals?.detected_signals ?? [];
 
   const coreFields: Field[] = [
     { label: "List Price", value: priceDisplay },
@@ -218,6 +232,23 @@ export function PropertySummaryCard({ property }: Props) {
           {" \u00b7 "}
           <span className="capitalize">{property.source}</span>
         </p>
+        {descriptionSignals.length > 0 && (
+          <div className="mt-2">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--ink-muted)]">
+              Description Signals
+            </p>
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {descriptionSignals.map((signal, idx) => (
+                <span
+                  key={`${signal.label ?? "signal"}-${idx}`}
+                  className="rounded-full border border-[var(--line)] bg-[var(--bg)] px-2 py-0.5 text-[11px] text-[var(--ink-soft)]"
+                >
+                  {signal.label}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="px-6 py-5">

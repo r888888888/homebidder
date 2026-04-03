@@ -15,6 +15,14 @@ export interface OfferData {
   offer_high: number | null;
   posture: "competitive" | "at-market" | "negotiating";
   spread_vs_list_pct: number | null;
+  condition_adjustment_pct?: number | null;
+  condition_signals?: Array<{
+    label?: string;
+    category?: string;
+    direction?: string;
+    weight_pct?: number;
+    matched_phrases?: string[];
+  }> | null;
   median_pct_over_asking: number | null;
   pct_sold_over_asking: number | null;
   offer_review_advisory: string | null;
@@ -105,6 +113,8 @@ export function OfferRecommendationCard({ offer }: Props) {
     offer.median_pct_over_asking != null || offer.pct_sold_over_asking != null;
   const contingency = offer.contingency_recommendation;
   const hoaEquivalent = offer.hoa_equivalent_sfh_value;
+  const conditionSignals = offer.condition_signals ?? [];
+  const hasConditionSection = conditionSignals.length > 0;
 
   // Range bar: position of recommended within [low, high]
   const low = offer.offer_low ?? 0;
@@ -212,6 +222,23 @@ export function OfferRecommendationCard({ offer }: Props) {
             <p className="text-xs text-[var(--ink-muted)] mt-1">
               Assumes {fmtPctCompact(hoaEquivalent.assumptions.mortgage_rate_pct)} {hoaEquivalent.assumptions.mortgage_term_years}-year fixed, {fmtPctCompact(hoaEquivalent.assumptions.down_payment_pct)} down
             </p>
+          </div>
+        )}
+
+        {hasConditionSection && (
+          <div className="rounded-xl bg-[var(--bg)] p-4 text-sm">
+            <p className="text-xs text-[var(--ink-muted)] mb-0.5">Description Signals Impact</p>
+            <p className="font-semibold text-[var(--ink)]">{fmtPct(offer.condition_adjustment_pct ?? null)}</p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {conditionSignals.map((signal, idx) => (
+                <span
+                  key={`${signal.label ?? "signal"}-${idx}`}
+                  className="rounded-full border border-[var(--line)] bg-white px-2 py-0.5 text-[11px] text-[var(--ink-soft)]"
+                >
+                  {signal.label}
+                </span>
+              ))}
+            </div>
           </div>
         )}
 

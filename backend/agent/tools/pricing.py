@@ -221,6 +221,11 @@ def recommend_offer(
     median_lot_size = market_stats.get("median_lot_size")
     median_comp_sqft = market_stats.get("median_comp_sqft")
     avm_estimate = listing.get("avm_estimate")
+    description_signals = listing.get("description_signals") or {}
+    condition_signals = description_signals.get("detected_signals") or []
+    raw_condition_adjustment_pct = description_signals.get("net_adjustment_pct") or 0.0
+    condition_adjustment_pct = _clamp(float(raw_condition_adjustment_pct), -3.0, 3.0)
+    condition_adjustment = condition_adjustment_pct / 100
 
     # Passthrough overbid stats from market_stats
     median_overbid: float | None = market_stats.get("median_pct_over_asking")
@@ -251,6 +256,7 @@ def recommend_offer(
             sqft_adjustment_pct = _clamp(sqft_delta * 0.25, -0.10, 0.12)
             total_adjustment += sqft_adjustment_pct
 
+        total_adjustment += condition_adjustment
         fair_value = round(fair_value * (1 + total_adjustment))
         avm_blend_used = False
 
@@ -263,26 +269,31 @@ def recommend_offer(
             "base_comp_median": median_comp,
             "lot_adjustment_pct": round(lot_adjustment_pct * 100, 2) if lot_adjustment_pct is not None else None,
             "sqft_adjustment_pct": round(sqft_adjustment_pct * 100, 2) if sqft_adjustment_pct is not None else None,
+            "condition_adjustment_pct": round(condition_adjustment_pct, 2),
             "avm_blend_used": avm_blend_used,
         }
     elif ppsf and sqft:
-        fair_value = round(ppsf * sqft)
+        fair_value = round(ppsf * sqft * (1 + condition_adjustment))
+        total_adjustment = condition_adjustment
         avm_blend_used = False
         fair_value_breakdown = {
             "method": "ppsf_fallback",
             "base_comp_median": None,
             "lot_adjustment_pct": None,
             "sqft_adjustment_pct": None,
+            "condition_adjustment_pct": round(condition_adjustment_pct, 2),
             "avm_blend_used": False,
         }
     else:
-        fair_value = list_price
+        fair_value = round(list_price * (1 + condition_adjustment))
+        total_adjustment = condition_adjustment
         avm_blend_used = False
         fair_value_breakdown = {
             "method": "list_price_fallback",
             "base_comp_median": None,
             "lot_adjustment_pct": None,
             "sqft_adjustment_pct": None,
+            "condition_adjustment_pct": round(condition_adjustment_pct, 2),
             "avm_blend_used": False,
         }
 
@@ -407,6 +418,8 @@ def recommend_offer(
         "posture": posture,
         "offer_range_band_pct": round(band_pct * 100, 2),
         "spread_vs_list_pct": round(spread_pct * 100, 1),
+        "condition_adjustment_pct": round(condition_adjustment_pct, 2),
+        "condition_signals": condition_signals,
         "median_pct_over_asking": median_overbid,
         "pct_sold_over_asking": pct_sold_over_asking,
         "offer_review_advisory": offer_review_advisory,
