@@ -298,6 +298,39 @@ class TestSubjectResaleFilter:
         assert len(comps) == 1
         assert comps[0]["unit"] == "516"
 
+    async def test_excludes_same_address_without_unit_sold_within_last_30_days(self):
+        """Ignore comp when same address has no unit and sold within the past month."""
+        from agent.tools.comps import fetch_comps
+
+        recent_sale_date = dt.date.today() - dt.timedelta(days=7)
+        same_house_recent = {
+            **BASE_COMP_ROW,
+            "street": "400 Hearst Ave",
+            "unit_number": None,
+            "last_sold_date": recent_sale_date,
+        }
+        other_house_recent = {
+            **BASE_COMP_ROW,
+            "street": "402 Hearst Ave",
+            "unit_number": None,
+            "last_sold_date": recent_sale_date,
+        }
+        df = _make_df([same_house_recent, other_house_recent])
+
+        with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+            comps = await fetch_comps(
+                address="400 Hearst Ave, San Francisco, CA 94112",
+                city="San Francisco",
+                state="CA",
+                zip_code="94112",
+                subject_lat=SF_LAT,
+                subject_lon=SF_LON,
+            )
+
+        assert len(comps) == 1
+        assert comps[0]["address"] == "402 Hearst Ave"
+
     async def test_comps_outside_25pct_sqft_excluded(self):
         """Comp outside ±25% of subject sqft is filtered out."""
         from agent.tools.comps import fetch_comps

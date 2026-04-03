@@ -485,8 +485,20 @@ def _extract_unit_token(text: str | None) -> str | None:
         for g in m.groups():
             if g:
                 return g.lower()
+    return None
 
-    # Comp feeds sometimes provide a plain unit token (e.g. "515").
+
+def _normalize_unit_value(value: str | None) -> str | None:
+    """Normalize an explicit or raw unit field value from comp feeds."""
+    explicit = _extract_unit_token(value)
+    if explicit:
+        return explicit
+    if value is None:
+        return None
+    raw = str(value).strip()
+    if not raw:
+        return None
+    # Comp feeds often provide plain unit tokens like "515".
     plain = re.sub(r"[^a-zA-Z0-9-]", "", raw).lower()
     return plain or None
 
@@ -540,7 +552,13 @@ def _is_recent_same_property_sale(
         return False
 
     subject_unit = _extract_unit_token(subject_address)
-    comp_unit_norm = _extract_unit_token(comp_unit)
+    comp_unit_norm = _normalize_unit_value(comp_unit)
+
+    # For non-unit properties (SFH), matching address with no unit on both sides is enough.
+    if subject_unit is None and comp_unit_norm is None:
+        return True
+    if subject_unit is None or comp_unit_norm is None:
+        return False
     return subject_unit == comp_unit_norm
 
 
