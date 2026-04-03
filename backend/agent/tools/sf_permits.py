@@ -8,6 +8,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import json
 import html
+import logging
 import os
 import re
 from typing import Any
@@ -15,6 +16,8 @@ from urllib.parse import urlencode
 
 import anthropic
 import httpx
+
+log = logging.getLogger(__name__)
 
 _DBI_BASE = "https://dbiweb02.sfgov.org/dbipts"
 
@@ -151,7 +154,13 @@ async def _summarize_permit_with_llm(
             temperature=0,
             messages=[{"role": "user", "content": prompt}],
         )
-    except Exception:
+    except Exception as exc:
+        log.warning(
+            "Permit LLM summary failed for permit %s: %s",
+            permit.get("permit_number"),
+            exc,
+            exc_info=True,
+        )
         return None, None
 
     text_parts: list[str] = []

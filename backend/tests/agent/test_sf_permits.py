@@ -192,3 +192,37 @@ class TestFetchSfPermits:
         permit = result["permits"][0]
         assert permit["llm_summary"] == "Main panel upgrade and new branch circuits."
         assert permit["llm_impact"] == "positive"
+
+    async def test_logs_warning_when_permit_llm_call_throws(self):
+        from agent.tools.sf_permits import fetch_sf_permits
+
+        with patch.dict(os.environ, {"ENABLE_PERMIT_LLM": "1", "ANTHROPIC_API_KEY": "test-key"}, clear=True), \
+             patch("agent.tools.sf_permits.httpx.AsyncClient") as mock_http_cls, \
+             patch("agent.tools.sf_permits.anthropic.AsyncAnthropic") as mock_anthropic_cls, \
+             patch("agent.tools.sf_permits.log") as mock_log:
+            mock_client = AsyncMock()
+            mock_http_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_http_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.side_effect = [
+                _http_html_mock(_ADDRESS_LIST_HTML),
+                _http_html_mock(_SELECTED_ADDRESS_HTML),
+                _http_html_mock(_EID_PANEL_HTML),
+                _http_html_mock(_PID_PANEL_HTML),
+                _http_html_mock(_BID_PANEL_HTML),
+                _http_html_mock(_CTS_PANEL_HTML),
+                _http_html_mock(_EID_DETAIL_HTML),
+            ]
+
+            mock_anthropic_client = AsyncMock()
+            mock_anthropic_cls.return_value = mock_anthropic_client
+            mock_anthropic_client.messages.create.side_effect = RuntimeError("llm down")
+
+            result = await fetch_sf_permits(
+                address_matched="319 PLYMOUTH AVE, SAN FRANCISCO, CA, 94112",
+                unit=None,
+            )
+
+        permit = result["permits"][0]
+        assert permit["llm_summary"] is not None
+        assert permit["llm_impact"] in ("positive", "negative")
+        mock_log.warning.assert_called()
