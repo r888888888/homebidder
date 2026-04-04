@@ -10,5 +10,7 @@ from httpx import AsyncClient, ASGITransport
 @pytest.fixture
 async def client():
     from main import app
+    from db import init_db
+    await init_db()
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac

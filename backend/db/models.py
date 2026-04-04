@@ -47,6 +47,7 @@ class Comp(Base):
     sqft: Mapped[int | None] = mapped_column(Integer)
     price_per_sqft: Mapped[float | None] = mapped_column(Float)
     distance_miles: Mapped[float | None] = mapped_column(Float)
+    pct_over_asking: Mapped[float | None] = mapped_column(Float)
     analysis: Mapped["Analysis"] = relationship("Analysis", back_populates="comps")
 
 
@@ -61,6 +62,13 @@ class Analysis(Base):
     offer_recommended: Mapped[float | None] = mapped_column(Float)
     rationale: Mapped[str | None] = mapped_column(Text)
     market_summary: Mapped[str | None] = mapped_column(Text)
+    risk_level: Mapped[str | None] = mapped_column(String(32))
+    investment_rating: Mapped[str | None] = mapped_column(String(32))
+    property_data_json: Mapped[str | None] = mapped_column(Text)
+    neighborhood_data_json: Mapped[str | None] = mapped_column(Text)
+    offer_data_json: Mapped[str | None] = mapped_column(Text)
+    risk_data_json: Mapped[str | None] = mapped_column(Text)
+    investment_data_json: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     listing: Mapped["Listing"] = relationship("Listing", back_populates="analyses")
     comps: Mapped[list["Comp"]] = relationship("Comp", back_populates="analysis")

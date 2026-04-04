@@ -6,12 +6,13 @@ export const Route = createFileRoute("/")({
 });
 
 export interface AnalysisEvent {
-  type: "status" | "tool_call" | "tool_result" | "text" | "error" | "done";
+  type: "status" | "tool_call" | "tool_result" | "text" | "error" | "done" | "analysis_id";
   text?: string;
   tool?: string;
   input?: Record<string, unknown>;
   result?: Record<string, unknown> | unknown[];
   retry_after?: number | null;
+  id?: number;
 }
 
 const FEATURES = [

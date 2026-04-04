@@ -1,6 +1,13 @@
 import { render, screen } from "@testing-library/react";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { AnalysisStream } from "./AnalysisStream";
+
+// Mock TanStack Router Link so component tests don't need a router context
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
+    <a href={to}>{children}</a>
+  ),
+}));
 
 const PROPERTY_RESULT = {
   address_input: "450 Sanchez St, San Francisco, CA 94114",
@@ -152,6 +159,37 @@ const PERMITS_RESULT = {
     },
   ],
 };
+
+describe("AnalysisStream — analysis_id saved link", () => {
+  it("shows a 'view history' link when analysis_id event is received", () => {
+    const events = [
+      {
+        type: "analysis_id" as const,
+        id: 42,
+      },
+    ];
+
+    render(<AnalysisStream events={events} isRunning={false} />);
+
+    expect(screen.getByText(/saved/i)).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: /view history/i });
+    expect(link).toBeInTheDocument();
+    expect(link).toHaveAttribute("href", "/history");
+  });
+
+  it("does not show saved link when no analysis_id event", () => {
+    const events = [
+      {
+        type: "text" as const,
+        text: "Some analysis text",
+      },
+    ];
+
+    render(<AnalysisStream events={events} isRunning={false} />);
+
+    expect(screen.queryByRole("link", { name: /view history/i })).not.toBeInTheDocument();
+  });
+});
 
 describe("AnalysisStream", () => {
   it("renders cards from tool_result events", () => {

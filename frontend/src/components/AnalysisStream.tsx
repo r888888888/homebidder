@@ -1,4 +1,5 @@
 import type { AnalysisEvent } from "../routes/index";
+import { Link } from "@tanstack/react-router";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { PropertySummaryCard, type PropertyData } from "./PropertySummaryCard";
@@ -67,6 +68,8 @@ export function AnalysisStream({ events, isRunning }: Props) {
     (e) => e.type === "tool_result" && e.tool === "fetch_sf_permits"
   );
   const permitsData = permitsEvent?.result as PermitsData | undefined;
+
+  const analysisIdEvent = events.find((e) => e.type === "analysis_id");
 
   return (
     <div className="space-y-4 fade-up">
@@ -157,6 +160,16 @@ export function AnalysisStream({ events, isRunning }: Props) {
               {finalText}
             </ReactMarkdown>
           </div>
+        </div>
+      )}
+
+      {/* Saved link */}
+      {analysisIdEvent?.id && (
+        <div className="mt-2 text-sm text-[var(--ink-soft)]">
+          Saved &mdash;{" "}
+          <Link to="/history" className="underline">
+            view history
+          </Link>
         </div>
       )}
     </div>

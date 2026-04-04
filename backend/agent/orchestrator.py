@@ -12,6 +12,7 @@ import os
 from typing import AsyncIterator
 
 import anthropic
+from sqlalchemy.ext.asyncio import AsyncSession
 
 log = logging.getLogger(__name__)
 
@@ -244,7 +245,100 @@ async def _dispatch_tool(name: str, inputs: dict) -> tuple[str, dict | None]:
         return json.dumps(result), None
 
 
-async def run_agent(address: str, buyer_context: str = "") -> AsyncIterator[str]:
+async def _persist_analysis(
+    db: AsyncSession,
+    address_input: str,
+    property_result: dict | None,
+    neighborhood_result: dict | None,
+    comps_result: list | None,
+    offer_result: dict | None,
+    risk_result: dict | None,
+    investment_result: dict | None,
+    final_text: str,
+) -> int:
+    """Write Listing, Analysis, and Comp records to DB and return analysis id."""
+    from sqlalchemy import select
+    from db.models import Listing, Analysis, Comp
+
+    address_matched = (property_result or {}).get("address_matched") or address_input
+
+    # Upsert Listing
+    stmt = select(Listing).where(Listing.address_matched == address_matched)
+    result = await db.execute(stmt)
+    listing = result.scalar_one_or_none()
+    if listing is None:
+        listing = Listing(
+            address_input=address_input,
+            address_matched=address_matched,
+            latitude=(property_result or {}).get("latitude"),
+            longitude=(property_result or {}).get("longitude"),
+            county=(property_result or {}).get("county"),
+            state=(property_result or {}).get("state"),
+            zip_code=(property_result or {}).get("zip_code"),
+            price=(property_result or {}).get("price"),
+            bedrooms=(property_result or {}).get("bedrooms"),
+            bathrooms=(property_result or {}).get("bathrooms"),
+            sqft=(property_result or {}).get("sqft"),
+            year_built=(property_result or {}).get("year_built"),
+            property_type=(property_result or {}).get("property_type"),
+            avm_estimate=(property_result or {}).get("avm_estimate"),
+        )
+        db.add(listing)
+    else:
+        listing.address_input = address_input
+        if property_result:
+            listing.latitude = property_result.get("latitude")
+            listing.longitude = property_result.get("longitude")
+            listing.county = property_result.get("county")
+            listing.state = property_result.get("state")
+            listing.zip_code = property_result.get("zip_code")
+            listing.price = property_result.get("price")
+            listing.bedrooms = property_result.get("bedrooms")
+            listing.bathrooms = property_result.get("bathrooms")
+            listing.sqft = property_result.get("sqft")
+            listing.year_built = property_result.get("year_built")
+            listing.property_type = property_result.get("property_type")
+            listing.avm_estimate = property_result.get("avm_estimate")
+    await db.flush()
+
+    # Insert Analysis
+    analysis = Analysis(
+        listing_id=listing.id,
+        offer_low=(offer_result or {}).get("offer_low"),
+        offer_high=(offer_result or {}).get("offer_high"),
+        offer_recommended=(offer_result or {}).get("offer_recommended"),
+        rationale=final_text or None,
+        risk_level=(risk_result or {}).get("overall_risk"),
+        investment_rating=(investment_result or {}).get("investment_rating"),
+        property_data_json=json.dumps(property_result) if property_result else None,
+        neighborhood_data_json=json.dumps(neighborhood_result) if neighborhood_result else None,
+        offer_data_json=json.dumps(offer_result) if offer_result else None,
+        risk_data_json=json.dumps(risk_result) if risk_result else None,
+        investment_data_json=json.dumps(investment_result) if investment_result else None,
+    )
+    db.add(analysis)
+    await db.flush()
+
+    # Bulk insert Comps
+    for comp in (comps_result or []):
+        db.add(Comp(
+            analysis_id=analysis.id,
+            address=comp.get("address", ""),
+            sold_price=comp.get("sold_price"),
+            sold_date=comp.get("sold_date"),
+            bedrooms=comp.get("bedrooms"),
+            bathrooms=comp.get("bathrooms"),
+            sqft=comp.get("sqft"),
+            price_per_sqft=comp.get("price_per_sqft"),
+            distance_miles=comp.get("distance_miles"),
+            pct_over_asking=comp.get("pct_over_asking"),
+        ))
+
+    await db.commit()
+    return analysis.id
+
+
+async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | None = None) -> AsyncIterator[str]:
     """
     Run the full agent loop for a property address.
     Yields SSE-formatted text chunks as the agent reasons.
@@ -279,6 +373,11 @@ async def run_agent(address: str, buyer_context: str = "") -> AsyncIterator[str]
     phase6_permits: dict | None = None
     phase8_investment: dict | None = None
     analysis_done = False
+    # Persistence state
+    comps_result: list | None = None
+    offer_result_persist: dict | None = None
+    risk_result_persist: dict | None = None
+    final_text_parts: list[str] = []
 
     # Data-gathering tools Claude is allowed to call
     DATA_TOOLS = [t for t in TOOLS if t["name"] in ("lookup_property_by_address", "fetch_neighborhood_context", "fetch_comps")]
@@ -320,9 +419,26 @@ async def run_agent(address: str, buyer_context: str = "") -> AsyncIterator[str]
         # Stream any text content to client
         for block in response.content:
             if block.type == "text" and block.text:
+                final_text_parts.append(block.text)
                 yield f"data: {json.dumps({'type': 'text', 'text': block.text})}\n\n"
 
         if response.stop_reason == "end_turn":
+            if db is not None and (property_result is not None or analysis_done):
+                try:
+                    analysis_id = await _persist_analysis(
+                        db=db,
+                        address_input=address,
+                        property_result=property_result,
+                        neighborhood_result=neighborhood_result,
+                        comps_result=comps_result,
+                        offer_result=offer_result_persist,
+                        risk_result=risk_result_persist,
+                        investment_result=phase8_investment,
+                        final_text="".join(final_text_parts),
+                    )
+                    yield f"data: {json.dumps({'type': 'analysis_id', 'id': analysis_id})}\n\n"
+                except Exception as exc:
+                    log.error("Failed to persist analysis: %s", exc, exc_info=True)
             break
 
         if response.stop_reason == "tool_use":
@@ -422,6 +538,7 @@ async def run_agent(address: str, buyer_context: str = "") -> AsyncIterator[str]
             # Phase 2: auto-compute analyze_market + recommend_offer after comps arrive
             if "fetch_comps" in dispatched and not analysis_done:
                 comps = dispatched["fetch_comps"]
+                comps_result = comps  # persist outer scope
                 listing = property_result or {}
 
                 # analyze_market
@@ -439,6 +556,7 @@ async def run_agent(address: str, buyer_context: str = "") -> AsyncIterator[str]
                     buyer_context,
                     mortgage_rate_pct=mortgage_rate_pct,
                 )
+                offer_result_persist = offer_result  # persist outer scope
                 log.info("Auto-computed recommend_offer: posture=%s", offer_result.get("posture"))
                 yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'recommend_offer', 'result': offer_result})}\n\n"
 
@@ -453,6 +571,7 @@ async def run_agent(address: str, buyer_context: str = "") -> AsyncIterator[str]
                     fhfa_hpi=phase6_fhfa,
                     hazard_zones=phase6_hazards,
                 )
+                risk_result_persist = risk_result  # persist outer scope
                 log.info("Auto-computed assess_risk: overall=%s score=%s", risk_result.get("overall_risk"), risk_result.get("score"))
                 yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'assess_risk', 'result': risk_result})}\n\n"
 
