@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 log = logging.getLogger(__name__)
 
-from .tools.property_lookup import lookup_property_by_address
+from .tools.property_lookup import lookup_property_by_address, _geocode
 from .tools.neighborhood import fetch_neighborhood_context
 from .tools.comps import fetch_comps
 from .tools.pricing import analyze_market, recommend_offer
@@ -255,6 +255,7 @@ async def _persist_analysis(
     risk_result: dict | None,
     investment_result: dict | None,
     final_text: str,
+    permits_result: dict | None = None,
 ) -> int:
     """Write Listing, Analysis, and Comp records to DB and return analysis id."""
     from sqlalchemy import select
@@ -315,6 +316,7 @@ async def _persist_analysis(
         offer_data_json=json.dumps(offer_result) if offer_result else None,
         risk_data_json=json.dumps(risk_result) if risk_result else None,
         investment_data_json=json.dumps(investment_result) if investment_result else None,
+        permits_data_json=json.dumps(permits_result) if permits_result else None,
     )
     db.add(analysis)
     await db.flush()
@@ -338,7 +340,75 @@ async def _persist_analysis(
     return analysis.id
 
 
-async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | None = None) -> AsyncIterator[str]:
+async def _load_cached_analysis(db: AsyncSession, address_matched: str):
+    """Return the most recent Analysis for address_matched, or None."""
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+    from db.models import Analysis, Listing
+
+    stmt = (
+        select(Analysis)
+        .join(Listing)
+        .options(selectinload(Analysis.comps), selectinload(Analysis.listing))
+        .where(Listing.address_matched == address_matched)
+        .order_by(Analysis.created_at.desc())
+        .limit(1)
+    )
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()
+
+
+async def _stream_cached_analysis(analysis) -> AsyncIterator[str]:
+    """Replay stored Analysis as SSE events, identical in shape to the live pipeline."""
+    yield f"data: {json.dumps({'type': 'status', 'text': 'Loading from cache\u2026'})}\n\n"
+
+    tool_pairs = [
+        ("lookup_property_by_address", analysis.property_data_json),
+        ("fetch_neighborhood_context", analysis.neighborhood_data_json),
+        ("recommend_offer", analysis.offer_data_json),
+        ("assess_risk", analysis.risk_data_json),
+        ("compute_investment_metrics", analysis.investment_data_json),
+    ]
+
+    # Comps: reconstruct list from Comp ORM rows
+    if analysis.comps:
+        comps_list = [
+            {
+                "address": c.address,
+                "sold_price": c.sold_price,
+                "sold_date": c.sold_date,
+                "bedrooms": c.bedrooms,
+                "bathrooms": c.bathrooms,
+                "sqft": c.sqft,
+                "price_per_sqft": c.price_per_sqft,
+                "distance_miles": c.distance_miles,
+                "pct_over_asking": c.pct_over_asking,
+            }
+            for c in analysis.comps
+        ]
+        yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'fetch_comps', 'input': {}})}\n\n"
+        yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'fetch_comps', 'result': comps_list})}\n\n"
+
+    for tool_name, json_blob in tool_pairs:
+        if not json_blob:
+            continue
+        data = json.loads(json_blob)
+        yield f"data: {json.dumps({'type': 'tool_call', 'tool': tool_name, 'input': {}})}\n\n"
+        yield f"data: {json.dumps({'type': 'tool_result', 'tool': tool_name, 'result': data})}\n\n"
+
+    if analysis.permits_data_json:
+        data = json.loads(analysis.permits_data_json)
+        yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'fetch_sf_permits', 'input': {}})}\n\n"
+        yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'fetch_sf_permits', 'result': data})}\n\n"
+
+    if analysis.rationale:
+        yield f"data: {json.dumps({'type': 'text', 'text': analysis.rationale})}\n\n"
+
+    yield f"data: {json.dumps({'type': 'analysis_id', 'id': analysis.id})}\n\n"
+    yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+
+async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | None = None, force_refresh: bool = False) -> AsyncIterator[str]:
     """
     Run the full agent loop for a property address.
     Yields SSE-formatted text chunks as the agent reasons.
@@ -363,6 +433,20 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
     ]
 
     yield f"data: {json.dumps({'type': 'status', 'text': 'Starting analysis...'})}\n\n"
+
+    # Cache check: geocode the address, look up the most recent Analysis in DB.
+    # On a hit, replay stored events and return — skipping the full pipeline.
+    if not force_refresh and db is not None:
+        try:
+            geo = await _geocode(address)
+            address_matched = geo["address_matched"]
+            cached = await _load_cached_analysis(db, address_matched)
+            if cached is not None:
+                async for chunk in _stream_cached_analysis(cached):
+                    yield chunk
+                return
+        except Exception:
+            pass  # geocode failed or no cache — fall through to live pipeline
 
     # State tracked across turns
     property_result: dict | None = None
@@ -435,6 +519,7 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
                         risk_result=risk_result_persist,
                         investment_result=phase8_investment,
                         final_text="".join(final_text_parts),
+                        permits_result=phase6_permits,
                     )
                     yield f"data: {json.dumps({'type': 'analysis_id', 'id': analysis_id})}\n\n"
                 except Exception as exc:

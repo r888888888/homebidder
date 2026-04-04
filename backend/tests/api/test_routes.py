@@ -1,12 +1,12 @@
 from unittest.mock import patch
 
 
-async def _mock_run_agent(address, buyer_context="", db=None):
+async def _mock_run_agent(address, buyer_context="", db=None, force_refresh=False):
     import json
     yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
 
-async def _mock_run_agent_with_analysis_id(address, buyer_context="", db=None):
+async def _mock_run_agent_with_analysis_id(address, buyer_context="", db=None, force_refresh=False):
     import json
     yield f"data: {json.dumps({'type': 'status', 'text': 'Starting...'})}\n\n"
     yield f"data: {json.dumps({'type': 'analysis_id', 'id': 42})}\n\n"
@@ -64,3 +64,13 @@ async def test_analyze_emits_analysis_id_event(client):
     analysis_id_events = [e for e in events if e.get("type") == "analysis_id"]
     assert len(analysis_id_events) == 1
     assert analysis_id_events[0]["id"] == 42
+
+
+async def test_force_refresh_field_accepted(client):
+    """POST /api/analyze with force_refresh: true returns 200 (field is accepted)."""
+    with patch("api.routes.run_agent", _mock_run_agent):
+        resp = await client.post("/api/analyze", json={
+            "address": "450 Sanchez St, San Francisco, CA 94114",
+            "force_refresh": True,
+        })
+    assert resp.status_code == 200

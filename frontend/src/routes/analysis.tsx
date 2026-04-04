@@ -34,7 +34,7 @@ export function AnalysisPage() {
         res = await fetch(`${apiBase}/api/analyze`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ address, buyer_context: buyerContext }),
+          body: JSON.stringify({ address, buyer_context: buyerContext, force_refresh: refreshKey > 0 }),
         });
       } catch {
         if (!cancelled) {

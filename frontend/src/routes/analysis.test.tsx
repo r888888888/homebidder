@@ -159,4 +159,39 @@ describe("AnalysisPage", () => {
     );
     expect(screen.getByRole("button", { name: /refreshing/i })).toBeDisabled();
   });
+
+  it("sends force_refresh: false on initial mount", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      mockSseStream([`data: ${JSON.stringify({ type: "done" })}\n\n`])
+    );
+    renderAnalysisPage("450 Sanchez St, San Francisco, CA 94114");
+
+    await waitFor(() => expect(fetch).toHaveBeenCalledOnce());
+    const [, init] = vi.mocked(fetch).mock.calls[0];
+    const body = JSON.parse((init as RequestInit).body as string);
+    expect(body.force_refresh).toBe(false);
+  });
+
+  it("sends force_refresh: true when Refresh button is clicked", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        mockSseStream([`data: ${JSON.stringify({ type: "done" })}\n\n`])
+      )
+      .mockResolvedValueOnce(
+        mockSseStream([`data: ${JSON.stringify({ type: "done" })}\n\n`])
+      );
+
+    renderAnalysisPage("450 Sanchez St, San Francisco, CA 94114");
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /refresh analysis/i })).not.toBeDisabled()
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /refresh analysis/i }));
+
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+    const [, init2] = vi.mocked(fetch).mock.calls[1];
+    const body2 = JSON.parse((init2 as RequestInit).body as string);
+    expect(body2.force_refresh).toBe(true);
+  });
 });

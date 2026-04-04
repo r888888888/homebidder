@@ -15,6 +15,7 @@ router = APIRouter()
 class AnalyzeRequest(BaseModel):
     address: str
     buyer_context: str = ""
+    force_refresh: bool = False
 
 
 @router.post("/analyze")
@@ -28,7 +29,7 @@ async def analyze_listing(
     """
 
     async def event_stream():
-        async for chunk in run_agent(req.address, req.buyer_context, db=db):
+        async for chunk in run_agent(req.address, req.buyer_context, db=db, force_refresh=req.force_refresh):
             yield chunk
 
     return StreamingResponse(

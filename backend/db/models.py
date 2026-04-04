@@ -69,6 +69,7 @@ class Analysis(Base):
     offer_data_json: Mapped[str | None] = mapped_column(Text)
     risk_data_json: Mapped[str | None] = mapped_column(Text)
     investment_data_json: Mapped[str | None] = mapped_column(Text)
+    permits_data_json: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     listing: Mapped["Listing"] = relationship("Listing", back_populates="analyses")
     comps: Mapped[list["Comp"]] = relationship("Comp", back_populates="analysis")
