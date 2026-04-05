@@ -766,6 +766,7 @@ class TestUnitField:
 
         with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
              patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh, \
+             patch("agent.tools.property_lookup._homeharvest_nearby_unit_listing", new_callable=AsyncMock) as mock_nearby, \
              patch("agent.tools.property_lookup._rentcast_data", new_callable=AsyncMock) as mock_rc:
 
             mock_client = AsyncMock()
@@ -773,6 +774,7 @@ class TestUnitField:
             mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
             mock_client.get.return_value = _make_census_mock()
             mock_hh.return_value = {}
+            mock_nearby.return_value = {}
             mock_rc.return_value = None
 
             result = await lookup_property_by_address("66 Cleary Ct #1206, San Francisco, CA 94109")
@@ -1011,6 +1013,7 @@ class TestRentCastSubjectPropertyFallback:
 
         with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
              patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh, \
+             patch("agent.tools.property_lookup._homeharvest_nearby_unit_listing", new_callable=AsyncMock) as mock_nearby, \
              patch("agent.tools.property_lookup._rentcast_data", new_callable=AsyncMock) as mock_rc:
 
             mock_client = AsyncMock()
@@ -1018,6 +1021,7 @@ class TestRentCastSubjectPropertyFallback:
             mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
             mock_client.get.return_value = _make_census_mock()
             mock_hh.return_value = {}
+            mock_nearby.return_value = {}
             mock_rc.return_value = {
                 "avm": 1_300_000.0,
                 "sqft": 1100,

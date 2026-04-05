@@ -217,13 +217,15 @@ export function PermitsCard({ permits }: Props) {
                     </span>
                   </div>
                 </div>
-                {(permit.llm_summary || permit.llm_impact) && (
-                  <div className="mt-1 flex flex-wrap items-center gap-2">
-                    <p className="text-xs text-[var(--ink-soft)]">
-                      {permit.llm_summary ?? "No summary available."}
-                    </p>
-                  </div>
+                {permit.work_description && (
+                  <p className="mt-1 text-xs text-[var(--ink-soft)]">
+                    {permit.work_description}
+                  </p>
                 )}
+                <p className="mt-1 text-xs text-[var(--ink-soft)]">
+                  {permit.llm_summary ??
+                    `${titleCase(permit.permit_type)} permit ${permit.permit_number} is ${(permit.status ?? "status unknown").toLowerCase()}.`}
+                </p>
                 {permit.source_url && (
                   <a
                     href={permit.source_url}
