@@ -10,6 +10,8 @@ All new code must follow a strict red-green-refactor cycle:
 
 Never write implementation code without a corresponding test written first. If asked to implement something without a test, write the test first and ask for confirmation before continuing.
 
+**Exception — presentation-only changes:** Skip TDD for changes that are purely cosmetic and contain no logic (e.g. Tailwind class tweaks, color/spacing adjustments, copy changes, reordering existing elements). These do not need tests written first.
+
 ### What to test
 
 - **Backend tools** (`backend/agent/tools/`): unit test each tool function in isolation. Mock all external HTTP calls (homeharvest, RentCast, Census, BART, FEMA, etc.) — do not make real network calls in tests.

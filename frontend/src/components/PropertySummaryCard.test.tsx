@@ -208,8 +208,8 @@ describe("PropertySummaryCard", () => {
             raw_description_present: true,
             net_adjustment_pct: -1.5,
             detected_signals: [
-              { label: "Fixer / Contractor Special" },
-              { label: "Tenant Occupied" },
+              { label: "Fixer / Contractor Special", direction: "negative" },
+              { label: "Tenant Occupied", direction: "negative" },
             ],
           },
         }}
@@ -220,8 +220,121 @@ describe("PropertySummaryCard", () => {
     expect(screen.getByText(/tenant occupied/i)).toBeInTheDocument();
   });
 
+  it("applies amber styling to negative signal chips", () => {
+    render(
+      <PropertySummaryCard
+        property={{
+          ...BASE_PROPERTY,
+          description_signals: {
+            ...BASE_PROPERTY.description_signals,
+            detected_signals: [
+              { label: "Fixer / Contractor Special", direction: "negative" },
+            ],
+          },
+        }}
+      />
+    );
+    const chip = screen.getByText(/fixer/i);
+    expect(chip.className).toMatch(/amber/);
+  });
+
+  it("applies emerald styling to positive signal chips", () => {
+    render(
+      <PropertySummaryCard
+        property={{
+          ...BASE_PROPERTY,
+          description_signals: {
+            ...BASE_PROPERTY.description_signals,
+            detected_signals: [
+              { label: "Renovated / Updated", direction: "positive" },
+            ],
+          },
+        }}
+      />
+    );
+    const chip = screen.getByText(/renovated/i);
+    expect(chip.className).toMatch(/emerald/);
+  });
+
   it("hides description signal chips when there are none", () => {
     render(<PropertySummaryCard property={BASE_PROPERTY} />);
     expect(screen.queryByText(/description signals/i)).not.toBeInTheDocument();
+  });
+
+  it("renders listing description when present", () => {
+    const desc = "Charming Victorian with original hardwood floors and modern kitchen.";
+    render(
+      <PropertySummaryCard
+        property={{ ...BASE_PROPERTY, listing_description: desc }}
+      />
+    );
+    expect(screen.getByText(desc)).toBeInTheDocument();
+  });
+
+  it("hides listing description section when null", () => {
+    render(<PropertySummaryCard property={{ ...BASE_PROPERTY, listing_description: null }} />);
+    expect(screen.queryByText(/listing description/i)).not.toBeInTheDocument();
+  });
+
+  it("renders AI fixer badge when llm is used with negative adjustment", () => {
+    render(
+      <PropertySummaryCard
+        property={{
+          ...BASE_PROPERTY,
+          description_signals: {
+            ...BASE_PROPERTY.description_signals,
+            llm: { used: true, confidence: 0.87, model: "claude-haiku", adjustment_pct: -0.8 },
+          },
+        }}
+      />
+    );
+    expect(screen.getByText(/ai.*fixer/i)).toBeInTheDocument();
+    expect(screen.getByText(/87%/)).toBeInTheDocument();
+  });
+
+  it("renders AI move-in ready badge when llm is used with positive adjustment", () => {
+    render(
+      <PropertySummaryCard
+        property={{
+          ...BASE_PROPERTY,
+          description_signals: {
+            ...BASE_PROPERTY.description_signals,
+            llm: { used: true, confidence: 0.92, model: "claude-haiku", adjustment_pct: 0.6 },
+          },
+        }}
+      />
+    );
+    expect(screen.getByText(/ai.*move.?in ready/i)).toBeInTheDocument();
+    expect(screen.getByText(/92%/)).toBeInTheDocument();
+  });
+
+  it("hides AI badge when llm is not used", () => {
+    render(
+      <PropertySummaryCard
+        property={{
+          ...BASE_PROPERTY,
+          description_signals: {
+            ...BASE_PROPERTY.description_signals,
+            llm: { used: false, confidence: null, model: null, adjustment_pct: 0 },
+          },
+        }}
+      />
+    );
+    expect(screen.queryByText(/^ai:/i)).not.toBeInTheDocument();
+  });
+
+  it("hides AI badge when llm adjustment is zero", () => {
+    render(
+      <PropertySummaryCard
+        property={{
+          ...BASE_PROPERTY,
+          description_signals: {
+            ...BASE_PROPERTY.description_signals,
+            llm: { used: true, confidence: 0.75, model: "claude-haiku", adjustment_pct: 0 },
+          },
+        }}
+      />
+    );
+    expect(screen.queryByText(/^ai:/i)).not.toBeInTheDocument();
   });
 });

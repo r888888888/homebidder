@@ -42,6 +42,16 @@ class TestExtractDescriptionSignals:
         )
         assert fixer["weight_pct"] == -2.0
 
+    def test_detects_sweat_equity_and_handyman_phrases_as_fixer(self):
+        for phrase in [
+            "Great opportunity for buyers willing to put in some sweat equity.",
+            "Handyman special — priced to reflect condition.",
+            "A diamond in the rough with incredible potential.",
+        ]:
+            result = extract_description_signals(phrase)
+            labels = {s["label"] for s in result["detected_signals"]}
+            assert "Fixer / Contractor Special" in labels, f"Expected fixer signal for: {phrase!r}"
+
     def test_missing_or_empty_description_is_safe(self):
         for text in [None, "", "   "]:
             result = extract_description_signals(text)

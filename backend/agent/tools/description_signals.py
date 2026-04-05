@@ -46,6 +46,9 @@ SIGNAL_RULES: list[_SignalRule] = [
             r"\bas[-\s]?is\b",
             r"\bbring\s+your\s+contractor\b",
             r"\bcosmetic\s+fixer\b",
+            r"\bsweat\s+equity\b",
+            r"\bhandyman\s+special\b",
+            r"\bdiamond\s+in\s+the\s+rough\b",
         ],
     },
     {

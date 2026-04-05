@@ -31,6 +31,12 @@ export interface PropertyData {
       matched_phrases?: string[];
     }>;
     net_adjustment_pct?: number;
+    llm?: {
+      used?: boolean;
+      confidence?: number | null;
+      model?: string | null;
+      adjustment_pct?: number;
+    } | null;
   } | null;
   price_history: unknown[];
   avm_estimate: number | null;
@@ -185,6 +191,14 @@ export function PropertySummaryCard({ property }: Props) {
 
   const isCondo = /condo|townhome|townhouse/i.test(property.property_type ?? "");
   const descriptionSignals = property.description_signals?.detected_signals ?? [];
+  const llm = property.description_signals?.llm;
+  const llmAdjustment = llm?.adjustment_pct ?? 0;
+  const llmBadgeLabel =
+    llm?.used && llmAdjustment !== 0
+      ? llmAdjustment < 0
+        ? "AI: Fixer"
+        : "AI: Move-in Ready"
+      : null;
 
   const coreFields: Field[] = [
     { label: "List Price", value: priceDisplay },
@@ -232,20 +246,47 @@ export function PropertySummaryCard({ property }: Props) {
           {" \u00b7 "}
           <span className="capitalize">{property.source}</span>
         </p>
-        {descriptionSignals.length > 0 && (
+        {property.listing_description && (
+          <p className="mt-2 text-xs text-[var(--ink-soft)] leading-relaxed line-clamp-3">
+            {property.listing_description}
+          </p>
+        )}
+        {(descriptionSignals.length > 0 || llmBadgeLabel) && (
           <div className="mt-2">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--ink-muted)]">
               Description Signals
             </p>
             <div className="mt-1 flex flex-wrap gap-1.5">
-              {descriptionSignals.map((signal, idx) => (
+              {llmBadgeLabel && (
                 <span
-                  key={`${signal.label ?? "signal"}-${idx}`}
-                  className="rounded-full border border-[var(--line)] bg-[var(--bg)] px-2 py-0.5 text-[11px] text-[var(--ink-soft)]"
+                  className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                    llmAdjustment < 0
+                      ? "border-amber-300 bg-amber-50 text-amber-700"
+                      : "border-emerald-300 bg-emerald-50 text-emerald-700"
+                  }`}
                 >
-                  {signal.label}
+                  {llmBadgeLabel}
+                  {llm?.confidence != null && (
+                    <span className="ml-1 opacity-70">{Math.round(llm.confidence * 100)}%</span>
+                  )}
                 </span>
-              ))}
+              )}
+              {descriptionSignals.map((signal, idx) => {
+                const chipClass =
+                  signal.direction === "positive"
+                    ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                    : signal.direction === "negative"
+                      ? "border-amber-300 bg-amber-50 text-amber-700"
+                      : "border-[var(--line)] bg-[var(--bg)] text-[var(--ink-soft)]";
+                return (
+                  <span
+                    key={`${signal.label ?? "signal"}-${idx}`}
+                    className={`rounded-full border px-2 py-0.5 text-[11px] ${chipClass}`}
+                  >
+                    {signal.label}
+                  </span>
+                );
+              })}
             </div>
           </div>
         )}
