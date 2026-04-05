@@ -636,3 +636,103 @@ class TestHighwayProximityFactor:
         )
         names = [f["name"] for f in result["factors"]]
         assert "highway_proximity" in names
+
+
+class TestTenantOccupiedFactor:
+    def _make_signals(self, occupied: bool) -> dict:
+        if occupied:
+            return {
+                "version": "v1",
+                "raw_description_present": True,
+                "detected_signals": [
+                    {
+                        "label": "Tenant Occupied",
+                        "category": "occupancy_negative",
+                        "direction": "negative",
+                        "weight_pct": -1.5,
+                        "matched_phrases": [r"\btenant[-\s]?occupied\b"],
+                    }
+                ],
+                "net_adjustment_pct": -1.5,
+            }
+        return {
+            "version": "v1",
+            "raw_description_present": True,
+            "detected_signals": [],
+            "net_adjustment_pct": 0.0,
+        }
+
+    def test_tenant_occupied_signal_gives_high_factor(self):
+        from agent.tools.risk import assess_risk
+
+        listing = make_listing()
+        listing["description_signals"] = self._make_signals(occupied=True)
+        result = assess_risk(
+            listing=listing,
+            market_stats=make_market_stats(),
+            offer_result=make_offer_result(),
+        )
+        factor = next(f for f in result["factors"] if f["name"] == "tenant_occupied")
+        assert factor["level"] == "high"
+
+    def test_no_occupancy_signal_gives_low_factor(self):
+        from agent.tools.risk import assess_risk
+
+        listing = make_listing()
+        listing["description_signals"] = self._make_signals(occupied=False)
+        result = assess_risk(
+            listing=listing,
+            market_stats=make_market_stats(),
+            offer_result=make_offer_result(),
+        )
+        factor = next(f for f in result["factors"] if f["name"] == "tenant_occupied")
+        assert factor["level"] == "low"
+
+    def test_no_description_signals_gives_na_factor(self):
+        from agent.tools.risk import assess_risk
+
+        result = assess_risk(
+            listing=make_listing(),  # no description_signals key
+            market_stats=make_market_stats(),
+            offer_result=make_offer_result(),
+        )
+        factor = next(f for f in result["factors"] if f["name"] == "tenant_occupied")
+        assert factor["level"] == "n/a"
+
+    def test_tenant_occupied_factor_raises_overall_score(self):
+        """Tenant occupied (high) should contribute +5 to risk score."""
+        from agent.tools.risk import assess_risk
+
+        listing_clean = make_listing(year_built=2005, days_on_market=7)
+        result_clean = assess_risk(
+            listing=listing_clean,
+            market_stats=make_market_stats(),
+            offer_result=make_offer_result(),
+            hazard_zones=make_hazards(),
+            fhfa_hpi=make_fhfa(hpi_trend="appreciating"),
+            neighborhood=make_neighborhood(prop13_annual_tax=14_000.0),
+        )
+
+        listing_occupied = make_listing(year_built=2005, days_on_market=7)
+        listing_occupied["description_signals"] = self._make_signals(occupied=True)
+        result_occupied = assess_risk(
+            listing=listing_occupied,
+            market_stats=make_market_stats(),
+            offer_result=make_offer_result(),
+            hazard_zones=make_hazards(),
+            fhfa_hpi=make_fhfa(hpi_trend="appreciating"),
+            neighborhood=make_neighborhood(prop13_annual_tax=14_000.0),
+        )
+
+        assert result_occupied["score"] == result_clean["score"] + 5
+
+    def test_tenant_occupied_factor_included_in_factors_list(self):
+        from agent.tools.risk import assess_risk
+
+        result = assess_risk(
+            listing=make_listing(),
+            market_stats=make_market_stats(),
+            offer_result=make_offer_result(),
+        )
+        names = [f["name"] for f in result["factors"]]
+        assert "tenant_occupied" in names

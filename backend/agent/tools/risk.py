@@ -218,6 +218,22 @@ def _assess_prop13_shock(listing: dict, neighborhood: dict | None) -> dict:
     )
 
 
+def _assess_tenant_occupied(description_signals: dict | None) -> dict:
+    if description_signals is None:
+        return _factor("tenant_occupied", "n/a", "No listing description available to assess occupancy.")
+    signals = description_signals.get("detected_signals") or []
+    occupied = any(s.get("category") == "occupancy_negative" for s in signals)
+    if occupied:
+        return _factor(
+            "tenant_occupied", "high",
+            "Listing indicates the property is tenant-occupied. "
+            "You may be unable to move in immediately; eviction in many Bay Area cities requires just cause "
+            "and can take months. Verify tenant rights, lease terms, and any rent-control protections "
+            "before making an offer."
+        )
+    return _factor("tenant_occupied", "low", "No tenant-occupancy indicators detected in the listing description.")
+
+
 def _assess_highway_proximity(ces: dict | None) -> dict:
     if ces is None:
         return _factor("highway_proximity", "n/a", "No CalEnviroScreen data available.")
@@ -278,6 +294,7 @@ def assess_risk(
     fhfa_hpi: dict | None = None,
     hazard_zones: dict | None = None,
     ejscreen: dict | None = None,
+    description_signals: dict | None = None,
 ) -> dict:
     """
     Aggregate all available data into a risk assessment.
@@ -287,7 +304,9 @@ def assess_risk(
       score         — raw additive score
       factors       — list of {name, level, description} dicts
     """
+    _desc_signals = description_signals or listing.get("description_signals")
     factors = [
+        _assess_tenant_occupied(_desc_signals),
         _assess_fault_zone(hazard_zones),
         _assess_flood_zone(hazard_zones),
         _assess_fire_hazard(hazard_zones),

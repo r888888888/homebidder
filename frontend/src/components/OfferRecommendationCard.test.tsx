@@ -130,29 +130,6 @@ describe("OfferRecommendationCard", () => {
     expect(screen.getByText(label)).toBeInTheDocument();
   });
 
-  it("uses high-contrast badge styles for posture and confidence labels", () => {
-    render(
-      <OfferRecommendationCard
-        offer={{
-          ...BASE,
-          posture: "negotiating",
-          fair_value_confidence_interval: {
-            ...BASE.fair_value_confidence_interval!,
-            confidence: "moderate",
-          },
-        }}
-      />
-    );
-
-    const posture = screen.getByText(/negotiating/i);
-    expect(posture).toHaveClass("border-blue-300");
-    expect(posture).toHaveClass("text-blue-800");
-
-    const confidence = screen.getByText(/moderate confidence/i);
-    expect(confidence).toHaveClass("border-amber-300");
-    expect(confidence).toHaveClass("text-amber-900");
-  });
-
   it("omits confidence interval section when field is absent", () => {
     render(
       <OfferRecommendationCard

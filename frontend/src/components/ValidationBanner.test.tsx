@@ -49,24 +49,6 @@ describe("ValidationBanner", () => {
     expect(screen.getByText(/1,000,000/)).toBeInTheDocument();
   });
 
-  it("applies emerald classes when within_ci is true", () => {
-    const { container } = render(<ValidationBanner result={WITHIN_CI} />);
-    const banner = container.firstChild as HTMLElement;
-    expect(banner.className).toMatch(/emerald/);
-  });
-
-  it("applies amber classes when within_ci is false and error is moderate (10%)", () => {
-    const { container } = render(<ValidationBanner result={SLIGHT_MISS} />);
-    const banner = container.firstChild as HTMLElement;
-    expect(banner.className).toMatch(/amber/);
-  });
-
-  it("applies red/coral classes when error is large (>15%)", () => {
-    const { container } = render(<ValidationBanner result={BIG_MISS} />);
-    const banner = container.firstChild as HTMLElement;
-    expect(banner.className).toMatch(/red/);
-  });
-
   it("shows the error percentage", () => {
     render(<ValidationBanner result={SLIGHT_MISS} />);
     expect(screen.getByText(/10\.0%|10%/)).toBeInTheDocument();

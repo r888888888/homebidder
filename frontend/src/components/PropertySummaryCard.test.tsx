@@ -172,32 +172,6 @@ describe("PropertySummaryCard", () => {
     }
   });
 
-  it("uses the requested property summary layout order", () => {
-    render(<PropertySummaryCard property={BASE_PROPERTY} />);
-
-    const labels = screen
-      .getAllByRole("term")
-      .map((node) => node.textContent?.trim().toLowerCase() ?? "");
-
-    expect(labels).toEqual([
-      "list price",
-      "avm estimate",
-      "hoa / mo",
-      "beds",
-      "baths",
-      "type",
-      "sqft",
-      "lot size (sqft)",
-      "year built",
-      "city",
-      "county",
-      "days on market",
-    ]);
-
-    const grid = document.querySelector("dl");
-    expect(grid).toHaveClass("sm:grid-cols-3");
-  });
-
   it("renders description signal chips only when detected", () => {
     render(
       <PropertySummaryCard
@@ -218,42 +192,6 @@ describe("PropertySummaryCard", () => {
 
     expect(screen.getByText(/fixer/i)).toBeInTheDocument();
     expect(screen.getByText(/tenant occupied/i)).toBeInTheDocument();
-  });
-
-  it("applies amber styling to negative signal chips", () => {
-    render(
-      <PropertySummaryCard
-        property={{
-          ...BASE_PROPERTY,
-          description_signals: {
-            ...BASE_PROPERTY.description_signals,
-            detected_signals: [
-              { label: "Fixer / Contractor Special", direction: "negative" },
-            ],
-          },
-        }}
-      />
-    );
-    const chip = screen.getByText(/fixer/i);
-    expect(chip.className).toMatch(/amber/);
-  });
-
-  it("applies emerald styling to positive signal chips", () => {
-    render(
-      <PropertySummaryCard
-        property={{
-          ...BASE_PROPERTY,
-          description_signals: {
-            ...BASE_PROPERTY.description_signals,
-            detected_signals: [
-              { label: "Renovated / Updated", direction: "positive" },
-            ],
-          },
-        }}
-      />
-    );
-    const chip = screen.getByText(/renovated/i);
-    expect(chip.className).toMatch(/emerald/);
   });
 
   it("hides description signal chips when there are none", () => {

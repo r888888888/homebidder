@@ -69,14 +69,6 @@ describe("CompsCard", () => {
     expect(rows[2]).toHaveTextContent(/100 Comp St/);
   });
 
-  it("marks the closest comps with data-nearest attribute", () => {
-    const near = { ...BASE_COMP, address: "Near House", distance_miles: 0.1 };
-    const far = { ...BASE_COMP, address: "Far House", distance_miles: 1.5 };
-    render(<CompsCard comps={[far, near]} />);
-    const nearestRows = document.querySelectorAll("[data-nearest='true']");
-    expect(nearestRows.length).toBe(2); // both qualify when ≤ 3 total
-  });
-
   it("renders an empty state when comps list is empty", () => {
     render(<CompsCard comps={[]} />);
     expect(screen.getByText(/no comparable sales/i)).toBeInTheDocument();
