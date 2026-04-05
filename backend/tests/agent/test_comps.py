@@ -94,10 +94,11 @@ class TestPctOverAsking:
 
         with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
             mock_thread.return_value = df
-            comps = await fetch_comps(
+            result = await fetch_comps(
                 address="450 Sanchez St", city="San Francisco", state="CA",
                 zip_code="94114", subject_lat=SF_LAT, subject_lon=SF_LON,
             )
+        comps = result["comps"]
 
         assert len(comps) == 1
         assert comps[0]["pct_over_asking"] == pytest.approx(10.0, abs=0.1)
@@ -111,10 +112,11 @@ class TestPctOverAsking:
 
         with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
             mock_thread.return_value = df
-            comps = await fetch_comps(
+            result = await fetch_comps(
                 address="450 Sanchez St", city="San Francisco", state="CA",
                 zip_code="94114", subject_lat=SF_LAT, subject_lon=SF_LON,
             )
+        comps = result["comps"]
 
         assert comps[0]["pct_over_asking"] is None
 
@@ -127,10 +129,11 @@ class TestPctOverAsking:
 
         with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
             mock_thread.return_value = df
-            comps = await fetch_comps(
+            result = await fetch_comps(
                 address="450 Sanchez St", city="San Francisco", state="CA",
                 zip_code="94114", subject_lat=SF_LAT, subject_lon=SF_LON,
             )
+        comps = result["comps"]
 
         assert comps[0]["pct_over_asking"] == pytest.approx(-10.0, abs=0.1)
 
@@ -143,10 +146,11 @@ class TestPctOverAsking:
 
         with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
             mock_thread.return_value = df
-            comps = await fetch_comps(
+            result = await fetch_comps(
                 address="821 Folsom St #515", city="San Francisco", state="CA",
                 zip_code="94107", subject_lat=SF_LAT, subject_lon=SF_LON,
             )
+        comps = result["comps"]
 
         assert comps[0]["unit"] == "515"
 
@@ -164,10 +168,11 @@ class TestDistanceMiles:
 
         with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
             mock_thread.return_value = df
-            comps = await fetch_comps(
+            result = await fetch_comps(
                 address="450 Sanchez St", city="San Francisco", state="CA",
                 zip_code="94114", subject_lat=SF_LAT, subject_lon=SF_LON,
             )
+        comps = result["comps"]
 
         assert "distance_miles" in comps[0]
         # Comp at (37.7605, -122.4152) is very close to subject (37.7599, -122.4148)
@@ -182,10 +187,11 @@ class TestDistanceMiles:
 
         with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
             mock_thread.return_value = df
-            comps = await fetch_comps(
+            result = await fetch_comps(
                 address="450 Sanchez St", city="San Francisco", state="CA",
                 zip_code="94114", subject_lat=SF_LAT, subject_lon=SF_LON,
             )
+        comps = result["comps"]
 
         assert comps[0]["distance_miles"] is None
 
@@ -205,11 +211,12 @@ class TestSqftFilter:
 
         with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
             mock_thread.return_value = df
-            comps = await fetch_comps(
+            result = await fetch_comps(
                 address="450 Sanchez St", city="San Francisco", state="CA",
                 zip_code="94114", subject_lat=SF_LAT, subject_lon=SF_LON,
                 subject_sqft=subject_sqft,
             )
+        comps = result["comps"]
 
         assert len(comps) == 1
 
@@ -229,7 +236,7 @@ class TestPropertyTypeFilter:
 
         with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
             mock_thread.return_value = df
-            comps = await fetch_comps(
+            result = await fetch_comps(
                 address="450 Sanchez St",
                 city="San Francisco",
                 state="CA",
@@ -238,6 +245,7 @@ class TestPropertyTypeFilter:
                 subject_lon=SF_LON,
                 subject_property_type="CONDO",
             )
+        comps = result["comps"]
 
         assert len(comps) == 1
         assert comps[0]["address"] == "1 Condo Way"
@@ -252,7 +260,7 @@ class TestPropertyTypeFilter:
 
         with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
             mock_thread.return_value = df
-            comps = await fetch_comps(
+            result = await fetch_comps(
                 address="450 Sanchez St",
                 city="San Francisco",
                 state="CA",
@@ -260,6 +268,7 @@ class TestPropertyTypeFilter:
                 subject_lat=SF_LAT,
                 subject_lon=SF_LON,
             )
+        comps = result["comps"]
 
         assert len(comps) == 2
 
@@ -286,7 +295,7 @@ class TestSubjectResaleFilter:
 
         with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
             mock_thread.return_value = df
-            comps = await fetch_comps(
+            result = await fetch_comps(
                 address="821 Folsom St #515",
                 city="San Francisco",
                 state="CA",
@@ -294,6 +303,7 @@ class TestSubjectResaleFilter:
                 subject_lat=SF_LAT,
                 subject_lon=SF_LON,
             )
+        comps = result["comps"]
 
         assert len(comps) == 1
         assert comps[0]["unit"] == "516"
@@ -319,7 +329,7 @@ class TestSubjectResaleFilter:
 
         with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
             mock_thread.return_value = df
-            comps = await fetch_comps(
+            result = await fetch_comps(
                 address="400 Hearst Ave, San Francisco, CA 94112",
                 city="San Francisco",
                 state="CA",
@@ -327,6 +337,7 @@ class TestSubjectResaleFilter:
                 subject_lat=SF_LAT,
                 subject_lon=SF_LON,
             )
+        comps = result["comps"]
 
         assert len(comps) == 1
         assert comps[0]["address"] == "402 Hearst Ave"
@@ -341,11 +352,12 @@ class TestSubjectResaleFilter:
 
         with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
             mock_thread.return_value = df
-            comps = await fetch_comps(
+            result = await fetch_comps(
                 address="450 Sanchez St", city="San Francisco", state="CA",
                 zip_code="94114", subject_lat=SF_LAT, subject_lon=SF_LON,
                 subject_sqft=subject_sqft,
             )
+        comps = result["comps"]
 
         assert len(comps) == 0
 
@@ -358,11 +370,12 @@ class TestSubjectResaleFilter:
 
         with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
             mock_thread.return_value = df
-            comps = await fetch_comps(
+            result = await fetch_comps(
                 address="450 Sanchez St", city="San Francisco", state="CA",
                 zip_code="94114", subject_lat=SF_LAT, subject_lon=SF_LON,
                 subject_sqft=None,
             )
+        comps = result["comps"]
 
         assert len(comps) == 1
 
@@ -398,13 +411,129 @@ class TestCompsRentCastSqftFallback:
             mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
             mock_client.get.return_value = _make_rentcast_avm_mock(sqft=1650)
 
-            comps = await fetch_comps(
+            result = await fetch_comps(
+                address="450 Sanchez St", city="San Francisco", state="CA",
+                zip_code="94114", subject_lat=SF_LAT, subject_lon=SF_LON,
+            )
+        comps = result["comps"]
+
+        assert len(comps) == 1
+        assert comps[0]["sqft"] == 1650
+
+
+# ---------------------------------------------------------------------------
+# Validation mode: subject sale detection
+# ---------------------------------------------------------------------------
+
+class TestSubjectSaleDetection:
+    async def test_returns_dict_shape(self):
+        """fetch_comps returns a dict with 'comps' and 'subject_sale' keys."""
+        from agent.tools.comps import fetch_comps
+
+        df = _make_df([BASE_COMP_ROW])
+
+        with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+            result = await fetch_comps(
                 address="450 Sanchez St", city="San Francisco", state="CA",
                 zip_code="94114", subject_lat=SF_LAT, subject_lon=SF_LON,
             )
 
-        assert len(comps) == 1
-        assert comps[0]["sqft"] == 1650
+        assert isinstance(result, dict)
+        assert set(result.keys()) == {"comps", "subject_sale"}
+
+    async def test_subject_sale_captured_within_180_days(self):
+        """When the subject property appears in comps with a sale within 180 days,
+        subject_sale is populated with sold_price and sold_date."""
+        from agent.tools.comps import fetch_comps
+
+        sale_date = dt.date.today() - dt.timedelta(days=90)
+        subject_row = {
+            **BASE_COMP_ROW,
+            "street": "400 Hearst Ave",
+            "unit_number": None,
+            "sold_price": 1_350_000,
+            "list_price": 1_200_000,
+            "last_sold_date": sale_date,
+        }
+        other_comp = {**BASE_COMP_ROW, "street": "402 Hearst Ave", "unit_number": None}
+        df = _make_df([subject_row, other_comp])
+
+        with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+            result = await fetch_comps(
+                address="400 Hearst Ave, San Francisco, CA",
+                city="San Francisco", state="CA",
+                zip_code="94112", subject_lat=SF_LAT, subject_lon=SF_LON,
+            )
+
+        assert result["subject_sale"] is not None
+        assert result["subject_sale"]["sold_price"] == pytest.approx(1_350_000)
+        assert result["subject_sale"]["sold_date"] == sale_date.isoformat()
+
+    async def test_subject_sale_excluded_from_comps_list(self):
+        """The subject property's own sale row must NOT appear in the comps list."""
+        from agent.tools.comps import fetch_comps
+
+        sale_date = dt.date.today() - dt.timedelta(days=90)
+        subject_row = {
+            **BASE_COMP_ROW,
+            "street": "400 Hearst Ave",
+            "unit_number": None,
+            "last_sold_date": sale_date,
+        }
+        other_comp = {**BASE_COMP_ROW, "street": "402 Hearst Ave", "unit_number": None}
+        df = _make_df([subject_row, other_comp])
+
+        with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+            result = await fetch_comps(
+                address="400 Hearst Ave, San Francisco, CA",
+                city="San Francisco", state="CA",
+                zip_code="94112", subject_lat=SF_LAT, subject_lon=SF_LON,
+            )
+
+        addresses = [c["address"] for c in result["comps"]]
+        assert "400 Hearst Ave" not in addresses
+        assert "402 Hearst Ave" in addresses
+
+    async def test_subject_sale_none_when_beyond_180_days(self):
+        """When the subject property sold more than 180 days ago, subject_sale is None."""
+        from agent.tools.comps import fetch_comps
+
+        old_sale_date = dt.date.today() - dt.timedelta(days=181)
+        subject_row = {
+            **BASE_COMP_ROW,
+            "street": "400 Hearst Ave",
+            "unit_number": None,
+            "last_sold_date": old_sale_date,
+        }
+        df = _make_df([subject_row])
+
+        with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+            result = await fetch_comps(
+                address="400 Hearst Ave, San Francisco, CA",
+                city="San Francisco", state="CA",
+                zip_code="94112", subject_lat=SF_LAT, subject_lon=SF_LON,
+            )
+
+        assert result["subject_sale"] is None
+
+    async def test_subject_sale_none_when_no_self_sale_in_comps(self):
+        """When no comp matches the subject address, subject_sale is None."""
+        from agent.tools.comps import fetch_comps
+
+        df = _make_df([BASE_COMP_ROW])
+
+        with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+            result = await fetch_comps(
+                address="450 Sanchez St", city="San Francisco", state="CA",
+                zip_code="94114", subject_lat=SF_LAT, subject_lon=SF_LON,
+            )
+
+        assert result["subject_sale"] is None
 
     async def test_rentcast_sqft_not_called_when_homeharvest_has_sqft(self):
         """RentCast is not called when homeharvest already provides sqft."""
@@ -420,10 +549,11 @@ class TestCompsRentCastSqftFallback:
             mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
             mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            comps = await fetch_comps(
+            result = await fetch_comps(
                 address="450 Sanchez St", city="San Francisco", state="CA",
                 zip_code="94114", subject_lat=SF_LAT, subject_lon=SF_LON,
             )
+        comps = result["comps"]
 
         mock_client.get.assert_not_called()
         assert comps[0]["sqft"] == 1700
@@ -446,10 +576,11 @@ class TestCompsRentCastSqftFallback:
             mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
             mock_client.get.return_value = _make_rentcast_avm_mock(sqft=1500)
 
-            comps = await fetch_comps(
+            result = await fetch_comps(
                 address="450 Sanchez St", city="San Francisco", state="CA",
                 zip_code="94114", subject_lat=SF_LAT, subject_lon=SF_LON,
             )
+        comps = result["comps"]
 
         assert mock_client.get.call_count == 2
         assert all(c["sqft"] == 1500 for c in comps)
@@ -471,10 +602,11 @@ class TestCompsRentCastSqftFallback:
             mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
             mock_client.get.return_value = _make_rentcast_avm_mock(sqft=1100)
 
-            comps = await fetch_comps(
+            result = await fetch_comps(
                 address="450 Sanchez St", city="San Francisco", state="CA",
                 zip_code="94114", subject_lat=SF_LAT, subject_lon=SF_LON,
             )
+        comps = result["comps"]
 
         assert comps[0]["sqft"] == 1100
         assert comps[0]["price_per_sqft"] == pytest.approx(1000.0)
@@ -496,9 +628,10 @@ class TestCompsRentCastSqftFallback:
             mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
             mock_client.get.side_effect = httpx.HTTPError("timeout")
 
-            comps = await fetch_comps(
+            result = await fetch_comps(
                 address="450 Sanchez St", city="San Francisco", state="CA",
                 zip_code="94114", subject_lat=SF_LAT, subject_lon=SF_LON,
             )
+        comps = result["comps"]
 
         assert comps[0]["sqft"] is None

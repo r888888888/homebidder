@@ -9,6 +9,7 @@ import { OfferRecommendationCard, type OfferData } from "./OfferRecommendationCa
 import { RiskAnalysisCard, type RiskData } from "./RiskAnalysisCard";
 import { InvestmentCard, type InvestmentData } from "./InvestmentCard";
 import { PermitsCard, type PermitsData } from "./PermitsCard";
+import { ValidationBanner, type ValidationResult } from "./ValidationBanner";
 
 interface Props {
   events: AnalysisEvent[];
@@ -69,10 +70,16 @@ export function AnalysisStream({ events, isRunning }: Props) {
   );
   const permitsData = permitsEvent?.result as PermitsData | undefined;
 
+  const validationEvent = events.find((e) => e.type === "validation_result");
+  const validationData = validationEvent?.result as ValidationResult | undefined;
+
   const analysisIdEvent = events.find((e) => e.type === "analysis_id");
 
   return (
     <div className="space-y-4 fade-up">
+      {/* Validation banner — shown when the searched property has already sold */}
+      {validationData && <ValidationBanner result={validationData} />}
+
       {/* Property summary card */}
       {propertyData && <PropertySummaryCard property={propertyData} />}
 

@@ -121,10 +121,15 @@ async def fetch_comps(
     subject_property_type: str | None = None,
     bedrooms: int | None = None,
     max_results: int = 100,
-) -> list[dict[str, Any]]:
+) -> dict[str, Any]:
     """
     Search for recently sold comps near the subject property.
     Tries homeharvest first; falls back to Redfin Stingray if it fails.
+
+    Returns a dict with:
+    - "comps": list of comparable sale dicts
+    - "subject_sale": dict with sold_price/sold_date/address if the subject property
+      itself sold within the last 180 days (validation mode); None otherwise.
 
     Phase 4 additions:
     - subject_lat/lon: used to compute per-comp distance_miles via haversine
@@ -137,7 +142,7 @@ async def fetch_comps(
     try:
         df = await asyncio.to_thread(_scrape_homeharvest_comps, zip_code, bedrooms, max_results)
         if df is not None and not df.empty:
-            comps = _process_df(
+            comps, subject_sale = _process_df(
                 df,
                 address,
                 subject_lat,
@@ -146,7 +151,7 @@ async def fetch_comps(
                 max_results,
                 subject_type_norm,
             )
-            return await _fill_missing_sqft(comps)
+            return {"comps": await _fill_missing_sqft(comps), "subject_sale": subject_sale}
     except Exception:
         pass
 
@@ -154,16 +159,17 @@ async def fetch_comps(
     try:
         coords = await _geocode_census(address, city, state, zip_code)
         if coords:
-            return await _stingray_comps(
+            stingray = await _stingray_comps(
                 *coords,
                 bedrooms=bedrooms,
                 max_results=max_results,
                 subject_property_type=subject_type_norm,
             )
+            return {"comps": stingray, "subject_sale": None}
     except Exception:
         pass
 
-    return []
+    return {"comps": [], "subject_sale": None}
 
 
 def _scrape_homeharvest_comps(location: str, bedrooms: int | None, max_results: int):
@@ -204,9 +210,15 @@ def _process_df(
     subject_sqft: int | None,
     max_results: int,
     subject_property_type: str | None = None,
-) -> list[dict[str, Any]]:
-    """Convert homeharvest DataFrame to list of comp dicts with Phase 4 enrichments."""
-    comps = []
+) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+    """Convert homeharvest DataFrame to list of comp dicts with Phase 4 enrichments.
+
+    Returns (comps, subject_sale) where subject_sale is populated if the subject
+    property itself appears in the results as a recent sale (validation mode).
+    """
+    comps: list[dict[str, Any]] = []
+    subject_sale: dict[str, Any] | None = None
+
     for _, row in df.iterrows():
         sqft = _safe(row, "sqft")
         comp_property_type = _safe(row, "style") or _safe(row, "property_type")
@@ -219,8 +231,15 @@ def _process_df(
             if comp_type_norm != subject_property_type:
                 continue
 
-        # Ignore the subject property itself when it sold recently (last 30 days).
+        # Detect and capture the subject property's own recent sale (validation mode).
         if _is_recent_same_property_sale(subject_address, comp_address, comp_unit, comp_sold_date):
+            sold_p = _safe(row, "sold_price") or _safe(row, "list_price")
+            if sold_p is not None and subject_sale is None:
+                subject_sale = {
+                    "sold_price": float(sold_p),
+                    "sold_date": comp_sold_date,
+                    "address": comp_address or subject_address,
+                }
             continue
 
         # sqft similarity filter (±25%) — only when subject_sqft provided
@@ -271,7 +290,7 @@ def _process_df(
         if len(comps) >= max_results:
             break
 
-    return comps
+    return comps, subject_sale
 
 
 async def _fill_missing_sqft(comps: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -538,7 +557,7 @@ def _is_recent_same_property_sale(
     comp_address: str | None,
     comp_unit: str | None,
     comp_sold_date: str | None,
-    days: int = 30,
+    days: int = 180,
 ) -> bool:
     sold_date = _parse_iso_date(comp_sold_date)
     if sold_date is None:

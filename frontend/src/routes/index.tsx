@@ -6,7 +6,7 @@ export const Route = createFileRoute("/")({
 });
 
 export interface AnalysisEvent {
-  type: "status" | "tool_call" | "tool_result" | "text" | "error" | "done" | "analysis_id";
+  type: "status" | "tool_call" | "tool_result" | "text" | "error" | "done" | "analysis_id" | "validation_result";
   text?: string;
   tool?: string;
   input?: Record<string, unknown>;

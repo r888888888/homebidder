@@ -220,8 +220,8 @@ async def _dispatch_tool(name: str, inputs: dict) -> tuple[str, dict | None]:
         result = await fetch_neighborhood_context(**inputs)
         return json.dumps(result), result
     elif name == "fetch_comps":
-        result = await fetch_comps(**inputs)
-        return json.dumps(result), result
+        full = await fetch_comps(**inputs)
+        return json.dumps(full["comps"]), full
     elif name == "analyze_market":
         result = analyze_market(**inputs)
         return json.dumps(result), None
@@ -462,6 +462,8 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
     offer_result_persist: dict | None = None
     risk_result_persist: dict | None = None
     final_text_parts: list[str] = []
+    # Validation mode: set when subject property was itself recently sold
+    subject_sale_data: dict | None = None
 
     # Data-gathering tools Claude is allowed to call
     DATA_TOOLS = [t for t in TOOLS if t["name"] in ("lookup_property_by_address", "fetch_neighborhood_context", "fetch_comps")]
@@ -553,7 +555,13 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
                         result_str = json.dumps({"error": f"Tool '{block.name}' failed: {exc}"})
                         parsed = None
 
-                    if parsed is not None:
+                    if block.name == "fetch_comps" and parsed is not None:
+                        # Keep subject_sale for validation; send only comps list to frontend.
+                        subject_sale_data = parsed.get("subject_sale")
+                        comps_only = parsed.get("comps", [])
+                        dispatched[block.name] = comps_only
+                        yield f"data: {json.dumps({'type': 'tool_result', 'tool': block.name, 'result': comps_only})}\n\n"
+                    elif parsed is not None:
                         dispatched[block.name] = parsed
                         yield f"data: {json.dumps({'type': 'tool_result', 'tool': block.name, 'result': parsed})}\n\n"
 
@@ -644,6 +652,35 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
                 offer_result_persist = offer_result  # persist outer scope
                 log.info("Auto-computed recommend_offer: posture=%s", offer_result.get("posture"))
                 yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'recommend_offer', 'result': offer_result})}\n\n"
+
+                # Validation mode: compare estimate against actual sale price when known.
+                if subject_sale_data is not None:
+                    actual = subject_sale_data["sold_price"]
+                    estimate = offer_result.get("fair_value_estimate")
+                    ci = offer_result.get("fair_value_confidence_interval") or {}
+                    ci_low, ci_high = ci.get("low"), ci.get("high")
+                    if estimate is not None and actual > 0:
+                        error_dollars = round(estimate - actual)
+                        error_pct = round((error_dollars / actual) * 100, 1)
+                        within_ci = (
+                            ci_low is not None
+                            and ci_high is not None
+                            and ci_low <= actual <= ci_high
+                        )
+                        validation_payload = {
+                            "actual_sold_price": actual,
+                            "estimated_price": estimate,
+                            "error_dollars": error_dollars,
+                            "error_pct": error_pct,
+                            "within_ci": within_ci,
+                            "sold_date": subject_sale_data.get("sold_date"),
+                            "address": subject_sale_data.get("address"),
+                        }
+                        log.info(
+                            "Validation mode: estimate=%s actual=%s error_pct=%s within_ci=%s",
+                            estimate, actual, error_pct, within_ci,
+                        )
+                        yield f"data: {json.dumps({'type': 'validation_result', 'result': validation_payload})}\n\n"
 
                 # Phase 7: auto-compute risk assessment
                 yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'assess_risk', 'input': {}})}\n\n"

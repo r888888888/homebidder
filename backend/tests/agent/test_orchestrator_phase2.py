@@ -210,9 +210,10 @@ class TestToolResultSseEvents:
         text_block.text = "Done."
         end_turn_response.content = [text_block]
 
-        fake_comps = [
-            {"sold_price": 1_000_000, "price_per_sqft": 700.0, "sqft": 1400, "list_price": 980_000}
-        ]
+        fake_comps = {
+            "comps": [{"sold_price": 1_000_000, "price_per_sqft": 700.0, "sqft": 1400, "list_price": 980_000}],
+            "subject_sale": None,
+        }
         fake_offer = {
             "list_price": 995000,
             "fair_value_estimate": 1_000_000,
@@ -289,7 +290,10 @@ class TestToolResultSseEvents:
             "price": 995000,
             "description_signals": {"net_adjustment_pct": -1.5, "detected_signals": [{"label": "Tenant Occupied"}]},
         }
-        fake_comps = [{"sold_price": 1_000_000, "price_per_sqft": 700.0, "sqft": 1400, "list_price": 980_000}]
+        fake_comps = {
+            "comps": [{"sold_price": 1_000_000, "price_per_sqft": 700.0, "sqft": 1400, "list_price": 980_000}],
+            "subject_sale": None,
+        }
 
         with patch("agent.orchestrator.anthropic.AsyncAnthropic") as mock_cls, \
              patch("agent.orchestrator.fetch_comps", new_callable=AsyncMock, return_value=fake_comps), \
@@ -354,7 +358,10 @@ class TestPhase8AutoComputation:
         text_block.text = "Done."
         end_turn_response.content = [text_block]
 
-        fake_comps = [{"sold_price": 1_000_000, "price_per_sqft": 700.0, "sqft": 1400, "list_price": 980_000}]
+        fake_comps = {
+            "comps": [{"sold_price": 1_000_000, "price_per_sqft": 700.0, "sqft": 1400, "list_price": 980_000}],
+            "subject_sale": None,
+        }
         fake_market = {"median_price_per_sqft": 700.0}
         fake_offer = {"offer_recommended": 1_200_000, "posture": "competitive"}
         fake_risk = {"overall_risk": "Moderate", "score": 4.0}

@@ -55,19 +55,22 @@ FAKE_PROPERTY = {
     "property_type": "SINGLE_FAMILY",
 }
 
-FAKE_COMPS = [
-    {
-        "address": "100 Comp St",
-        "sold_price": 1_100_000,
-        "sold_date": "2026-02-01",
-        "bedrooms": 3,
-        "bathrooms": 2.0,
-        "sqft": 1700,
-        "price_per_sqft": 647.0,
-        "pct_over_asking": 4.76,
-        "distance_miles": 0.3,
-    }
-]
+FAKE_COMPS = {
+    "comps": [
+        {
+            "address": "100 Comp St",
+            "sold_price": 1_100_000,
+            "sold_date": "2026-02-01",
+            "bedrooms": 3,
+            "bathrooms": 2.0,
+            "sqft": 1700,
+            "price_per_sqft": 647.0,
+            "pct_over_asking": 4.76,
+            "distance_miles": 0.3,
+        }
+    ],
+    "subject_sale": None,
+}
 
 FAKE_OFFER = {
     "offer_recommended": 1_200_000,
