@@ -27,9 +27,6 @@ class Listing(Base):
     property_type: Mapped[str | None] = mapped_column(String(64))
     avm_estimate: Mapped[float | None] = mapped_column(Float)
     neighborhood_context: Mapped[str | None] = mapped_column(Text)
-    prop13_assessed_value: Mapped[float | None] = mapped_column(Float)
-    prop13_base_year: Mapped[int | None] = mapped_column(Integer)
-    prop13_annual_tax: Mapped[float | None] = mapped_column(Float)
     scraped_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     analyses: Mapped[list["Analysis"]] = relationship("Analysis", back_populates="listing")
 

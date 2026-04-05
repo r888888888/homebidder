@@ -19,7 +19,6 @@ const FACTOR_LABELS: Record<string, string> = {
   home_age: "Home Age",
   days_on_market: "Days on Market",
   hpi_trend: "Home Price Trend (FHFA HPI)",
-  prop13_tax_shock: "Prop 13 Tax Shock",
   highway_proximity: "Highway Proximity (CalEnviroScreen)",
 };
 

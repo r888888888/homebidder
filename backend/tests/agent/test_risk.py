@@ -95,9 +95,6 @@ def make_market_trends(**overrides):
 
 def make_neighborhood(**overrides):
     base = {
-        "prop13_assessed_value": 420_000.0,
-        "prop13_base_year": 2001,
-        "prop13_annual_tax": 5_250.0,
         "median_home_value": 1_200_000,
         "housing_units": 3400,
         "vacancy_rate": 4.2,
@@ -472,72 +469,6 @@ class TestMarketRiskFactors:
         assert hpi_factor["level"] == "n/a"
 
 
-class TestProp13RiskFactor:
-    def test_large_tax_shock_is_high(self):
-        """Buyer pays >$15k/yr more than seller → high prop13 risk."""
-        from agent.tools.risk import assess_risk
-
-        # Purchase price $1.5M → buyer tax ~$18,750/yr; seller pays $3,000/yr
-        result = assess_risk(
-            listing=make_listing(price=1_500_000),
-            market_stats=make_market_stats(),
-            offer_result=make_offer_result(),
-            neighborhood=make_neighborhood(prop13_annual_tax=3_000.0),
-        )
-        p13_factor = next(f for f in result["factors"] if f["name"] == "prop13_tax_shock")
-        assert p13_factor["level"] == "high"
-
-    def test_moderate_tax_shock_is_moderate(self):
-        """Delta $8k–$15k → moderate."""
-        from agent.tools.risk import assess_risk
-
-        # Purchase price $1.25M → buyer tax ~$15,625; seller pays $6,000 → delta ~$9,625
-        result = assess_risk(
-            listing=make_listing(price=1_250_000),
-            market_stats=make_market_stats(),
-            offer_result=make_offer_result(),
-            neighborhood=make_neighborhood(prop13_annual_tax=6_000.0),
-        )
-        p13_factor = next(f for f in result["factors"] if f["name"] == "prop13_tax_shock")
-        assert p13_factor["level"] == "moderate"
-
-    def test_small_tax_shock_is_low(self):
-        from agent.tools.risk import assess_risk
-
-        # Purchase price $800k → buyer tax $10k; seller pays $9,000 → delta $1,000
-        result = assess_risk(
-            listing=make_listing(price=800_000),
-            market_stats=make_market_stats(),
-            offer_result=make_offer_result(),
-            neighborhood=make_neighborhood(prop13_annual_tax=9_000.0),
-        )
-        p13_factor = next(f for f in result["factors"] if f["name"] == "prop13_tax_shock")
-        assert p13_factor["level"] == "low"
-
-    def test_no_prop13_data_is_na(self):
-        from agent.tools.risk import assess_risk
-
-        result = assess_risk(
-            listing=make_listing(),
-            market_stats=make_market_stats(),
-            offer_result=make_offer_result(),
-            neighborhood=None,
-        )
-        p13_factor = next(f for f in result["factors"] if f["name"] == "prop13_tax_shock")
-        assert p13_factor["level"] == "n/a"
-
-    def test_none_prop13_annual_tax_is_na(self):
-        from agent.tools.risk import assess_risk
-
-        result = assess_risk(
-            listing=make_listing(),
-            market_stats=make_market_stats(),
-            offer_result=make_offer_result(),
-            neighborhood=make_neighborhood(prop13_annual_tax=None),
-        )
-        p13_factor = next(f for f in result["factors"] if f["name"] == "prop13_tax_shock")
-        assert p13_factor["level"] == "n/a"
-
 
 class TestOverallRiskLevel:
     def test_all_low_factors_gives_low_overall(self):
@@ -549,7 +480,7 @@ class TestOverallRiskLevel:
             offer_result=make_offer_result(),
             hazard_zones=make_hazards(),  # all clear
             fhfa_hpi=make_fhfa(hpi_trend="appreciating"),
-            neighborhood=make_neighborhood(prop13_annual_tax=14_000.0),  # delta < $2k
+            neighborhood=make_neighborhood(),
         )
         # Buyer tax at $1.25M = $15,625; seller pays $14,000 → delta $1,625 → low
         assert result["overall_risk"] == "Low"
@@ -563,7 +494,7 @@ class TestOverallRiskLevel:
             offer_result=make_offer_result(),
             hazard_zones=make_hazards(alquist_priolo=True),
             fhfa_hpi=make_fhfa(hpi_trend="appreciating"),
-            neighborhood=make_neighborhood(prop13_annual_tax=14_000.0),
+            neighborhood=make_neighborhood(),
         )
         assert result["overall_risk"] in ("High", "Very High")
 
@@ -576,7 +507,7 @@ class TestOverallRiskLevel:
             offer_result=make_offer_result(),
             hazard_zones=make_hazards(alquist_priolo=True, flood_zone_sfha=True, fire_hazard_zone="Very High"),
             fhfa_hpi=make_fhfa(hpi_trend="depreciating"),
-            neighborhood=make_neighborhood(prop13_annual_tax=3_000.0),
+            neighborhood=make_neighborhood(),
         )
         assert result["overall_risk"] == "Very High"
 
@@ -710,7 +641,7 @@ class TestTenantOccupiedFactor:
             offer_result=make_offer_result(),
             hazard_zones=make_hazards(),
             fhfa_hpi=make_fhfa(hpi_trend="appreciating"),
-            neighborhood=make_neighborhood(prop13_annual_tax=14_000.0),
+            neighborhood=make_neighborhood(),
         )
 
         listing_occupied = make_listing(year_built=2005, days_on_market=7)
@@ -721,7 +652,7 @@ class TestTenantOccupiedFactor:
             offer_result=make_offer_result(),
             hazard_zones=make_hazards(),
             fhfa_hpi=make_fhfa(hpi_trend="appreciating"),
-            neighborhood=make_neighborhood(prop13_annual_tax=14_000.0),
+            neighborhood=make_neighborhood(),
         )
 
         assert result_occupied["score"] == result_clean["score"] + 5

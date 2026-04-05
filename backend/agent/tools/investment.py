@@ -43,13 +43,11 @@ def compute_investment_metrics(
     mortgage_rates: dict[str, Any],
     hpi_trend: dict[str, Any],
     ba_value_drivers: dict[str, Any],
-    prop13_annual_tax: float | None,
 ) -> dict[str, Any]:
     """Compute gross yield, cashflow, appreciation projections, and investment rating."""
     price = _safe_float(property.get("price"))
     monthly_rent = _safe_float(rental_estimate.get("rent_estimate"))
     hoa = _safe_float(property.get("hoa_fee"))
-    annual_tax = _safe_float(prop13_annual_tax)
 
     raw_rate_30 = _optional_float(mortgage_rates.get("rate_30yr_fixed"))
     rate_30 = raw_rate_30 if raw_rate_30 is not None else 6.5
@@ -65,8 +63,7 @@ def compute_investment_metrics(
 
     vacancy = monthly_rent * 0.10
     maintenance = monthly_rent * 0.10
-    monthly_tax = annual_tax / 12.0
-    monthly_cashflow = monthly_rent - (mortgage_monthly + monthly_tax + hoa + vacancy + maintenance)
+    monthly_cashflow = monthly_rent - (mortgage_monthly + hoa + vacancy + maintenance)
 
     # FHFA tool emits yoy_change_pct; keep yoy_appreciation_pct as backward-compatible fallback.
     yoy_pct = _optional_float(hpi_trend.get("yoy_change_pct"))

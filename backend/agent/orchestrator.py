@@ -50,7 +50,6 @@ Investment analysis will also be computed automatically after risk assessment:
 - compute_investment_metrics
 Your job is to write a clear, data-backed narrative once all results are available.
 
-For Bay Area properties: always surface the Prop 13 tax shock — compare the seller's current annual tax to the buyer's estimated annual tax at purchase price (purchase_price × 1.25%).
 Be specific, cite the comp data, and explain your reasoning in plain language a first-time buyer can understand.
 Interpret the offer recommendation output and add qualitative context — do not simply restate the numbers.
 """
@@ -194,7 +193,6 @@ TOOLS: list[anthropic.types.ToolParam] = [
                 "mortgage_rates": {"type": "object"},
                 "hpi_trend": {"type": "object"},
                 "ba_value_drivers": {"type": "object"},
-                "prop13_annual_tax": {"type": "number"},
             },
             "required": [
                 "property",
@@ -202,7 +200,6 @@ TOOLS: list[anthropic.types.ToolParam] = [
                 "mortgage_rates",
                 "hpi_trend",
                 "ba_value_drivers",
-                "prop13_annual_tax",
             ],
         },
     },
@@ -737,14 +734,13 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
                 yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'fetch_rental_estimate', 'result': rental_estimate_result})}\n\n"
                 yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'fetch_ba_value_drivers', 'result': ba_drivers_result})}\n\n"
 
-                yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'compute_investment_metrics', 'input': {'property': '...', 'rental_estimate': '...', 'mortgage_rates': '...', 'hpi_trend': '...', 'ba_value_drivers': '...', 'prop13_annual_tax': '...'}})}\n\n"
+                yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'compute_investment_metrics', 'input': {'property': '...', 'rental_estimate': '...', 'mortgage_rates': '...', 'hpi_trend': '...', 'ba_value_drivers': '...'}})}\n\n"
                 phase8_investment = compute_investment_metrics(
                     property=listing,
                     rental_estimate=rental_estimate_result if isinstance(rental_estimate_result, dict) else {},
                     mortgage_rates=mortgage_rates_result if isinstance(mortgage_rates_result, dict) else {},
                     hpi_trend=phase6_fhfa if isinstance(phase6_fhfa, dict) else {},
                     ba_value_drivers=ba_drivers_result if isinstance(ba_drivers_result, dict) else {},
-                    prop13_annual_tax=(neighborhood_result or {}).get("prop13_annual_tax"),
                 )
                 yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'compute_investment_metrics', 'result': phase8_investment})}\n\n"
 

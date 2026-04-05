@@ -47,9 +47,6 @@ const NEIGHBORHOOD_RESULT = {
   housing_units: 12_000,
   vacancy_rate: 2.5,
   median_year_built: 1965,
-  prop13_assessed_value: 1_200_000,
-  prop13_base_year: 2019,
-  prop13_annual_tax: 15_000,
 };
 
 const COMPS_RESULT = [
@@ -219,7 +216,7 @@ describe("AnalysisStream", () => {
     render(<AnalysisStream events={events} isRunning={false} />);
 
     expect(screen.getByText(/450 Sanchez St, San Francisco, CA 94114/i)).toBeInTheDocument();
-    expect(screen.getAllByText(/prop\s*13/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/median home value/i)).toBeInTheDocument();
     expect(screen.getByText(/100 Comp St/i)).toBeInTheDocument();
     expect(screen.getByText(/offer recommendation/i)).toBeInTheDocument();
   });

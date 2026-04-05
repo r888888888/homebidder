@@ -13,7 +13,6 @@ const LOW_RISK: RiskData = {
     { name: "home_age", level: "low", description: "Built in 2005." },
     { name: "days_on_market", level: "low", description: "Fresh listing at 7 days." },
     { name: "hpi_trend", level: "low", description: "Appreciating ZIP." },
-    { name: "prop13_tax_shock", level: "low", description: "Small delta." },
     { name: "highway_proximity", level: "low", description: "Traffic proximity at 30th percentile." },
   ],
 };
@@ -29,7 +28,6 @@ const HIGH_RISK: RiskData = {
     { name: "home_age", level: "low", description: "Built in 2010." },
     { name: "days_on_market", level: "low", description: "7 days." },
     { name: "hpi_trend", level: "low", description: "Appreciating." },
-    { name: "prop13_tax_shock", level: "low", description: "Small delta." },
   ],
 };
 
@@ -44,7 +42,6 @@ const VERY_HIGH_RISK: RiskData = {
     { name: "home_age", level: "high", description: "Built in 1920." },
     { name: "days_on_market", level: "low", description: "7 days." },
     { name: "hpi_trend", level: "high", description: "Depreciating ZIP." },
-    { name: "prop13_tax_shock", level: "high", description: "Large delta." },
   ],
 };
 

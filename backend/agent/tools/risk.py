@@ -18,8 +18,6 @@ Overall:
 
 from __future__ import annotations
 
-CA_TAX_RATE = 0.0125  # 1.25% Prop 13 reassessment rate
-
 
 def _factor(name: str, level: str, description: str) -> dict:
     return {"name": name, "level": level, "description": description}
@@ -190,33 +188,6 @@ def _assess_hpi_trend(fhfa_hpi: dict | None) -> dict:
     )
 
 
-def _assess_prop13_shock(listing: dict, neighborhood: dict | None) -> dict:
-    if neighborhood is None:
-        return _factor("prop13_tax_shock", "n/a", "No neighborhood/assessor data available.")
-    seller_tax = neighborhood.get("prop13_annual_tax")
-    price = listing.get("price")
-    if seller_tax is None or price is None:
-        return _factor("prop13_tax_shock", "n/a", "Prop 13 assessed tax data unavailable.")
-    buyer_tax = price * CA_TAX_RATE
-    delta = buyer_tax - seller_tax
-    if delta > 15_000:
-        return _factor(
-            "prop13_tax_shock", "high",
-            f"Your estimated annual property tax (${buyer_tax:,.0f}) is ${delta:,.0f}/yr more "
-            f"than the seller's current Prop 13 tax (${seller_tax:,.0f}/yr). "
-            "This is a significant ongoing cost increase — factor it into your monthly budget."
-        )
-    if delta > 8_000:
-        return _factor(
-            "prop13_tax_shock", "moderate",
-            f"Your estimated annual property tax (${buyer_tax:,.0f}) is ${delta:,.0f}/yr more "
-            f"than the seller's current Prop 13 tax (${seller_tax:,.0f}/yr)."
-        )
-    return _factor(
-        "prop13_tax_shock", "low",
-        f"Prop 13 tax delta is moderate (${max(delta, 0):,.0f}/yr increase)."
-    )
-
 
 def _assess_tenant_occupied(description_signals: dict | None) -> dict:
     if description_signals is None:
@@ -314,7 +285,6 @@ def assess_risk(
         _assess_home_age(listing),
         _assess_days_on_market(listing),
         _assess_hpi_trend(fhfa_hpi),
-        _assess_prop13_shock(listing, neighborhood),
         _assess_highway_proximity(ejscreen),
     ]
 

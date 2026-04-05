@@ -27,12 +27,6 @@ def test_listing_has_geo_columns():
     assert "zip_code" in cols
 
 
-def test_listing_has_prop13_columns():
-    cols = Listing.__table__.c
-    assert "prop13_assessed_value" in cols
-    assert "prop13_base_year" in cols
-    assert "prop13_annual_tax" in cols
-
 
 def test_listing_has_no_url_column():
     assert "url" not in Listing.__table__.c

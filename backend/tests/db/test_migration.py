@@ -30,8 +30,6 @@ async def test_init_db_adds_missing_columns_to_existing_analyses_table(tmp_path)
                 sqft INTEGER, year_built INTEGER, lot_size REAL,
                 property_type TEXT, avm_estimate REAL,
                 neighborhood_context TEXT,
-                prop13_assessed_value REAL, prop13_base_year INTEGER,
-                prop13_annual_tax REAL,
                 scraped_at DATETIME
             )
         """)

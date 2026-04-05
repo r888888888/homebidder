@@ -83,11 +83,10 @@ export function AnalysisStream({ events, isRunning }: Props) {
       {/* Property summary card */}
       {propertyData && <PropertySummaryCard property={propertyData} />}
 
-      {/* Neighborhood & Prop 13 card */}
+      {/* Neighborhood card */}
       {neighborhoodData && (
         <NeighborhoodCard
           neighborhood={neighborhoodData}
-          purchasePrice={(propertyData?.price as number | null) ?? null}
           neighborhoodName={(propertyData?.neighborhoods as string | null) ?? null}
         />
       )}
