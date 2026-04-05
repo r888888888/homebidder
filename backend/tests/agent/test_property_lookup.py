@@ -677,6 +677,34 @@ class TestHomeharvestListingHelper:
         assert result["price"] == 998_000.0
         assert result["sqft"] == 1105
 
+    async def test_listing_description_extracted_from_text_column(self):
+        """_homeharvest_listing reads the description from homeharvest's 'text' column."""
+        from agent.tools.property_lookup import _homeharvest_listing
+
+        row = {**HOMEHARVEST_ROW, "text": "Needs TLC. Fixer-upper in the Excelsior."}
+        df = _make_homeharvest_df([row])
+
+        with patch("agent.tools.property_lookup.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+
+            result = await _homeharvest_listing("450 SANCHEZ ST, SAN FRANCISCO, CA, 94114")
+
+        assert result["listing_description"] == "Needs TLC. Fixer-upper in the Excelsior."
+
+    async def test_listing_description_is_none_when_text_column_absent(self):
+        """_homeharvest_listing returns listing_description=None when 'text' is missing."""
+        from agent.tools.property_lookup import _homeharvest_listing
+
+        row = {k: v for k, v in HOMEHARVEST_ROW.items() if k != "text"}
+        df = _make_homeharvest_df([row])
+
+        with patch("agent.tools.property_lookup.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+
+            result = await _homeharvest_listing("450 SANCHEZ ST, SAN FRANCISCO, CA, 94114")
+
+        assert result["listing_description"] is None
+
 
 class TestRentCastDataHelper:
     async def test_rentcast_data_returns_sqft_and_avm_when_key_set(self):

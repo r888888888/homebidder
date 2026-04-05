@@ -219,6 +219,7 @@ async def _homeharvest_listing(matched_address: str) -> dict[str, Any]:
         "county": _safe(row, "county"),
         "neighborhoods": str(neighborhoods_raw) if neighborhoods_raw is not None else None,
         "listing_description": _first_nonempty_text(
+            _safe(row, "text"),
             _safe(row, "description"),
             _safe(row, "remarks"),
             _safe(row, "listing_remarks"),
@@ -279,6 +280,7 @@ async def _homeharvest_nearby_unit_listing(base_address: str, query_address: str
         "county": _safe(row, "county"),
         "neighborhoods": str(neighborhoods_raw) if neighborhoods_raw is not None else None,
         "listing_description": _first_nonempty_text(
+            _safe(row, "text"),
             _safe(row, "description"),
             _safe(row, "remarks"),
             _safe(row, "listing_remarks"),
