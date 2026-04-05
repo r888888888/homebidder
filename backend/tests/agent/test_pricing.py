@@ -261,8 +261,9 @@ class TestContingencyRecommendations:
 
 
 class TestDescriptionSignalAdjustments:
-    def test_applies_negative_condition_adjustment_to_fair_value(self):
-        listing = {
+    def test_condition_adjustment_pct_returned_but_does_not_affect_fair_value(self):
+        """condition_adjustment_pct is tracked for display but no longer shifts fair_value."""
+        listing_fixer = {
             **BASE_LISTING,
             "description_signals": {
                 "net_adjustment_pct": -2.0,
@@ -277,15 +278,20 @@ class TestDescriptionSignalAdjustments:
                 ],
             },
         }
+        listing_plain = {**BASE_LISTING}
         stats = {**BASE_STATS, "median_pct_over_asking": 1.0}
 
-        result = recommend_offer(listing, stats)
-        assert result["condition_adjustment_pct"] == pytest.approx(-2.0)
-        assert result["fair_value_estimate"] < stats["median_sale_price"]
-        assert result["fair_value_breakdown"]["condition_adjustment_pct"] == pytest.approx(-2.0)
+        result_fixer = recommend_offer(listing_fixer, stats)
+        result_plain = recommend_offer(listing_plain, stats)
 
-    def test_applies_positive_condition_adjustment_and_keeps_avm_blend(self):
-        listing = {
+        # condition_adjustment_pct still surfaced for display
+        assert result_fixer["condition_adjustment_pct"] == pytest.approx(-2.0)
+        assert result_fixer["fair_value_breakdown"]["condition_adjustment_pct"] == pytest.approx(-2.0)
+        # but fair_value is identical to the no-signal baseline
+        assert result_fixer["fair_value_estimate"] == pytest.approx(result_plain["fair_value_estimate"])
+
+    def test_renovated_signal_pct_returned_but_does_not_affect_fair_value(self):
+        listing_renovated = {
             **BASE_LISTING,
             "avm_estimate": 1_150_000,
             "description_signals": {
@@ -301,12 +307,16 @@ class TestDescriptionSignalAdjustments:
                 ],
             },
         }
+        listing_plain = {**BASE_LISTING, "avm_estimate": 1_150_000}
         stats = {**BASE_STATS, "median_pct_over_asking": 1.0}
-        result = recommend_offer(listing, stats)
 
-        assert result["condition_adjustment_pct"] == pytest.approx(2.5)
-        assert result["fair_value_breakdown"]["avm_blend_used"] is True
-        assert result["condition_signals"]
+        result_renovated = recommend_offer(listing_renovated, stats)
+        result_plain = recommend_offer(listing_plain, stats)
+
+        assert result_renovated["condition_adjustment_pct"] == pytest.approx(2.5)
+        assert result_renovated["fair_value_breakdown"]["avm_blend_used"] is True
+        assert result_renovated["condition_signals"]
+        assert result_renovated["fair_value_estimate"] == pytest.approx(result_plain["fair_value_estimate"])
 
     def test_offer_range_invariant_holds_with_description_adjustment(self):
         listing = {

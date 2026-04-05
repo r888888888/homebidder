@@ -17,6 +17,8 @@ export interface FixerAnalysisData {
   all_in_fixer_mid: number;
   all_in_fixer_high: number;
   turnkey_value: number;
+  renovated_fair_value: number;
+  implied_equity_mid: number;
   verdict: "cheaper_fixer" | "cheaper_turnkey" | "comparable";
   savings_mid: number;
   scope_notes?: string | null;
@@ -49,6 +51,7 @@ export function FixerAnalysisCard({ data }: Props) {
   const absSavings = Math.abs(data.savings_mid);
   const isWinner = data.verdict === "cheaper_fixer";
   const isLoser = data.verdict === "cheaper_turnkey";
+  const equityPositive = data.implied_equity_mid >= 0;
 
   return (
     <div className="card p-6">
@@ -74,11 +77,27 @@ export function FixerAnalysisCard({ data }: Props) {
         <div className="rounded-lg bg-[var(--surface)] p-3">
           <p className="mb-1 text-xs text-[var(--ink-soft)]">Fair Value</p>
           <p className="text-base font-semibold text-[var(--ink)]">{fmt(data.turnkey_value)}</p>
-          <p className="text-xs text-[var(--ink-soft)]">Move-in ready equivalent</p>
+          <p className="text-xs text-[var(--ink-soft)]">As-is (condition-adjusted)</p>
         </div>
       </div>
 
-      {/* Delta row */}
+      {/* Post-renovation value + implied equity */}
+      <div className="mb-4 grid grid-cols-2 gap-3">
+        <div className="rounded-lg bg-[var(--surface)] p-3">
+          <p className="mb-1 text-xs text-[var(--ink-soft)]">Post-reno value (est.)</p>
+          <p className="text-base font-semibold text-[var(--ink)]">{fmt(data.renovated_fair_value)}</p>
+          <p className="text-xs text-[var(--ink-soft)]">Fair value after renovation</p>
+        </div>
+        <div className="rounded-lg bg-[var(--surface)] p-3">
+          <p className="mb-1 text-xs text-[var(--ink-soft)]">Implied equity (mid)</p>
+          <p className={`text-base font-semibold ${equityPositive ? "text-emerald-700" : "text-red-700"}`}>
+            {equityPositive ? "+" : "−"}{fmt(data.implied_equity_mid)}
+          </p>
+          <p className="text-xs text-[var(--ink-soft)]">Post-reno value − all-in cost</p>
+        </div>
+      </div>
+
+      {/* vs fair value delta */}
       {(isWinner || isLoser) && (
         <div
           className={`mb-4 rounded-lg border px-3 py-2 text-sm font-medium ${

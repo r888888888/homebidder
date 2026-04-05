@@ -144,6 +144,11 @@ async def estimate_renovation_cost(
         (offer_result.get("fair_value_breakdown") or {}).get("condition_adjustment_pct") or 0.0
     )
 
+    # Condition signals no longer discount fair_value, so the post-renovation value
+    # equals fair_value directly.
+    renovated_fair_value = fair_value
+    implied_equity_mid = renovated_fair_value - all_in_mid
+
     return {
         "is_fixer": True,
         "fixer_signals": fixer_signals,
@@ -157,6 +162,8 @@ async def estimate_renovation_cost(
         "all_in_fixer_mid": all_in_mid,
         "all_in_fixer_high": offer_recommended + total_high,
         "turnkey_value": fair_value,
+        "renovated_fair_value": renovated_fair_value,
+        "implied_equity_mid": implied_equity_mid,
         "verdict": verdict,
         "savings_mid": savings,
         "scope_notes": payload.get("scope_notes"),

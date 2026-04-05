@@ -18,6 +18,8 @@ const BASE: FixerAnalysisData = {
   all_in_fixer_mid: 988_000,
   all_in_fixer_high: 1_011_000,
   turnkey_value: 1_100_000,
+  renovated_fair_value: 1_100_000,
+  implied_equity_mid: 112_000,
   verdict: "cheaper_fixer",
   savings_mid: 112_000,
   scope_notes: "Kitchen and bath are primary work.",
@@ -54,14 +56,14 @@ describe("FixerAnalysisCard", () => {
 
   it("shows turn-key AVM", () => {
     render(<FixerAnalysisCard data={BASE} />);
-    // $1,100,000 formatted
-    expect(screen.getByText(/1,100,000/)).toBeInTheDocument();
+    // $1,100,000 formatted — may appear in both Fair Value and Post-reno value cells
+    expect(screen.getAllByText(/1,100,000/).length).toBeGreaterThan(0);
   });
 
   it("shows savings amount when fixer is cheaper", () => {
     render(<FixerAnalysisCard data={BASE} />);
-    // savings_mid = 112,000
-    expect(screen.getByText(/112,000/)).toBeInTheDocument();
+    // savings_mid = 112,000 — may also appear as implied_equity
+    expect(screen.getAllByText(/112,000/).length).toBeGreaterThan(0);
   });
 
   it("shows overage amount when turn-key is cheaper", () => {
@@ -80,5 +82,27 @@ describe("FixerAnalysisCard", () => {
   it("renders disclaimer text", () => {
     render(<FixerAnalysisCard data={BASE} />);
     expect(screen.getByText(/get contractor bids/i)).toBeInTheDocument();
+  });
+
+  it("shows post-renovation value", () => {
+    render(<FixerAnalysisCard data={BASE} />);
+    expect(screen.getAllByText(/post-reno value/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/\$1,100,000/).length).toBeGreaterThan(0);
+  });
+
+  it("shows positive implied equity in green", () => {
+    render(<FixerAnalysisCard data={BASE} />);
+    expect(screen.getByText(/implied equity/i)).toBeInTheDocument();
+    // positive equity shows with + prefix
+    expect(screen.getByText(/\+\$112,000/)).toBeInTheDocument();
+  });
+
+  it("shows negative implied equity with minus prefix", () => {
+    render(
+      <FixerAnalysisCard
+        data={{ ...BASE, implied_equity_mid: -50_000, renovated_fair_value: 938_000 }}
+      />
+    );
+    expect(screen.getByText(/−\$50,000/)).toBeInTheDocument();
   });
 });

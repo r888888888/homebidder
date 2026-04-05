@@ -256,7 +256,6 @@ def recommend_offer(
             sqft_adjustment_pct = _clamp(sqft_delta * 0.25, -0.10, 0.12)
             total_adjustment += sqft_adjustment_pct
 
-        total_adjustment += condition_adjustment
         fair_value = round(fair_value * (1 + total_adjustment))
         avm_blend_used = False
 
@@ -273,8 +272,8 @@ def recommend_offer(
             "avm_blend_used": avm_blend_used,
         }
     elif ppsf and sqft:
-        fair_value = round(ppsf * sqft * (1 + condition_adjustment))
-        total_adjustment = condition_adjustment
+        fair_value = round(ppsf * sqft)
+        total_adjustment = 0.0
         avm_blend_used = False
         fair_value_breakdown = {
             "method": "ppsf_fallback",
@@ -285,8 +284,8 @@ def recommend_offer(
             "avm_blend_used": False,
         }
     else:
-        fair_value = round(list_price * (1 + condition_adjustment))
-        total_adjustment = condition_adjustment
+        fair_value = round(list_price)
+        total_adjustment = 0.0
         avm_blend_used = False
         fair_value_breakdown = {
             "method": "list_price_fallback",

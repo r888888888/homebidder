@@ -300,6 +300,8 @@ describe("AnalysisStream", () => {
       all_in_fixer_mid: 988_000,
       all_in_fixer_high: 1_011_000,
       turnkey_value: 1_100_000,
+      renovated_fair_value: 1_100_000,
+      implied_equity_mid: 112_000,
       verdict: "cheaper_fixer",
       savings_mid: 112_000,
       scope_notes: null,

@@ -317,3 +317,40 @@ class TestEstimateRenovationCost:
         assert result["all_in_fixer_low"] == 900_000 + result["renovation_estimate_low"]
         assert result["all_in_fixer_high"] == 900_000 + result["renovation_estimate_high"]
         assert result["all_in_fixer_mid"] == 900_000 + result["renovation_estimate_mid"]
+
+    async def test_renovated_fair_value_equals_fair_value_estimate(self):
+        from agent.tools.renovation import estimate_renovation_cost
+        # condition signals no longer discount fair_value, so renovated_fair_value == fair_value_estimate
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}), \
+             patch("agent.tools.renovation.anthropic.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_cls.return_value = mock_client
+            mock_client.messages.create.return_value = _make_llm_response(_GOOD_LLM_JSON)
+            result = await estimate_renovation_cost(
+                _make_property(),
+                _make_offer(fair_value_estimate=1_100_000.0, condition_adjustment_pct=-2.0),
+            )
+        assert result["renovated_fair_value"] == 1_100_000
+
+    async def test_implied_equity_is_renovated_value_minus_all_in_mid(self):
+        from agent.tools.renovation import estimate_renovation_cost
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}), \
+             patch("agent.tools.renovation.anthropic.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_cls.return_value = mock_client
+            mock_client.messages.create.return_value = _make_llm_response(_GOOD_LLM_JSON)
+            result = await estimate_renovation_cost(_make_property(), _make_offer())
+        assert result["implied_equity_mid"] == result["renovated_fair_value"] - result["all_in_fixer_mid"]
+
+    async def test_renovated_fair_value_equals_fair_value_when_no_condition_adjustment(self):
+        from agent.tools.renovation import estimate_renovation_cost
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}), \
+             patch("agent.tools.renovation.anthropic.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_cls.return_value = mock_client
+            mock_client.messages.create.return_value = _make_llm_response(_GOOD_LLM_JSON)
+            result = await estimate_renovation_cost(
+                _make_property(),
+                _make_offer(condition_adjustment_pct=0.0),
+            )
+        assert result["renovated_fair_value"] == result["turnkey_value"]
