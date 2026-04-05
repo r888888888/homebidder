@@ -111,7 +111,8 @@ class TestToolResultSseEvents:
              patch("agent.orchestrator.lookup_property_by_address", new_callable=AsyncMock) as mock_lookup, \
              patch("agent.orchestrator.fetch_market_trends", new_callable=AsyncMock, return_value=phase6_result), \
              patch("agent.orchestrator.fetch_fhfa_hpi", new_callable=AsyncMock, return_value={"zip_code": "94114", "hpi_trend": "flat"}), \
-             patch("agent.orchestrator.fetch_ca_hazard_zones", new_callable=AsyncMock, return_value={"alquist_priolo": False}):
+             patch("agent.orchestrator.fetch_ca_hazard_zones", new_callable=AsyncMock, return_value={"alquist_priolo": False}), \
+             patch("agent.orchestrator.fetch_calenviroscreen_data", new_callable=AsyncMock, return_value=None):
 
             mock_client = AsyncMock()
             mock_cls.return_value = mock_client

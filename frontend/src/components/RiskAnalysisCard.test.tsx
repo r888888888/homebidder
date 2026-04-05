@@ -14,6 +14,7 @@ const LOW_RISK: RiskData = {
     { name: "days_on_market", level: "low", description: "Fresh listing at 7 days." },
     { name: "hpi_trend", level: "low", description: "Appreciating ZIP." },
     { name: "prop13_tax_shock", level: "low", description: "Small delta." },
+    { name: "highway_proximity", level: "low", description: "Traffic proximity at 30th percentile." },
   ],
 };
 
@@ -71,6 +72,9 @@ describe("RiskAnalysisCard", () => {
     expect(screen.getAllByText(/flood/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/home age/i)).toBeInTheDocument();
     expect(screen.getByText(/days on market/i)).toBeInTheDocument();
+    // highway_proximity must render with a friendly label, not the raw key
+    expect(screen.getByText(/highway proximity/i)).toBeInTheDocument();
+    expect(screen.queryByText("highway_proximity")).not.toBeInTheDocument();
   });
 
   it("renders factor descriptions", () => {

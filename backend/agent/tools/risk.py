@@ -218,6 +218,36 @@ def _assess_prop13_shock(listing: dict, neighborhood: dict | None) -> dict:
     )
 
 
+def _assess_highway_proximity(ces: dict | None) -> dict:
+    if ces is None:
+        return _factor("highway_proximity", "n/a", "No CalEnviroScreen data available.")
+    traffic_pct = ces.get("traffic_proximity_pct")
+    diesel_pct = ces.get("diesel_pm_pct")
+    if traffic_pct is None:
+        return _factor("highway_proximity", "n/a", "No CalEnviroScreen data available.")
+    if traffic_pct >= 80 and (diesel_pct or 0) >= 80:
+        return _factor(
+            "highway_proximity", "high",
+            f"High traffic proximity ({traffic_pct:.0f}th pct) and diesel PM ({diesel_pct:.0f}th pct) — "
+            "elevated pollution exposure typical of properties near major highways.",
+        )
+    if traffic_pct >= 80 or (diesel_pct or 0) >= 80:
+        return _factor(
+            "highway_proximity", "moderate",
+            f"Elevated traffic proximity ({traffic_pct:.0f}th pct) — "
+            "moderate pollution risk from nearby roads.",
+        )
+    if traffic_pct >= 60:
+        return _factor(
+            "highway_proximity", "moderate",
+            f"Traffic proximity at {traffic_pct:.0f}th percentile — moderate highway pollution exposure.",
+        )
+    return _factor(
+        "highway_proximity", "low",
+        f"Traffic proximity at {traffic_pct:.0f}th percentile — low highway pollution exposure.",
+    )
+
+
 # ---------------------------------------------------------------------------
 # Scoring
 # ---------------------------------------------------------------------------
@@ -247,6 +277,7 @@ def assess_risk(
     market_trends: dict | None = None,
     fhfa_hpi: dict | None = None,
     hazard_zones: dict | None = None,
+    ejscreen: dict | None = None,
 ) -> dict:
     """
     Aggregate all available data into a risk assessment.
@@ -265,6 +296,7 @@ def assess_risk(
         _assess_days_on_market(listing),
         _assess_hpi_trend(fhfa_hpi),
         _assess_prop13_shock(listing, neighborhood),
+        _assess_highway_proximity(ejscreen),
     ]
 
     score = sum(_SCORE_MAP.get(f["level"], 0) for f in factors)

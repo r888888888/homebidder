@@ -25,6 +25,7 @@ from .tools.mortgage_rates import fetch_mortgage_rates
 from .tools.market_trends import fetch_market_trends
 from .tools.fhfa import fetch_fhfa_hpi
 from .tools.ca_hazards import fetch_ca_hazard_zones
+from .tools.calenviroscreen import fetch_calenviroscreen_data
 from .tools.sf_permits import fetch_sf_permits
 from .tools.risk import assess_risk
 from .tools.rentcast import fetch_rental_estimate
@@ -454,6 +455,7 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
     phase6_trends: dict | None = None
     phase6_fhfa: dict | None = None
     phase6_hazards: dict | None = None
+    phase6_ejscreen: dict | None = None
     phase6_permits: dict | None = None
     phase8_investment: dict | None = None
     analysis_done = False
@@ -593,6 +595,7 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
                     phase6_tools.append(("fetch_fhfa_hpi", fetch_fhfa_hpi(zip_code), {}))
                 if lat and lon:
                     phase6_tools.append(("fetch_ca_hazard_zones", fetch_ca_hazard_zones(lat, lon), {}))
+                    phase6_tools.append(("fetch_calenviroscreen_data", fetch_calenviroscreen_data(lat, lon), {}))
                 if county == "san francisco" and address_matched:
                     permit_inputs = {"address_matched": address_matched}
                     if unit:
@@ -622,6 +625,8 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
                             phase6_fhfa = result
                         elif tool_name == "fetch_ca_hazard_zones":
                             phase6_hazards = result
+                        elif tool_name == "fetch_calenviroscreen_data":
+                            phase6_ejscreen = result
                         elif tool_name == "fetch_sf_permits":
                             phase6_permits = result
                         yield f"data: {json.dumps({'type': 'tool_call', 'tool': tool_name, 'input': tool_input})}\n\n"
@@ -692,6 +697,7 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
                     market_trends=phase6_trends,
                     fhfa_hpi=phase6_fhfa,
                     hazard_zones=phase6_hazards,
+                    ejscreen=phase6_ejscreen,
                 )
                 risk_result_persist = risk_result  # persist outer scope
                 log.info("Auto-computed assess_risk: overall=%s score=%s", risk_result.get("overall_risk"), risk_result.get("score"))

@@ -590,3 +590,49 @@ class TestOverallRiskLevel:
         )
         assert isinstance(result["score"], int)
         assert result["score"] >= 0
+
+
+class TestHighwayProximityFactor:
+    def test_high_when_traffic_pct_above_80_and_diesel_above_80(self):
+        from agent.tools.risk import _assess_highway_proximity
+
+        result = _assess_highway_proximity({"traffic_proximity_pct": 85.0, "diesel_pm_pct": 82.0, "ces_score_pct": 70.0})
+        assert result["level"] == "high"
+        assert result["name"] == "highway_proximity"
+
+    def test_moderate_when_traffic_pct_above_80_but_diesel_below_80(self):
+        from agent.tools.risk import _assess_highway_proximity
+
+        result = _assess_highway_proximity({"traffic_proximity_pct": 82.0, "diesel_pm_pct": 50.0, "ces_score_pct": 40.0})
+        assert result["level"] == "moderate"
+
+    def test_moderate_when_traffic_pct_above_60(self):
+        from agent.tools.risk import _assess_highway_proximity
+
+        result = _assess_highway_proximity({"traffic_proximity_pct": 70.0, "diesel_pm_pct": 30.0, "ces_score_pct": 20.0})
+        assert result["level"] == "moderate"
+
+    def test_low_when_traffic_pct_below_60(self):
+        from agent.tools.risk import _assess_highway_proximity
+
+        result = _assess_highway_proximity({"traffic_proximity_pct": 40.0, "diesel_pm_pct": 20.0, "ces_score_pct": 10.0})
+        assert result["level"] == "low"
+
+    def test_na_when_ces_data_is_none(self):
+        from agent.tools.risk import _assess_highway_proximity
+
+        result = _assess_highway_proximity(None)
+        assert result["level"] == "n/a"
+
+    def test_highway_factor_included_in_assess_risk_output(self):
+        from agent.tools.risk import assess_risk
+
+        ejscreen = {"traffic_proximity_pct": 85.0, "diesel_pm_pct": 85.0, "ces_score_pct": 70.0}
+        result = assess_risk(
+            listing=make_listing(),
+            market_stats=make_market_stats(),
+            offer_result=make_offer_result(),
+            ejscreen=ejscreen,
+        )
+        names = [f["name"] for f in result["factors"]]
+        assert "highway_proximity" in names
