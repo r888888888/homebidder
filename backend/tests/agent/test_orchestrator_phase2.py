@@ -299,14 +299,12 @@ class TestToolResultSseEvents:
         fake_offer = {
             "list_price": 995000,
             "fair_value_estimate": 1_000_000,
-            "fair_value_breakdown": {"method": "median_comp_anchor", "condition_adjustment_pct": -1.5},
             "offer_low": 970000,
             "offer_recommended": 995000,
             "offer_high": 1_020_000,
             "posture": "at-market",
             "offer_range_band_pct": 3.0,
             "spread_vs_list_pct": 0.5,
-            "condition_adjustment_pct": -1.5,
             "condition_signals": [{"label": "Tenant Occupied"}],
             "median_pct_over_asking": None,
             "pct_sold_over_asking": None,
@@ -382,14 +380,12 @@ class TestToolResultSseEvents:
              patch("agent.orchestrator.recommend_offer", return_value={
                  "list_price": 995000,
                  "fair_value_estimate": 980000,
-                 "fair_value_breakdown": {"method": "median_comp_anchor", "condition_adjustment_pct": -1.5},
                  "offer_low": 960000,
                  "offer_recommended": 980000,
                  "offer_high": 1_000_000,
                  "posture": "at-market",
                  "offer_range_band_pct": 3.0,
                  "spread_vs_list_pct": -1.5,
-                 "condition_adjustment_pct": -1.5,
                  "condition_signals": [{"label": "Tenant Occupied"}],
                  "median_pct_over_asking": None,
                  "pct_sold_over_asking": None,
@@ -408,7 +404,6 @@ class TestToolResultSseEvents:
         recommend_event = next(
             e for e in events if e.get("type") == "tool_result" and e.get("tool") == "recommend_offer"
         )
-        assert "condition_adjustment_pct" in recommend_event["result"]
         assert "condition_signals" in recommend_event["result"]
         args, _ = mock_recommend.call_args
         assert args[0]["description_signals"]["net_adjustment_pct"] == -1.5

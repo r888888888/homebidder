@@ -6,7 +6,15 @@ export const Route = createFileRoute("/")({
 });
 
 export interface AnalysisEvent {
-  type: "status" | "tool_call" | "tool_result" | "text" | "error" | "done" | "analysis_id" | "validation_result";
+  type:
+    | "status"
+    | "tool_call"
+    | "tool_result"
+    | "text"
+    | "error"
+    | "done"
+    | "analysis_id"
+    | "validation_result";
   text?: string;
   tool?: string;
   input?: Record<string, unknown>;
@@ -68,12 +76,14 @@ function HomePage() {
 
           <h1 className="display-title mb-5 text-4xl font-bold leading-tight text-white sm:text-5xl">
             Know exactly what to offer{" "}
-            <span className="text-[var(--coral)]">before you walk in the door.</span>
+            <span className="text-[var(--coral)]">
+              before you walk in the door.
+            </span>
           </h1>
 
           <p className="mb-10 max-w-lg text-base text-white/60 sm:text-lg">
-            AI-powered offer analysis backed by real comp data, Prop&nbsp;13 tax
-            estimates, CA hazard zones, and live market trends.
+            AI-powered offer analysis backed by real comp data, CA hazard zones,
+            and live market trends.
           </p>
 
           {/* Form card */}
@@ -85,7 +95,9 @@ function HomePage() {
           {import.meta.env.DEV && (
             <button
               type="button"
-              onClick={() => handleSubmit("319 Plymouth Ave, San Francisco, CA 94112", "")}
+              onClick={() =>
+                handleSubmit("319 Plymouth Ave, San Francisco, CA 94112", "")
+              }
               className="mt-4 rounded-lg border border-dashed border-white/20 bg-white/5 px-4 py-1.5 text-xs text-white/50 hover:border-white/40 hover:text-white/70"
             >
               Dev: analyze 310 Plymouth Ave
@@ -120,7 +132,9 @@ function HomePage() {
                 <h3 className="mb-2 text-base font-semibold text-[var(--ink)]">
                   {title}
                 </h3>
-                <p className="text-sm leading-relaxed text-[var(--ink-soft)]">{body}</p>
+                <p className="text-sm leading-relaxed text-[var(--ink-soft)]">
+                  {body}
+                </p>
               </div>
             ))}
           </div>

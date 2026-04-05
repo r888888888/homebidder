@@ -6,7 +6,6 @@ const BASE: FixerAnalysisData = {
   is_fixer: true,
   fixer_signals: ["Fixer / Contractor Special"],
   offer_recommended: 900_000,
-  condition_adjustment_pct: -2.0,
   renovation_estimate_low: 65_000,
   renovation_estimate_mid: 88_000,
   renovation_estimate_high: 111_000,

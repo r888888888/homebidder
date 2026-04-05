@@ -261,8 +261,8 @@ class TestContingencyRecommendations:
 
 
 class TestDescriptionSignalAdjustments:
-    def test_condition_adjustment_pct_returned_but_does_not_affect_fair_value(self):
-        """condition_adjustment_pct is tracked for display but no longer shifts fair_value."""
+    def test_description_signals_do_not_affect_fair_value(self):
+        """condition signals must not shift fair_value."""
         listing_fixer = {
             **BASE_LISTING,
             "description_signals": {
@@ -284,39 +284,29 @@ class TestDescriptionSignalAdjustments:
         result_fixer = recommend_offer(listing_fixer, stats)
         result_plain = recommend_offer(listing_plain, stats)
 
-        # condition_adjustment_pct still surfaced for display
-        assert result_fixer["condition_adjustment_pct"] == pytest.approx(-2.0)
-        assert result_fixer["fair_value_breakdown"]["condition_adjustment_pct"] == pytest.approx(-2.0)
-        # but fair_value is identical to the no-signal baseline
         assert result_fixer["fair_value_estimate"] == pytest.approx(result_plain["fair_value_estimate"])
+        assert "condition_adjustment_pct" not in result_fixer
+        assert "condition_adjustment_pct" not in result_fixer.get("fair_value_breakdown", {})
 
-    def test_renovated_signal_pct_returned_but_does_not_affect_fair_value(self):
-        listing_renovated = {
+    def test_condition_signals_still_passed_through_for_display(self):
+        listing_fixer = {
             **BASE_LISTING,
-            "avm_estimate": 1_150_000,
             "description_signals": {
-                "net_adjustment_pct": 2.5,
+                "net_adjustment_pct": -2.0,
                 "detected_signals": [
                     {
-                        "label": "Renovated / Updated",
-                        "category": "condition_positive",
-                        "direction": "positive",
-                        "weight_pct": 1.5,
-                        "matched_phrases": ["renovated"],
+                        "label": "Fixer / Contractor Special",
+                        "category": "condition_negative",
+                        "direction": "negative",
+                        "weight_pct": -2.0,
+                        "matched_phrases": ["fixer"],
                     }
                 ],
             },
         }
-        listing_plain = {**BASE_LISTING, "avm_estimate": 1_150_000}
-        stats = {**BASE_STATS, "median_pct_over_asking": 1.0}
-
-        result_renovated = recommend_offer(listing_renovated, stats)
-        result_plain = recommend_offer(listing_plain, stats)
-
-        assert result_renovated["condition_adjustment_pct"] == pytest.approx(2.5)
-        assert result_renovated["fair_value_breakdown"]["avm_blend_used"] is True
-        assert result_renovated["condition_signals"]
-        assert result_renovated["fair_value_estimate"] == pytest.approx(result_plain["fair_value_estimate"])
+        result = recommend_offer(listing_fixer, BASE_STATS)
+        assert result["condition_signals"]
+        assert result["condition_signals"][0]["label"] == "Fixer / Contractor Special"
 
     def test_offer_range_invariant_holds_with_description_adjustment(self):
         listing = {

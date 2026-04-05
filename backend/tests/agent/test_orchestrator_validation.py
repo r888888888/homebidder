@@ -43,7 +43,6 @@ OFFER_RESULT = {
         "base_comp_median": 1_200_000,
         "lot_adjustment_pct": 0,
         "sqft_adjustment_pct": 0,
-        "condition_adjustment_pct": 0,
         "avm_blend_used": False,
     },
     "fair_value_confidence_interval": {
@@ -59,7 +58,6 @@ OFFER_RESULT = {
     "posture": "at-market",
     "offer_range_band_pct": 4.0,
     "spread_vs_list_pct": 0.0,
-    "condition_adjustment_pct": 0.0,
     "condition_signals": [],
     "median_pct_over_asking": 2.0,
     "pct_sold_over_asking": 60.0,

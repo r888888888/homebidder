@@ -8,7 +8,6 @@ export interface FixerAnalysisData {
   is_fixer: boolean;
   fixer_signals: string[];
   offer_recommended: number;
-  condition_adjustment_pct: number;
   renovation_estimate_low: number;
   renovation_estimate_mid: number;
   renovation_estimate_high: number;

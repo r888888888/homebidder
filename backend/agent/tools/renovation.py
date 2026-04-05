@@ -67,28 +67,62 @@ async def estimate_renovation_cost(
     model = os.getenv("RENOVATION_LLM_MODEL", DEFAULT_MODEL)
     client = anthropic.AsyncAnthropic(api_key=api_key)
 
+    sqft = property_data.get("sqft")
+    bedrooms = property_data.get("bedrooms")
+    bathrooms = property_data.get("bathrooms")
+    year_built = property_data.get("year_built")
+
+    # Pre-compute scaled anchors to feed into the prompt
+    flooring_low  = round(sqft * 12 / 1000) * 1000 if sqft else None
+    flooring_high = round(sqft * 22 / 1000) * 1000 if sqft else None
+    paint_low     = round(sqft * 4  / 1000) * 1000 if sqft else None
+    paint_high    = round(sqft * 8  / 1000) * 1000 if sqft else None
+    bath_count    = int(bathrooms) if bathrooms else None
+
+    flooring_note = (
+        f"  - Flooring (replace, {sqft} sqft): ${flooring_low:,}–${flooring_high:,} "
+        f"(at $12–$22/sqft installed)\n"
+        if flooring_low else "  - Flooring (replace): $15k–$35k\n"
+    )
+    paint_note = (
+        f"  - Interior paint ({sqft} sqft): ${paint_low:,}–${paint_high:,} "
+        f"(at $4–$8/sqft)\n"
+        if paint_low else "  - Interior paint: $8k–$20k\n"
+    )
+    bath_note = (
+        f"  - Bathroom remodel: $25k–$60k per bath × {bath_count} "
+        f"= ${bath_count*25:,}k–${bath_count*60:,}k total (full gut $50k–$90k each)\n"
+        if bath_count else "  - Bathroom remodel: $25k–$60k per bath; full gut: $50k–$90k\n"
+    )
+    hazmat_note = (
+        "  - Hazmat remediation (lead paint, asbestos likely in pre-1980 home): $8k–$25k\n"
+        if year_built and year_built < 1980 else ""
+    )
+
     prompt = (
         "You are an experienced SF Bay Area general contractor estimating renovation costs for a buyer's due diligence.\n"
-        "SF Bay Area labor is among the most expensive in the country. Use these 2025 benchmarks:\n"
+        "SF Bay Area labor is among the most expensive in the country. Use these 2025 benchmarks "
+        "scaled to the specific property:\n"
         "  - Kitchen remodel (mid-range): $80k–$150k; full gut/high-end: $150k–$250k+\n"
-        "  - Bathroom remodel: $25k–$60k per bath; full gut: $50k–$90k\n"
-        "  - Roof replacement: $25k–$60k depending on size and material\n"
+        + bath_note
+        + flooring_note
+        + paint_note
+        + "  - Roof replacement: $25k–$60k depending on size and material\n"
         "  - Electrical panel upgrade + rewire: $15k–$40k\n"
         "  - Plumbing repipe (copper/PEX): $15k–$35k\n"
         "  - HVAC (furnace + ducts): $15k–$30k; adding central AC: $10k–$20k additional\n"
-        "  - Hardwood floors (refinish): $5k–$12k; replace: $15k–$35k\n"
-        "  - Interior paint (full house): $8k–$20k\n"
         "  - Foundation work: $20k–$80k+ depending on scope\n"
         "  - Seismic retrofit (cripple wall): $10k–$25k\n"
         "  - Windows (full replacement): $20k–$60k\n"
-        "Assume union or prevailing-wage labor, permit fees, and a 15% contractor margin.\n"
-        "Older homes (pre-1980) often require hazmat remediation (lead paint, asbestos): add $5k–$20k.\n\n"
-        "Given the property details below, estimate realistic costs to bring this fixer to move-in-ready condition. "
+        + hazmat_note
+        + "Assume union or prevailing-wage labor, permit fees, and a 15% contractor margin.\n"
         "Err on the high side — buyers are better served by conservative estimates.\n\n"
-        f"Property: {property_data.get('sqft', 'unknown')} sqft, "
-        f"built {property_data.get('year_built', 'unknown')}, "
+        "Given the property details below, produce a line-item estimate to bring this fixer to "
+        "move-in-ready condition. Scale each item to the actual sqft and room count.\n\n"
+        f"Property: {sqft or 'unknown'} sqft, "
+        f"built {year_built or 'unknown'}, "
         f"{property_data.get('property_type', 'unknown')}, "
-        f"{property_data.get('bedrooms', 'unknown')} bed / {property_data.get('bathrooms', 'unknown')} bath\n"
+        f"{bedrooms or 'unknown'} bed / {bathrooms or 'unknown'} bath\n"
         f"Fixer signals: {', '.join(fixer_phrases) if fixer_phrases else 'general fixer condition'}\n"
         + (f"Buyer notes: {buyer_context}\n" if buyer_context.strip() else "")
         + "\nReturn JSON only:\n"
@@ -140,11 +174,7 @@ async def estimate_renovation_cost(
     else:
         verdict = "comparable"
 
-    condition_adjustment_pct = (
-        (offer_result.get("fair_value_breakdown") or {}).get("condition_adjustment_pct") or 0.0
-    )
-
-    # Condition signals no longer discount fair_value, so the post-renovation value
+    # Condition signals do not discount fair_value, so the post-renovation value
     # equals fair_value directly.
     renovated_fair_value = fair_value
     implied_equity_mid = renovated_fair_value - all_in_mid
@@ -153,7 +183,6 @@ async def estimate_renovation_cost(
         "is_fixer": True,
         "fixer_signals": fixer_signals,
         "offer_recommended": offer_recommended,
-        "condition_adjustment_pct": condition_adjustment_pct,
         "renovation_estimate_low": total_low,
         "renovation_estimate_mid": total_mid,
         "renovation_estimate_high": total_high,

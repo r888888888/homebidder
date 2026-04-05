@@ -15,7 +15,6 @@ export interface OfferData {
   offer_high: number | null;
   posture: "competitive" | "at-market" | "negotiating";
   spread_vs_list_pct: number | null;
-  condition_adjustment_pct?: number | null;
   condition_signals?: Array<{
     label?: string;
     category?: string;
@@ -113,8 +112,6 @@ export function OfferRecommendationCard({ offer }: Props) {
     offer.median_pct_over_asking != null || offer.pct_sold_over_asking != null;
   const contingency = offer.contingency_recommendation;
   const hoaEquivalent = offer.hoa_equivalent_sfh_value;
-  const conditionSignals = offer.condition_signals ?? [];
-  const hasConditionSection = conditionSignals.length > 0;
 
   // Range bar: position of recommended within [low, high]
   const low = offer.offer_low ?? 0;
@@ -225,22 +222,6 @@ export function OfferRecommendationCard({ offer }: Props) {
           </div>
         )}
 
-        {hasConditionSection && (
-          <div className="rounded-xl bg-[var(--bg)] p-4 text-sm">
-            <p className="text-xs text-[var(--ink-muted)] mb-0.5">Description Signals Impact</p>
-            <p className="font-semibold text-[var(--ink)]">{fmtPct(offer.condition_adjustment_pct ?? null)}</p>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {conditionSignals.map((signal, idx) => (
-                <span
-                  key={`${signal.label ?? "signal"}-${idx}`}
-                  className="rounded-full border border-[var(--line)] bg-white px-2 py-0.5 text-[11px] text-[var(--ink-soft)]"
-                >
-                  {signal.label}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* Offer review advisory */}
         {offer.offer_review_advisory && (
