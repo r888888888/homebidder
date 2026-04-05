@@ -18,7 +18,7 @@ Reference document for all candidate data sources: scrapeable sites, free APIs, 
 | Zillow `__NEXT_DATA__` | Listings, Zestimate | Free (scraping) | High | Fallback only |
 | homeharvest (Python) | Realtor.com + Redfin + Zillow | Free (library) | Moderate | Rapid prototyping |
 | ATTOM Data | Full property data | 30-day trial, then paid | None | Future paid tier |
-| **DataSF Assessor-Recorder API** | SF Prop 13 assessed value, permits | Free, no auth | None | SF tax impact calc |
+| **DataSF Assessor-Recorder API** | SF permits | Free, no auth | None | Permit history |
 | **Alameda County Open Data** | Assessor parcel data | Free, no auth | None | Oakland/Berkeley comps |
 | **Santa Clara County Assessor** | Assessor parcel data | Free, no auth | None | South Bay comps |
 | **CGS Fault/Liquefaction shapefiles** | Earthquake hazard zones | Free, static download | None | CA seismic risk |
@@ -326,8 +326,6 @@ properties = scrape_property(
 
 **Key fields:** `blklot` (block-lot), `from_st`/`to_st`/`street` (address), `assessedland`, `assessedimpr`, `totvalue`, `exemptcode`, `taxclass`, `zoning_code`, `yrbuilt`, `baths`, `rooms`, `resunits`
 
-**Prop 13 use:** `assessedland + assessedimpr` = current Prop 13 assessed value. Buyer's new tax ≈ purchase_price × 1.18% (SF effective rate including SF Unified School parcel tax, BART, etc.).
-
 **How to use in HomeBidder:** Query using the normalized `street` + `blklot` (block-lot) derived from the Census geocoder output (which returns the Census TIGER matched address). Filter by street name and number from the matched address string.
 
 ---
@@ -435,7 +433,7 @@ GET https://msc.fema.gov/arcgis/rest/services/NFHL/NFHL_National/FeatureServer/2
    - `homeharvest` for listing + comp scraping
    - RentCast free tier for AVM validation (50 calls/month)
    - Redfin Data Center TSV for market trend context
-   - DataSF Assessor API for SF Prop 13 data (free, no rate limits)
+   - DataSF Assessor API for SF permit data (free, no rate limits)
 
 2. **Short-term — stabilize:**
    - Download CGS, CalFire, FEMA shapefiles once; load at startup for hazard checks

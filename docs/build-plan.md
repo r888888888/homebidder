@@ -17,7 +17,6 @@ Key dynamics that shape all phases:
 - **Offer review dates** are the norm: sellers set a date, collect all offers, respond once — the app must detect this and advise accordingly
 - **Clean offers win**: buyers routinely waive appraisal and loan contingencies; the app should flag when this is expected
 - **Disclosure packages** (NHD, TDS, SPQ, Statewide Buyer and Seller Advisory) are shared before offers; natural hazard flags are often already disclosed
-- **Prop 13 tax shock**: California property taxes are re-assessed at purchase price, not market value; a property with a Prop 13 basis of $200K assessed on a $2M sale means the buyer faces a 10× tax increase — this is a critical cost and risk factor
 - **Micro-market pricing**: SF neighborhoods (Noe Valley vs. Sunset vs. Bayview) and East Bay cities (Piedmont vs. Oakland flatlands) can differ by 50–100% in $/sqft within a 3-mile radius — comp radius must be tight
 - **Earthquake, fire, and flood exposure** is legally disclosed in every CA transaction and directly impacts insurability, lender requirements, and resale value
 
@@ -39,7 +38,6 @@ Key dynamics that shape all phases:
   - `address_matched` — Census geocoder normalized form (populated in Phase 2)
   - `latitude`, `longitude`, `county`, `state`, `zip_code` (populated in Phase 2)
 - Add `avm_estimate` (float), `neighborhood_context` (JSON text) columns
-- Add `prop13_assessed_value` (float), `prop13_base_year` (int), `prop13_annual_tax` (float)
 - Add unique index on `address_matched` for cache lookups (nullable until Phase 2 populates it)
 
 **Frontend — update `AnalysisForm.tsx`**
@@ -91,40 +89,29 @@ Key dynamics that shape all phases:
 
 ---
 
-## Phase 3 — Neighborhood Context & Prop 13
+## Phase 3 — Neighborhood Context
 
-**Goal:** Add the `fetch_neighborhood_context` tool to pull county assessor data (Prop 13 assessed value) and Census ACS neighborhood stats. Extend `PropertySummaryCard` with a Prop 13 tax impact panel.
+**Goal:** Add the `fetch_neighborhood_context` tool to pull Census ACS neighborhood stats.
 
 ### What changes
 
 **Backend — new tool: `fetch_neighborhood_context`**
 - `backend/agent/tools/neighborhood.py` (new file)
 - Uses `county`, `state`, `zip_code`, `address_matched` from the Phase 2 geocoder result
-- **Primary path — Bay Area county assessors:**
-  - **San Francisco** (`county == "San Francisco"`): DataSF Assessor-Recorder API (`data.sfgov.org/resource/wv5m-vpq2.json`) — returns `assessedland`, `assessedimpr`, `yrbuilt`
-  - **Alameda County**: ArcGIS REST query on `data.acgov.org` parcel layer
-  - **Santa Clara County**: `sccassessor.org` open data endpoint
-  - **San Mateo, Contra Costa, Marin**: skip to fallback
-- **Fallback path** (all other counties): Census ACS API (`CENSUS_API_KEY`) for the ZCTA matching `zip_code` — tables `B25077` (median home value), `B25001` (housing units), `B25004` (vacancy), `B25035` (median year built)
-- Returns: `median_home_value`, `owner_occupancy_rate`, `vacancy_rate`, `median_year_built`, `housing_units`, `prop13_assessed_value`, `prop13_base_year`, `prop13_annual_tax` (null if county not supported)
-- Persist `prop13_assessed_value`, `prop13_base_year`, `prop13_annual_tax`, `neighborhood_context` to `Listing`
+- Census ACS API (`CENSUS_API_KEY`) for the ZCTA matching `zip_code` — tables `B25077` (median home value), `B25001` (housing units), `B25004` (vacancy), `B25035` (median year built)
+- Returns: `median_home_value`, `vacancy_rate`, `median_year_built`, `housing_units`
+- Persist `neighborhood_context` to `Listing`
 
 **Backend — update `orchestrator.py`**
 - Register `fetch_neighborhood_context` tool
 - System prompt: after `lookup_property_by_address`, call `fetch_neighborhood_context`
-- Compute and surface `buyer_annual_tax_estimate` = purchase_price × 1.25% (CA effective rate)
 
 **Frontend — update `PropertySummaryCard.tsx`**
-- Add neighborhood stats panel: median home value, owner-occupancy rate, vacancy rate
-- **Prop 13 Tax Impact panel** (shown when `prop13_assessed_value` is non-null):
-  - Seller's estimated annual tax (based on Prop 13 assessed value)
-  - Buyer's estimated annual tax (based on purchase price × 1.25%)
-  - Delta flagged in amber/red if increase > $5K/yr
+- Add neighborhood stats panel: median home value, vacancy rate, median year built
 
 ### Validation
-1. SF address → Prop 13 panel shows seller's tax vs. buyer's estimated tax at purchase price
-2. Non-Bay-Area address → panel absent; Census ACS neighborhood stats shown instead
-3. `prop13_assessed_value` written to `Listing` DB record
+1. Any address → Census ACS neighborhood stats shown
+2. `neighborhood_context` written to `Listing` DB record
 
 ---
 
@@ -263,7 +250,7 @@ Key dynamics that shape all phases:
 **Backend — new tool: `assess_risk`**
 - `backend/agent/tools/risk.py` (new file)
 - Pure Python, no I/O — called after all Phase 6 tools complete
-- Inputs: `property`, `comps_stats`, `market_trends`, `hpi_data`, `ca_hazard_zones`, `prop13_data`
+- Inputs: `property`, `comps_stats`, `market_trends`, `hpi_data`, `ca_hazard_zones`
 - Risk factors and weights:
   - **Price risk**: offer > 10% above comp fair value → High
   - **Market velocity**: `months_of_supply` > 4 → lower risk; < 2 → higher
@@ -275,7 +262,6 @@ Key dynamics that shape all phases:
   - **Fire zone**: Very High or High → insurance availability risk (State Farm/Allstate CA exit)
   - **Flood zone**: A/AE/AO/VE → required flood insurance (~$1–3K/yr carrying cost)
   - **Liquefaction**: High → elevated earthquake damage risk
-  - **Prop 13 tax shock**: buyer tax > seller tax × 3 → flag significant increase
 - Returns: `risk_level: Low/Medium/High`, `risk_factors: [{factor, severity, detail}]`
 
 **Backend — update `orchestrator.py`**
@@ -330,11 +316,11 @@ Key dynamics that shape all phases:
 **Backend — new tool: `compute_investment_metrics`**
 - `backend/agent/tools/investment.py` (new file)
 - Pure Python, no I/O
-- Inputs: `property`, `rental_estimate`, `mortgage_rates`, `hpi_trend`, `ba_value_drivers`, `prop13_annual_tax`
+- Inputs: `property`, `rental_estimate`, `mortgage_rates`, `hpi_trend`, `ba_value_drivers`
 - Computes:
   - `gross_yield_pct` = (annual_rent / price) × 100
   - `price_to_rent_ratio` = price / (monthly_rent × 12)
-  - `monthly_cashflow_estimate` = rent − (mortgage + `prop13_annual_tax`/12 + hoa + 10% vacancy + 10% maintenance). Mortgage: 20% down, 30yr fixed using `mortgage_rates.rate_30yr_fixed` from FRED (live rate, not hardcoded). Surface `rate_30yr_fixed` and `as_of_date` in the UI so the buyer knows what rate was assumed.
+  - `monthly_cashflow_estimate` = rent − (mortgage + hoa + 10% vacancy + 10% maintenance). Mortgage: 20% down, 30yr fixed using `mortgage_rates.rate_30yr_fixed` from FRED (live rate, not hardcoded). Surface `rate_30yr_fixed` and `as_of_date` in the UI so the buyer knows what rate was assumed.
   - `adu_gross_yield_boost_pct`: recomputed yield including `adu_rent_estimate` if `adu_potential == True`
   - `projected_value_1yr/3yr/5yr`: FHFA HPI YoY compounded
   - `investment_rating`: Buy (≥ 3.5%) / Hold (2.5–3.5%) / Overpriced (< 2.5%) — Bay Area-calibrated thresholds
@@ -360,8 +346,7 @@ Key dynamics that shape all phases:
 1. SF SFR with lot ≥ 3000 sqft → ADU potential shown; boosted yield displayed
 2. Pre-1979 SF flat → Rent Control: SF Rent Ordinance badge shown
 3. Address within 0.5 miles of 16th St Mission BART → transit premium badge
-4. `prop13_annual_tax` (not estimated rate) used in cashflow calc
-5. Live FRED rate used in mortgage payment — not hardcoded; `as_of_date` shown in UI
+4. Live FRED rate used in mortgage payment — not hardcoded; `as_of_date` shown in UI
 6. Gross yield thresholds use Bay Area norms (3.5% / 2.5% breakpoints)
 
 ---
@@ -437,7 +422,7 @@ Key dynamics that shape all phases:
 | Census Geocoder | P2 | None | No hard limit | Address normalization |
 | homeharvest (Realtor.com/Redfin) | P2 | None | ToS risk | Primary listing + comp source |
 | RentCast (property lookup) | P2 | Free API key | 50 calls/month free | AVM for unlisted homes |
-| DataSF Assessor-Recorder API | P3 | None | No hard limit | SF Prop 13 assessed value |
+| DataSF Assessor-Recorder API | P3 | None | No hard limit | SF permit data |
 | Alameda County Open Data | P3 | None | No hard limit | East Bay assessor parcel data |
 | Santa Clara County Assessor | P3 | None | No hard limit | South Bay assessor parcel data |
 | Census ACS | P3 fallback | Free API key | No hard limit | Neighborhood demographics |

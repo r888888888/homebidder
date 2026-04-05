@@ -72,7 +72,7 @@ OFFER_RESULT = {
     "hoa_equivalent_sfh_value": None,
 }
 
-NEIGHBORHOOD_RESULT = {"zip_code": "94112", "prop13_annual_tax": 12_000}
+NEIGHBORHOOD_RESULT = {"zip_code": "94112"}
 MARKET_TRENDS = {"zip_code": "94112", "months": [], "trend": "flat"}
 FHFA = {"zip_code": "94112", "hpi_trend": "flat"}
 HAZARDS = {"alquist_priolo": False}

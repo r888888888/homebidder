@@ -78,8 +78,7 @@ TOOLS: list[anthropic.types.ToolParam] = [
     {
         "name": "fetch_neighborhood_context",
         "description": (
-            "Fetch Prop 13 assessed-value data from the county assessor (SF, Alameda, Santa Clara) "
-            "and Census ACS neighborhood statistics (median home value, housing units, vacancy rate). "
+            "Fetch Census ACS neighborhood statistics (median home value, housing units, vacancy rate). "
             "Call after lookup_property_by_address using its county, state, zip_code, and address_matched."
         ),
         "input_schema": {

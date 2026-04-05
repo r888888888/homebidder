@@ -15,7 +15,7 @@ Never write implementation code without a corresponding test written first. If a
 ### What to test
 
 - **Backend tools** (`backend/agent/tools/`): unit test each tool function in isolation. Mock all external HTTP calls (homeharvest, RentCast, Census, BART, FEMA, etc.) — do not make real network calls in tests.
-- **Pricing and risk logic** (`pricing.py`, `risk.py`, `investment.py`): pure functions with no I/O — test exhaustively with representative Bay Area inputs (high overbid market, slow market, hazard zone combos, Prop 13 edge cases).
+- **Pricing and risk logic** (`pricing.py`, `risk.py`, `investment.py`): pure functions with no I/O — test exhaustively with representative Bay Area inputs (high overbid market, slow market, hazard zone combos).
 - **API routes** (`backend/api/routes.py`): integration-test each endpoint using the FastAPI test client against a real SQLite test DB (not mocked) — this is the system boundary where real DB behavior matters.
 - **Orchestrator** (`orchestrator.py`): test that tools are registered, the agent prompt contains required steps, and SSE events are emitted in the correct order. Mock the Anthropic API call.
 - **Frontend components**: test rendering and user interaction with Vitest + React Testing Library. Do not test implementation details (internal state, class names) — test what the user sees and can do.
