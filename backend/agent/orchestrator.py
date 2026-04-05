@@ -595,7 +595,6 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
                     phase6_tools.append(("fetch_fhfa_hpi", fetch_fhfa_hpi(zip_code), {}))
                 if lat and lon:
                     phase6_tools.append(("fetch_ca_hazard_zones", fetch_ca_hazard_zones(lat, lon), {}))
-                    phase6_tools.append(("fetch_calenviroscreen_data", fetch_calenviroscreen_data(lat, lon), {}))
                 if county == "san francisco" and address_matched:
                     permit_inputs = {"address_matched": address_matched}
                     if unit:
@@ -625,13 +624,24 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
                             phase6_fhfa = result
                         elif tool_name == "fetch_ca_hazard_zones":
                             phase6_hazards = result
-                        elif tool_name == "fetch_calenviroscreen_data":
-                            phase6_ejscreen = result
                         elif tool_name == "fetch_sf_permits":
                             phase6_permits = result
                         yield f"data: {json.dumps({'type': 'tool_call', 'tool': tool_name, 'input': tool_input})}\n\n"
                         yield f"data: {json.dumps({'type': 'tool_result', 'tool': tool_name, 'result': result})}\n\n"
                         log.info("Phase 6 auto-computed %s", tool_name)
+
+                # fetch_calenviroscreen_data is synchronous (in-memory shapely lookup) —
+                # call it directly after the async gather to avoid crashing asyncio.gather.
+                if lat and lon:
+                    try:
+                        ces_result = fetch_calenviroscreen_data(lat, lon)
+                        if ces_result is not None:
+                            phase6_ejscreen = ces_result
+                            yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'fetch_calenviroscreen_data', 'input': {}})}\n\n"
+                            yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'fetch_calenviroscreen_data', 'result': ces_result})}\n\n"
+                            log.info("Phase 6 auto-computed fetch_calenviroscreen_data")
+                    except Exception as exc:
+                        log.warning("Phase 6 fetch_calenviroscreen_data failed: %s", exc)
 
             # Phase 2: auto-compute analyze_market + recommend_offer after comps arrive
             if "fetch_comps" in dispatched and not analysis_done:

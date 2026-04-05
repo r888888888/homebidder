@@ -112,7 +112,7 @@ class TestToolResultSseEvents:
              patch("agent.orchestrator.fetch_market_trends", new_callable=AsyncMock, return_value=phase6_result), \
              patch("agent.orchestrator.fetch_fhfa_hpi", new_callable=AsyncMock, return_value={"zip_code": "94114", "hpi_trend": "flat"}), \
              patch("agent.orchestrator.fetch_ca_hazard_zones", new_callable=AsyncMock, return_value={"alquist_priolo": False}), \
-             patch("agent.orchestrator.fetch_calenviroscreen_data", new_callable=AsyncMock, return_value=None):
+             patch("agent.orchestrator.fetch_calenviroscreen_data", return_value=None):
 
             mock_client = AsyncMock()
             mock_cls.return_value = mock_client
@@ -128,6 +128,87 @@ class TestToolResultSseEvents:
         assert "fetch_market_trends" in tool_names
         assert "fetch_fhfa_hpi" in tool_names
         assert "fetch_ca_hazard_zones" in tool_names
+
+    async def test_calenviroscreen_data_emitted_and_flows_to_risk(self):
+        """CalEnviroScreen data is fetched synchronously and highway_proximity
+        appears in the assess_risk result with a non-n/a level."""
+        from unittest.mock import MagicMock
+
+        lookup_block = MagicMock()
+        lookup_block.type = "tool_use"
+        lookup_block.name = "lookup_property_by_address"
+        lookup_block.id = "tu_lookup_ces"
+        lookup_block.input = {"address": "450 Sanchez St, San Francisco, CA 94114"}
+
+        comps_block = MagicMock()
+        comps_block.type = "tool_use"
+        comps_block.name = "fetch_comps"
+        comps_block.id = "tu_comps_ces"
+        comps_block.input = {"address": "450 Sanchez St"}
+
+        tool_use_lookup = MagicMock(stop_reason="tool_use", content=[lookup_block])
+        tool_use_comps = MagicMock(stop_reason="tool_use", content=[comps_block])
+        end_turn = MagicMock(stop_reason="end_turn", content=[])
+
+        property_result = {
+            "address_matched": "450 SANCHEZ ST, SAN FRANCISCO, CA, 94114",
+            "latitude": 37.7612,
+            "longitude": -122.4313,
+            "county": "San Francisco",
+            "state": "CA",
+            "zip_code": "94114",
+            "price": 1_250_000.0,
+            "bedrooms": 3,
+            "bathrooms": 2.0,
+            "sqft": 1800,
+            "year_built": 1990,
+            "lot_size": 2500,
+            "property_type": "SINGLE_FAMILY",
+            "hoa_fee": None,
+            "days_on_market": 5,
+            "price_history": [],
+            "avm_estimate": None,
+            "source": "homeharvest",
+        }
+        ces_data = {
+            "traffic_proximity_pct": 85.0,
+            "diesel_pm_pct": 82.0,
+            "pm25_pct": 60.0,
+            "ces_score_pct": 70.0,
+        }
+        fake_comps = {
+            "comps": [],
+            "subject_sale": None,
+        }
+
+        with patch("agent.orchestrator.anthropic.AsyncAnthropic") as mock_cls, \
+             patch("agent.orchestrator.lookup_property_by_address", new_callable=AsyncMock, return_value=property_result), \
+             patch("agent.orchestrator.fetch_comps", new_callable=AsyncMock, return_value=fake_comps), \
+             patch("agent.orchestrator.fetch_market_trends", new_callable=AsyncMock, return_value={}), \
+             patch("agent.orchestrator.fetch_fhfa_hpi", new_callable=AsyncMock, return_value={}), \
+             patch("agent.orchestrator.fetch_ca_hazard_zones", new_callable=AsyncMock, return_value={}), \
+             patch("agent.orchestrator.fetch_calenviroscreen_data", return_value=ces_data), \
+             patch("agent.orchestrator.get_current_mortgage_rate_pct", new_callable=AsyncMock, return_value=7.0):
+
+            mock_client = AsyncMock()
+            mock_cls.return_value = mock_client
+            mock_client.messages.create.side_effect = [tool_use_lookup, tool_use_comps, end_turn]
+
+            events = await collect_events("450 Sanchez St, San Francisco, CA 94114")
+
+        # CalEnviroScreen SSE event must be emitted
+        tool_names = [e.get("tool") for e in events if e.get("type") == "tool_result"]
+        assert "fetch_calenviroscreen_data" in tool_names
+
+        # highway_proximity must appear in the risk assessment with a non-n/a level
+        risk_event = next(
+            (e for e in events if e.get("type") == "tool_result" and e.get("tool") == "assess_risk"),
+            None,
+        )
+        assert risk_event is not None, "assess_risk result event not found"
+        factors = {f["name"]: f["level"] for f in risk_event["result"]["factors"]}
+        assert "highway_proximity" in factors
+        assert factors["highway_proximity"] != "n/a"
 
     async def test_tool_result_event_contains_property_data(self):
         """The tool_result event payload includes address_matched and price."""
