@@ -17,7 +17,6 @@ export interface AnalysisEvent {
 
 const FEATURES = [
   "0.3-mile comp radius",
-  "Prop 13 tax impact",
   "CA hazard zones",
   "Overbid trend analysis",
   "BART proximity",
