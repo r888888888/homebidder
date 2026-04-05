@@ -72,26 +72,100 @@ class TestEvaluateConditionWithLlm:
 
 
 class TestMergeSignalResults:
-    def test_merges_rule_and_llm_with_conservative_cap(self):
+    def test_llm_occupancy_negative_still_adjusts_price(self):
+        """LLM occupancy_negative signals do affect net_adjustment_pct."""
         from agent.tools.condition_llm import merge_signal_results
 
         rule_result = {
             "version": "v1",
             "raw_description_present": True,
-            "detected_signals": [{"label": "Fixer / Contractor Special", "weight_pct": -2.0}],
-            "net_adjustment_pct": -2.0,
+            "detected_signals": [],
+            "net_adjustment_pct": 0.0,
         }
         llm_result = {
             "source": "llm",
             "confidence": 0.9,
-            "detected_signals": [{"label": "Tenant Occupied", "weight_pct": -1.5}],
+            "detected_signals": [{"label": "Tenant Occupied", "category": "occupancy_negative", "weight_pct": -1.5}],
             "net_adjustment_pct": -1.5,
             "model": "test-model",
         }
 
         merged = merge_signal_results(rule_result, llm_result)
-        assert merged["net_adjustment_pct"] == -3.0
+        # occupancy_negative still contributes (capped at LLM_CONTRIBUTION_CAP_PCT=1.0)
+        assert merged["net_adjustment_pct"] == -1.0
         assert merged["llm"]["used"] is True
+        assert "Tenant Occupied" in [s["label"] for s in merged["detected_signals"]]
+
+    def test_llm_condition_negative_does_not_adjust_price(self):
+        """LLM condition_negative signals are surfaced for display but do not affect net_adjustment_pct."""
+        from agent.tools.condition_llm import merge_signal_results
+
+        rule_result = {
+            "version": "v1",
+            "raw_description_present": True,
+            "detected_signals": [{"label": "Fixer / Contractor Special", "category": "condition_negative", "weight_pct": -2.0}],
+            "net_adjustment_pct": -2.0,
+        }
+        llm_result = {
+            "source": "llm",
+            "confidence": 0.9,
+            "detected_signals": [{"label": "Needs Work", "category": "condition_negative", "weight_pct": -2.0}],
+            "net_adjustment_pct": -2.0,
+            "model": "test-model",
+        }
+
+        merged = merge_signal_results(rule_result, llm_result)
+        # condition_negative from LLM does NOT change the price
+        assert merged["net_adjustment_pct"] == -2.0
+        # but the signal still appears in detected_signals for display
+        assert "Needs Work" in [s["label"] for s in merged["detected_signals"]]
+
+    def test_llm_condition_positive_does_not_adjust_price(self):
+        """LLM condition_positive signals are surfaced for display but do not affect net_adjustment_pct."""
+        from agent.tools.condition_llm import merge_signal_results
+
+        rule_result = {
+            "version": "v1",
+            "raw_description_present": True,
+            "detected_signals": [],
+            "net_adjustment_pct": 0.0,
+        }
+        llm_result = {
+            "source": "llm",
+            "confidence": 0.85,
+            "detected_signals": [{"label": "Renovated / Updated", "category": "condition_positive", "weight_pct": 1.5}],
+            "net_adjustment_pct": 1.5,
+            "model": "test-model",
+        }
+
+        merged = merge_signal_results(rule_result, llm_result)
+        assert merged["net_adjustment_pct"] == 0.0
+        assert "Renovated / Updated" in [s["label"] for s in merged["detected_signals"]]
+
+    def test_llm_mixed_signals_only_non_condition_affects_price(self):
+        """When LLM returns both condition and occupancy signals, only occupancy adjusts price."""
+        from agent.tools.condition_llm import merge_signal_results
+
+        rule_result = {
+            "version": "v1",
+            "raw_description_present": True,
+            "detected_signals": [{"label": "Fixer / Contractor Special", "category": "condition_negative", "weight_pct": -2.0}],
+            "net_adjustment_pct": -2.0,
+        }
+        llm_result = {
+            "source": "llm",
+            "confidence": 0.9,
+            "detected_signals": [
+                {"label": "Needs Updating", "category": "condition_negative", "weight_pct": -1.5},
+                {"label": "Tenant Occupied", "category": "occupancy_negative", "weight_pct": -1.0},
+            ],
+            "net_adjustment_pct": -2.5,
+            "model": "test-model",
+        }
+
+        merged = merge_signal_results(rule_result, llm_result)
+        # Only occupancy_negative (-1.0) counts; capped at 1.0 → -2.0 + -1.0 = -3.0
+        assert merged["net_adjustment_pct"] == -3.0
         labels = [s["label"] for s in merged["detected_signals"]]
-        assert "Fixer / Contractor Special" in labels
+        assert "Needs Updating" in labels
         assert "Tenant Occupied" in labels

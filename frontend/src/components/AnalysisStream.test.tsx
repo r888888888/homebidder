@@ -286,6 +286,55 @@ describe("AnalysisStream", () => {
     expect(screen.getByText(/open permit older than 1 year/i)).toBeInTheDocument();
   });
 
+  it("renders FixerAnalysisCard when estimate_renovation_cost tool result is present", () => {
+    const renovationResult = {
+      is_fixer: true,
+      fixer_signals: ["Fixer / Contractor Special"],
+      offer_recommended: 900_000,
+      condition_adjustment_pct: -2.0,
+      renovation_estimate_low: 65_000,
+      renovation_estimate_mid: 88_000,
+      renovation_estimate_high: 111_000,
+      line_items: [{ category: "Kitchen remodel", low: 35_000, high: 60_000 }],
+      all_in_fixer_low: 965_000,
+      all_in_fixer_mid: 988_000,
+      all_in_fixer_high: 1_011_000,
+      turnkey_value: 1_100_000,
+      verdict: "cheaper_fixer",
+      savings_mid: 112_000,
+      scope_notes: null,
+      disclaimer: "Renovation costs are rough Bay Area estimates. Get contractor bids before committing.",
+    };
+
+    const events = [
+      {
+        type: "tool_result" as const,
+        tool: "estimate_renovation_cost",
+        result: renovationResult as unknown as Record<string, unknown>,
+      },
+    ];
+
+    render(<AnalysisStream events={events} isRunning={false} />);
+
+    expect(screen.getByText(/fixer analysis/i)).toBeInTheDocument();
+    expect(screen.getByText(/fixer may win/i)).toBeInTheDocument();
+    expect(screen.getByText(/kitchen remodel/i)).toBeInTheDocument();
+  });
+
+  it("does not render fixer card when estimate_renovation_cost event is absent", () => {
+    const events = [
+      {
+        type: "tool_result" as const,
+        tool: "compute_investment_metrics",
+        result: INVESTMENT_RESULT as unknown as Record<string, unknown>,
+      },
+    ];
+
+    render(<AnalysisStream events={events} isRunning={false} />);
+
+    expect(screen.queryByText(/fixer analysis/i)).not.toBeInTheDocument();
+  });
+
   it("renders final analysis with markdown formatting", () => {
     const events = [
       {

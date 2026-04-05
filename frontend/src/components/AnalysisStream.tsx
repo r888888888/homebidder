@@ -9,6 +9,7 @@ import { OfferRecommendationCard, type OfferData } from "./OfferRecommendationCa
 import { RiskAnalysisCard, type RiskData } from "./RiskAnalysisCard";
 import { InvestmentCard, type InvestmentData } from "./InvestmentCard";
 import { PermitsCard, type PermitsData } from "./PermitsCard";
+import { FixerAnalysisCard, type FixerAnalysisData } from "./FixerAnalysisCard";
 import { ValidationBanner, type ValidationResult } from "./ValidationBanner";
 
 interface Props {
@@ -28,6 +29,7 @@ const TOOL_LABELS: Record<string, string> = {
   fetch_ba_value_drivers: "Computing Bay Area value drivers",
   compute_investment_metrics: "Computing investment metrics",
   fetch_sf_permits: "Fetching SF permit history",
+  estimate_renovation_cost: "Estimating renovation costs",
 };
 
 export function AnalysisStream({ events, isRunning }: Props) {
@@ -70,6 +72,11 @@ export function AnalysisStream({ events, isRunning }: Props) {
   );
   const permitsData = permitsEvent?.result as PermitsData | undefined;
 
+  const renovationEvent = events.find(
+    (e) => e.type === "tool_result" && e.tool === "estimate_renovation_cost"
+  );
+  const renovationData = renovationEvent?.result as FixerAnalysisData | undefined;
+
   const validationEvent = events.find((e) => e.type === "validation_result");
   const validationData = validationEvent?.result as ValidationResult | undefined;
 
@@ -105,6 +112,9 @@ export function AnalysisStream({ events, isRunning }: Props) {
 
       {/* Permit history */}
       {permitsData && <PermitsCard permits={permitsData} />}
+
+      {/* Fixer vs turn-key comparison (fixer properties only) */}
+      {renovationData && <FixerAnalysisCard data={renovationData} />}
 
       {/* Agent step progress */}
       {toolCalls.length > 0 && (

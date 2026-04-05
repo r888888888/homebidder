@@ -156,8 +156,17 @@ def merge_signal_results(
         merged["net_adjustment_pct"] = round(_clamp(base_net, -MAX_ABS_ADJUSTMENT_PCT, MAX_ABS_ADJUSTMENT_PCT), 2)
         return merged
 
+    _CONDITION_CATEGORIES = {"condition_negative", "condition_positive"}
+
     llm_confidence = float(llm_result.get("confidence") or 0.0)
-    llm_net_raw = float(llm_result.get("net_adjustment_pct") or 0.0)
+    # Condition (fixer/renovated) signals are surfaced for display only — rule-based signals
+    # are the authoritative source for condition pricing. Only non-condition LLM signals
+    # (e.g. occupancy_negative) may contribute to the price adjustment.
+    llm_pricing_signals = [
+        s for s in (llm_result.get("detected_signals") or [])
+        if s.get("category") not in _CONDITION_CATEGORIES
+    ]
+    llm_net_raw = sum(float(s.get("weight_pct") or 0.0) for s in llm_pricing_signals)
     llm_adjustment = _clamp(llm_net_raw, -LLM_CONTRIBUTION_CAP_PCT, LLM_CONTRIBUTION_CAP_PCT)
 
     combined_net = _clamp(base_net + llm_adjustment, -MAX_ABS_ADJUSTMENT_PCT, MAX_ABS_ADJUSTMENT_PCT)

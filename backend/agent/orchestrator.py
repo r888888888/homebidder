@@ -31,6 +31,7 @@ from .tools.risk import assess_risk
 from .tools.rentcast import fetch_rental_estimate
 from .tools.ba_value_drivers import fetch_ba_value_drivers
 from .tools.investment import compute_investment_metrics
+from .tools.renovation import estimate_renovation_cost, _is_fixer_property
 
 MODEL = "claude-sonnet-4-6"
 
@@ -742,6 +743,18 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
                     ba_value_drivers=ba_drivers_result if isinstance(ba_drivers_result, dict) else {},
                 )
                 yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'compute_investment_metrics', 'result': phase8_investment})}\n\n"
+
+                # Phase 9: fixer vs turn-key comparison (fixer properties only)
+                if _is_fixer_property(listing) and offer_result.get("fair_value_estimate"):
+                    yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'estimate_renovation_cost', 'input': {}})}\n\n"
+                    try:
+                        renovation_result = await estimate_renovation_cost(listing, offer_result, buyer_context=buyer_context)
+                    except Exception as exc:
+                        log.warning("Phase 9 estimate_renovation_cost failed: %s", exc)
+                        renovation_result = None
+                    if renovation_result is not None:
+                        yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'estimate_renovation_cost', 'result': renovation_result})}\n\n"
+                        log.info("Phase 9 renovation verdict=%s savings=%s", renovation_result.get("verdict"), renovation_result.get("savings_mid"))
 
                 # Inject results into conversation as a concise summary (avoids re-sending full comps)
                 summary = (
