@@ -254,6 +254,8 @@ async def _persist_analysis(
     investment_result: dict | None,
     final_text: str,
     permits_result: dict | None = None,
+    renovation_result: dict | None = None,
+    buyer_context: str = "",
 ) -> int:
     """Write Listing, Analysis, and Comp records to DB and return analysis id."""
     from sqlalchemy import select
@@ -315,6 +317,8 @@ async def _persist_analysis(
         risk_data_json=json.dumps(risk_result) if risk_result else None,
         investment_data_json=json.dumps(investment_result) if investment_result else None,
         permits_data_json=json.dumps(permits_result) if permits_result else None,
+        renovation_data_json=json.dumps(renovation_result) if renovation_result else None,
+        buyer_context=buyer_context or None,
     )
     db.add(analysis)
     await db.flush()
@@ -399,6 +403,11 @@ async def _stream_cached_analysis(analysis) -> AsyncIterator[str]:
         yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'fetch_sf_permits', 'input': {}})}\n\n"
         yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'fetch_sf_permits', 'result': data})}\n\n"
 
+    if analysis.renovation_data_json:
+        data = json.loads(analysis.renovation_data_json)
+        yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'estimate_renovation_cost', 'input': {}})}\n\n"
+        yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'estimate_renovation_cost', 'result': data})}\n\n"
+
     if analysis.rationale:
         yield f"data: {json.dumps({'type': 'text', 'text': analysis.rationale})}\n\n"
 
@@ -460,6 +469,7 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
     comps_result: list | None = None
     offer_result_persist: dict | None = None
     risk_result_persist: dict | None = None
+    renovation_result_persist: dict | None = None
     final_text_parts: list[str] = []
     # Validation mode: set when subject property was itself recently sold
     subject_sale_data: dict | None = None
@@ -521,6 +531,8 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
                         investment_result=phase8_investment,
                         final_text="".join(final_text_parts),
                         permits_result=phase6_permits,
+                        renovation_result=renovation_result_persist,
+                        buyer_context=buyer_context,
                     )
                     yield f"data: {json.dumps({'type': 'analysis_id', 'id': analysis_id})}\n\n"
                 except Exception as exc:
@@ -745,14 +757,19 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
                 yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'compute_investment_metrics', 'result': phase8_investment})}\n\n"
 
                 # Phase 9: fixer vs turn-key comparison (fixer properties only)
-                if _is_fixer_property(listing) and offer_result.get("fair_value_estimate"):
+                is_fixer = _is_fixer_property(listing)
+                fv_estimate = offer_result.get("fair_value_estimate")
+                log.info("Phase 9 guard: is_fixer=%s fair_value_estimate=%s", is_fixer, fv_estimate)
+                if is_fixer and fv_estimate:
                     yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'estimate_renovation_cost', 'input': {}})}\n\n"
                     try:
                         renovation_result = await estimate_renovation_cost(listing, offer_result, buyer_context=buyer_context)
                     except Exception as exc:
                         log.warning("Phase 9 estimate_renovation_cost failed: %s", exc)
                         renovation_result = None
+                    log.info("Phase 9 renovation_result=%s", "present" if renovation_result else "None")
                     if renovation_result is not None:
+                        renovation_result_persist = renovation_result
                         yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'estimate_renovation_cost', 'result': renovation_result})}\n\n"
                         log.info("Phase 9 renovation verdict=%s savings=%s", renovation_result.get("verdict"), renovation_result.get("savings_mid"))
 

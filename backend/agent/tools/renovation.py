@@ -3,6 +3,7 @@ LLM-based renovation cost estimator for fixer properties.
 """
 
 import json
+import logging
 import os
 import re
 from typing import Any
@@ -10,6 +11,7 @@ from typing import Any
 import anthropic
 
 DEFAULT_MODEL = "claude-haiku-4-5-20251001"
+log = logging.getLogger(__name__)
 
 
 def _is_fixer_property(property_data: dict) -> bool:
@@ -47,14 +49,17 @@ async def estimate_renovation_cost(
 ) -> dict[str, Any] | None:
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
+        log.warning("estimate_renovation_cost: ANTHROPIC_API_KEY not set — skipping")
         return None
 
     fair_value = offer_result.get("fair_value_estimate")
     if fair_value is None:
+        log.warning("estimate_renovation_cost: fair_value_estimate is None — skipping")
         return None
 
     offer_recommended = offer_result.get("offer_recommended") or 0
     if not offer_recommended:
+        log.warning("estimate_renovation_cost: offer_recommended is %s — skipping", offer_recommended)
         return None
 
     signals = (property_data.get("description_signals") or {}).get("detected_signals") or []
@@ -133,11 +138,12 @@ async def estimate_renovation_cost(
     try:
         resp = await client.messages.create(
             model=model,
-            max_tokens=600,
+            max_tokens=1200,
             temperature=0,
             messages=[{"role": "user", "content": prompt}],
         )
-    except Exception:
+    except Exception as exc:
+        log.warning("estimate_renovation_cost: LLM call failed: %s", exc)
         return None
 
     text_parts = []
@@ -146,10 +152,12 @@ async def estimate_renovation_cost(
             text_parts.append(getattr(block, "text", ""))
     payload = _extract_json_object("\n".join(text_parts))
     if not payload:
+        log.warning("estimate_renovation_cost: could not parse LLM JSON response")
         return None
 
     line_items = payload.get("line_items")
     if not isinstance(line_items, list) or not line_items:
+        log.warning("estimate_renovation_cost: line_items missing or empty in LLM response")
         return None
 
     try:
