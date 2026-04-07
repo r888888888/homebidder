@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { PropertySummaryCard } from "../components/PropertySummaryCard";
 import { OfferRecommendationCard } from "../components/OfferRecommendationCard";
 import { RiskAnalysisCard } from "../components/RiskAnalysisCard";
@@ -38,14 +38,14 @@ export function HistoryPage() {
   const [analyses, setAnalyses] = useState<AnalysisSummary[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [detail, setDetail] = useState<AnalysisDetail | null>(null);
+  const apiBase = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
   useEffect(() => {
-    const apiBase = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
     fetch(`${apiBase}/api/analyses`)
       .then((r) => r.json())
       .then(setAnalyses)
       .catch(() => {});
-  }, []);
+  }, [apiBase]);
 
   async function handleRowClick(id: number) {
     if (selectedId === id) {
@@ -53,12 +53,18 @@ export function HistoryPage() {
       setDetail(null);
       return;
     }
-    const apiBase = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
     const resp = await fetch(`${apiBase}/api/analyses/${id}`);
     const data = await resp.json();
     setSelectedId(id);
     setDetail(data);
   }
+
+  const handleDelete = useCallback(async (id: number) => {
+    await fetch(`${apiBase}/api/analyses/${id}`, { method: "DELETE" });
+    setAnalyses((prev) => prev.filter((a) => a.id !== id));
+    setSelectedId(null);
+    setDetail(null);
+  }, [apiBase]);
 
   return (
     <main className="page-wrap py-10">
@@ -82,12 +88,13 @@ export function HistoryPage() {
                 <th className="py-2 pr-4">Date</th>
                 <th className="py-2 pr-4">Offer</th>
                 <th className="py-2 pr-4">Risk</th>
-                <th className="py-2">Rating</th>
+                <th className="py-2 pr-4">Rating</th>
+                <th className="py-2"></th>
               </tr>
             </thead>
             <tbody>
               {analyses.map((a) => (
-                <>
+                <React.Fragment key={a.id}>
                   <tr
                     key={a.id}
                     className="cursor-pointer hover:bg-[var(--bg)] border-b border-[var(--line)]"
@@ -103,11 +110,20 @@ export function HistoryPage() {
                         : "—"}
                     </td>
                     <td className="py-3 pr-4">{a.risk_level ?? "—"}</td>
-                    <td className="py-3">{a.investment_rating ?? "—"}</td>
+                    <td className="py-3 pr-4">{a.investment_rating ?? "—"}</td>
+                    <td className="py-3" onClick={(e) => e.stopPropagation()}>
+                      <Link
+                        to="/analysis"
+                        search={{ address: a.address, buyerContext: "" }}
+                        className="text-xs text-[var(--navy)] underline"
+                      >
+                        View
+                      </Link>
+                    </td>
                   </tr>
                   {selectedId === a.id && detail && (
                     <tr key={`detail-${a.id}`}>
-                      <td colSpan={5} className="py-4">
+                      <td colSpan={6} className="py-4">
                         <div className="space-y-4">
                           {detail.property_data && (
                             <PropertySummaryCard
@@ -127,11 +143,20 @@ export function HistoryPage() {
                               investment={detail.investment_data as any}
                             />
                           )}
+                          <div className="flex justify-end pt-2">
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(a.id)}
+                              className="text-xs text-red-500 hover:text-red-700 underline"
+                            >
+                              Delete analysis
+                            </button>
+                          </div>
                         </div>
                       </td>
                     </tr>
                   )}
-                </>
+                </React.Fragment>
               ))}
             </tbody>
           </table>

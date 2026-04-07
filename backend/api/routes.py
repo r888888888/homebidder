@@ -114,6 +114,19 @@ async def get_analysis(analysis_id: int, db: AsyncSession = Depends(get_db)):
     }
 
 
+@router.delete("/analyses/{analysis_id}", status_code=204)
+async def delete_analysis(analysis_id: int, db: AsyncSession = Depends(get_db)):
+    """Delete a saved analysis record."""
+    from db.models import Analysis
+
+    result = await db.execute(select(Analysis).where(Analysis.id == analysis_id))
+    analysis = result.scalar_one_or_none()
+    if analysis is None:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+    await db.delete(analysis)
+    await db.commit()
+
+
 @router.get("/health")
 async def health():
     return {"status": "ok"}

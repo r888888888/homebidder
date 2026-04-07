@@ -19,6 +19,12 @@ export default function Header() {
             HomeBidder
           </span>
         </Link>
+        <Link
+          to="/history"
+          className="ml-auto text-sm text-[var(--ink-soft)] no-underline hover:text-[var(--ink)]"
+        >
+          History
+        </Link>
       </nav>
     </header>
   )

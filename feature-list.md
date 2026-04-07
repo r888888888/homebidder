@@ -1,7 +1,8 @@
 # TODO
 
+- Brainstorm better methods for estimating renovation costs
+- Incorporate React Query for API calls
 - Assuming the DBI permit search works, let's cache it in the database. Use a 24 hour expiry.
-- Create a page with a list of previously persisted analyses
 - Code review of backend
 - Code review of frontend
 - Add an option to delete analysis from database
@@ -17,9 +18,12 @@
 - Organize page into tabs
 - Support school quality
 - Factor in seasonality of sales
+- Why does "88 Hoff St #104, San Francisco, CA 94110" not find the correct unit?
+- Why does "88 Hoff St Apt 104, San Francisco, CA 94110" produce a low offer recc that's higher than the high offer recc?
 
 # DONE
 
+- Create a page with a list of previously persisted analyses
 - For fixer properties, add a Fixer vs Turn-key comparison card. What would it cost in renovations to modernize this fixer versus buying a turn-key equivalent. Use the LLM to figure out market rates for construction costs. Use teh base recommended offer price.
 - Remove Prop 13 tax impact information
 - Eliminate presentation specific frontend tests
@@ -27,3 +31,4 @@
 - Evaluate how LLM analysis of description might affect fair value
 - Factor in noise pollution and smog risk
 - Resolve the "sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) table analyses has no column named risk_level" error in the backend
+- Handle backend error: "Anthropic bad request (400): Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.'}, 'request_id': 'req_011CZoKt4KB8yaQZQg6uRaJw'}"

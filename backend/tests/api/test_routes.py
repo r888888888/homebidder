@@ -66,6 +66,49 @@ async def test_analyze_emits_analysis_id_event(client):
     assert analysis_id_events[0]["id"] == 42
 
 
+async def test_delete_analysis_not_found(client):
+    """DELETE /api/analyses/999 returns 404 when analysis doesn't exist."""
+    resp = await client.delete("/api/analyses/999")
+    assert resp.status_code == 404
+
+
+async def test_delete_analysis_removes_record(client):
+    """DELETE /api/analyses/{id} returns 204 and the record is gone afterward."""
+    from db.models import Analysis, Listing
+    from db import get_db
+    from sqlalchemy.ext.asyncio import AsyncSession
+    import datetime
+
+    # Seed a listing + analysis directly into the test DB.
+    from main import app
+    from db import engine
+    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlalchemy.orm import sessionmaker
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with async_session() as session:
+        listing = Listing(
+            address_input="1 Test St, SF, CA 94110",
+            address_matched="1 TEST ST, SF, CA 94110",
+        )
+        session.add(listing)
+        await session.flush()
+        analysis = Analysis(
+            listing_id=listing.id,
+            session_id="test-session",
+            created_at=datetime.datetime.utcnow(),
+        )
+        session.add(analysis)
+        await session.commit()
+        analysis_id = analysis.id
+
+    resp = await client.delete(f"/api/analyses/{analysis_id}")
+    assert resp.status_code == 204
+
+    # Confirm it's gone
+    resp2 = await client.get(f"/api/analyses/{analysis_id}")
+    assert resp2.status_code == 404
+
+
 async def test_force_refresh_field_accepted(client):
     """POST /api/analyze with force_refresh: true returns 200 (field is accepted)."""
     with patch("api.routes.run_agent", _mock_run_agent):

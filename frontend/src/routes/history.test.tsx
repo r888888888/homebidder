@@ -5,9 +5,20 @@ import { HistoryPage } from "./history";
 // Mock TanStack Router
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (config: unknown) => config,
-  Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
-    <a href={to}>{children}</a>
-  ),
+  Link: ({
+    children,
+    to,
+    search,
+  }: {
+    children: React.ReactNode;
+    to: string;
+    search?: Record<string, string>;
+  }) => {
+    const qs = search
+      ? "?" + new URLSearchParams(search).toString()
+      : "";
+    return <a href={`${to}${qs}`}>{children}</a>;
+  },
 }));
 
 const ANALYSES_LIST = [
@@ -105,6 +116,22 @@ describe("HistoryPage", () => {
     expect(screen.getByText("—")).toBeInTheDocument();
   });
 
+  it("each row has a link to the analysis page for that address", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify(ANALYSES_LIST), { status: 200 })
+    );
+    render(<HistoryPage />);
+    await waitFor(() =>
+      expect(screen.getByText(/450 SANCHEZ ST/i)).toBeInTheDocument()
+    );
+    const links = screen.getAllByRole("link", { name: /view/i });
+    expect(links.length).toBeGreaterThanOrEqual(1);
+    expect(links[0]).toHaveAttribute(
+      "href",
+      expect.stringContaining("/analysis")
+    );
+  });
+
   it("clicking a row fetches detail and renders offer card", async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(
@@ -123,6 +150,34 @@ describe("HistoryPage", () => {
 
     await waitFor(() =>
       expect(screen.getByText(/offer recommendation/i)).toBeInTheDocument()
+    );
+  });
+
+  it("delete button in detail calls DELETE and removes the row", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(ANALYSES_LIST), { status: 200 })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(ANALYSIS_DETAIL), { status: 200 })
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    render(<HistoryPage />);
+    await waitFor(() =>
+      expect(screen.getByText(/450 SANCHEZ ST/i)).toBeInTheDocument()
+    );
+
+    // Open detail
+    fireEvent.click(screen.getByText(/450 SANCHEZ ST/i));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /delete/i })).toBeInTheDocument()
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /delete/i }));
+
+    await waitFor(() =>
+      expect(screen.queryByText(/450 SANCHEZ ST/i)).not.toBeInTheDocument()
     );
   });
 });

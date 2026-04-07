@@ -325,3 +325,56 @@ async def test_comps_saved_in_db():
         assert comps[0].pct_over_asking == pytest.approx(4.76)
 
     await engine.dispose()
+
+
+async def test_analysis_persisted_when_property_lookup_raises():
+    """Analysis IS saved even when lookup_property_by_address fails (geocoder error)."""
+    from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy import select
+    from db.models import Base, Analysis
+
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    # Claude gets an error for lookup_property_by_address and writes a short failure response
+    end_turn_response = MagicMock()
+    end_turn_response.stop_reason = "end_turn"
+    text_block = MagicMock()
+    text_block.type = "text"
+    text_block.text = "I could not find this address."
+    end_turn_response.content = [text_block]
+
+    async with AsyncSessionLocal() as db:
+        with patch("agent.orchestrator.anthropic.AsyncAnthropic") as mock_cls, \
+             patch("agent.orchestrator.fetch_comps", new_callable=AsyncMock, return_value=FAKE_COMPS), \
+             patch("agent.orchestrator.analyze_market", return_value={"median_price_per_sqft": 647.0}), \
+             patch("agent.orchestrator.get_current_mortgage_rate_pct", new_callable=AsyncMock, return_value=6.0), \
+             patch("agent.orchestrator.recommend_offer", return_value=FAKE_OFFER), \
+             patch("agent.orchestrator.assess_risk", return_value=FAKE_RISK), \
+             patch("agent.orchestrator.fetch_mortgage_rates", new_callable=AsyncMock, return_value={"rate_30yr_fixed": 6.0}), \
+             patch("agent.orchestrator.fetch_rental_estimate", new_callable=AsyncMock, return_value={"rent_estimate": 4000}), \
+             patch("agent.orchestrator.fetch_ba_value_drivers", new_callable=AsyncMock, return_value={"adu_potential": False}), \
+             patch("agent.orchestrator.compute_investment_metrics", return_value=FAKE_INVESTMENT):
+
+            mock_client = AsyncMock()
+            mock_cls.return_value = mock_client
+            # Claude returns end_turn immediately with no tool calls — simulates the
+            # case where lookup_property_by_address failed and Claude gave up.
+            mock_client.messages.create.side_effect = [end_turn_response]
+
+            events = await _collect_events_with_db(
+                "95 Lake Vista Ave, Daly City, CA 94015", db=db
+            )
+
+    analysis_id_events = [e for e in events if e.get("type") == "analysis_id"]
+    assert len(analysis_id_events) == 1
+
+    async with AsyncSessionLocal() as verify_db:
+        result = await verify_db.execute(select(Analysis))
+        analyses = result.scalars().all()
+        assert len(analyses) == 1
+
+    await engine.dispose()

@@ -518,7 +518,7 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
                 yield f"data: {json.dumps({'type': 'text', 'text': block.text})}\n\n"
 
         if response.stop_reason == "end_turn":
-            if db is not None and (property_result is not None or analysis_done):
+            if db is not None:
                 try:
                     analysis_id = await _persist_analysis(
                         db=db,
