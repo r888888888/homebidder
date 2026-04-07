@@ -26,6 +26,10 @@ _ANALYSES_MIGRATIONS: list[tuple[str, str]] = [
     ("buyer_context",         "TEXT"),
 ]
 
+_COMPS_MIGRATIONS: list[tuple[str, str]] = [
+    ("pct_over_asking", "FLOAT"),
+]
+
 
 async def _migrate_analyses(conn) -> None:
     """Add any missing columns to the analyses table (SQLite-compatible)."""
@@ -39,10 +43,23 @@ async def _migrate_analyses(conn) -> None:
             log.info("Migration: added analyses.%s", col_name)
 
 
+async def _migrate_comps(conn) -> None:
+    """Add any missing columns to the comps table (SQLite-compatible)."""
+    result = await conn.execute(text("PRAGMA table_info(comps)"))
+    existing = {row[1] for row in result.fetchall()}
+    for col_name, col_type in _COMPS_MIGRATIONS:
+        if col_name not in existing:
+            await conn.execute(
+                text(f"ALTER TABLE comps ADD COLUMN {col_name} {col_type}")
+            )
+            log.info("Migration: added comps.%s", col_name)
+
+
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await _migrate_analyses(conn)
+        await _migrate_comps(conn)
 
 
 async def get_db():

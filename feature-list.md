@@ -1,11 +1,11 @@
 # TODO
 
-- Brainstorm better methods for estimating renovation costs
+- fix sensitivity of fixer/renovated badges
+- Remove rentcast integration entirely
 - Incorporate React Query for API calls
 - Assuming the DBI permit search works, let's cache it in the database. Use a 24 hour expiry.
 - Code review of backend
 - Code review of frontend
-- Add an option to delete analysis from database
 - Move feature flags into database, add admin portal
 - Support inspection reports
 - Support pest inspection reports
@@ -23,6 +23,9 @@
 
 # DONE
 
+- Brainstorm better methods for estimating renovation costs
+  - Make each line item in renovation toggleable to adjust total renovation estimate
+- Add an option to delete analysis from database
 - Create a page with a list of previously persisted analyses
 - For fixer properties, add a Fixer vs Turn-key comparison card. What would it cost in renovations to modernize this fixer versus buying a turn-key equivalent. Use the LLM to figure out market rates for construction costs. Use teh base recommended offer price.
 - Remove Prop 13 tax impact information

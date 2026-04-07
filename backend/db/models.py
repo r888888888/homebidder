@@ -71,4 +71,4 @@ class Analysis(Base):
     buyer_context: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     listing: Mapped["Listing"] = relationship("Listing", back_populates="analyses")
-    comps: Mapped[list["Comp"]] = relationship("Comp", back_populates="analysis")
+    comps: Mapped[list["Comp"]] = relationship("Comp", back_populates="analysis", cascade="all, delete-orphan")

@@ -517,8 +517,17 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
                 final_text_parts.append(block.text)
                 yield f"data: {json.dumps({'type': 'text', 'text': block.text})}\n\n"
 
-        if response.stop_reason == "end_turn":
+        if response.stop_reason in ("end_turn", "max_tokens"):
+            if response.stop_reason == "max_tokens":
+                log.warning("Narrative truncated at max_tokens — persisting with partial text")
             if db is not None:
+                log.info(
+                    "Persisting analysis: address=%r property_result=%s offer=%s risk=%s",
+                    address,
+                    "present" if property_result else "None",
+                    "present" if offer_result_persist else "None",
+                    "present" if risk_result_persist else "None",
+                )
                 try:
                     analysis_id = await _persist_analysis(
                         db=db,
@@ -534,9 +543,12 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
                         renovation_result=renovation_result_persist,
                         buyer_context=buyer_context,
                     )
+                    log.info("Analysis persisted: id=%d", analysis_id)
                     yield f"data: {json.dumps({'type': 'analysis_id', 'id': analysis_id})}\n\n"
                 except Exception as exc:
                     log.error("Failed to persist analysis: %s", exc, exc_info=True)
+            else:
+                log.warning("db is None — analysis not persisted")
             break
 
         if response.stop_reason == "tool_use":

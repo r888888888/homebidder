@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 export interface RenovationLineItem {
   category: string;
   low: number;
@@ -44,13 +46,42 @@ function fmt(n: number): string {
   return "$" + Math.abs(n).toLocaleString("en-US");
 }
 
+function deriveVerdict(savings: number, turnkeyValue: number): FixerAnalysisData["verdict"] {
+  const ratio = turnkeyValue > 0 ? savings / turnkeyValue : 0;
+  if (ratio > 0.03) return "cheaper_fixer";
+  if (ratio < -0.03) return "cheaper_turnkey";
+  return "comparable";
+}
+
 export function FixerAnalysisCard({ data }: Props) {
-  const totalLow = data.renovation_estimate_low;
-  const totalHigh = data.renovation_estimate_high;
-  const absSavings = Math.abs(data.savings_mid);
-  const isWinner = data.verdict === "cheaper_fixer";
-  const isLoser = data.verdict === "cheaper_turnkey";
-  const equityPositive = data.implied_equity_mid >= 0;
+  const [disabledIndices, setDisabledIndices] = useState<Set<number>>(new Set());
+
+  function toggleItem(index: number) {
+    setDisabledIndices((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
+  }
+
+  // Derive all totals from currently active items
+  const activeItems = data.line_items.filter((_, i) => !disabledIndices.has(i));
+  const activeLow = activeItems.reduce((sum, x) => sum + x.low, 0);
+  const activeHigh = activeItems.reduce((sum, x) => sum + x.high, 0);
+  const activeMid = Math.round((activeLow + activeHigh) / 2);
+  const allInMid = data.offer_recommended + activeMid;
+  const savings = data.turnkey_value - allInMid;
+  const verdict = deriveVerdict(savings, data.turnkey_value);
+
+  const absSavings = Math.abs(savings);
+  const isWinner = verdict === "cheaper_fixer";
+  const isLoser = verdict === "cheaper_turnkey";
+  const equityPositive = data.renovated_fair_value - allInMid >= 0;
+  const impliedEquity = data.renovated_fair_value - allInMid;
 
   return (
     <div className="card p-6">
@@ -58,9 +89,9 @@ export function FixerAnalysisCard({ data }: Props) {
       <div className="mb-4 flex items-center justify-between">
         <h3 className="text-base font-semibold text-[var(--ink)]">Fixer Analysis</h3>
         <span
-          className={`rounded-full border px-3 py-0.5 text-xs font-medium ${VERDICT_STYLES[data.verdict]}`}
+          className={`rounded-full border px-3 py-0.5 text-xs font-medium ${VERDICT_STYLES[verdict]}`}
         >
-          {VERDICT_LABELS[data.verdict]}
+          {VERDICT_LABELS[verdict]}
         </span>
       </div>
 
@@ -68,9 +99,9 @@ export function FixerAnalysisCard({ data }: Props) {
       <div className="mb-4 grid grid-cols-2 gap-3">
         <div className="rounded-lg bg-[var(--surface)] p-3">
           <p className="mb-1 text-xs text-[var(--ink-soft)]">All-in fixer (mid)</p>
-          <p className="text-base font-semibold text-[var(--ink)]">{fmt(data.all_in_fixer_mid)}</p>
+          <p className="text-base font-semibold text-[var(--ink)]">{fmt(allInMid)}</p>
           <p className="text-xs text-[var(--ink-soft)]">
-            {fmt(data.offer_recommended)} offer + {fmt(data.renovation_estimate_mid)} reno
+            {fmt(data.offer_recommended)} offer + {fmt(activeMid)} reno
           </p>
         </div>
         <div className="rounded-lg bg-[var(--surface)] p-3">
@@ -90,7 +121,7 @@ export function FixerAnalysisCard({ data }: Props) {
         <div className="rounded-lg bg-[var(--surface)] p-3">
           <p className="mb-1 text-xs text-[var(--ink-soft)]">Implied equity (mid)</p>
           <p className={`text-base font-semibold ${equityPositive ? "text-emerald-700" : "text-red-700"}`}>
-            {equityPositive ? "+" : "−"}{fmt(data.implied_equity_mid)}
+            {equityPositive ? "+" : "−"}{fmt(impliedEquity)}
           </p>
           <p className="text-xs text-[var(--ink-soft)]">Post-reno value − all-in cost</p>
         </div>
@@ -117,18 +148,31 @@ export function FixerAnalysisCard({ data }: Props) {
           Renovation estimate
         </p>
         <div className="divide-y divide-[var(--border)]">
-          {data.line_items.map((item) => (
-            <div key={item.category} className="flex justify-between py-1.5 text-sm">
-              <span className="text-[var(--ink)]">{item.category}</span>
-              <span className="text-[var(--ink-soft)]">
-                ${item.low.toLocaleString("en-US")}–${item.high.toLocaleString("en-US")}
-              </span>
-            </div>
-          ))}
+          {data.line_items.map((item, i) => {
+            const disabled = disabledIndices.has(i);
+            return (
+              <div key={item.category} className="flex cursor-pointer items-center gap-2 py-1.5 text-sm" onClick={() => toggleItem(i)}>
+                <input
+                  type="checkbox"
+                  checked={!disabled}
+                  onChange={() => toggleItem(i)}
+                  onClick={(e) => e.stopPropagation()}
+                  aria-label={`Toggle ${item.category}`}
+                  className="h-3.5 w-3.5 shrink-0 cursor-pointer rounded accent-[var(--brand)]"
+                />
+                <span className={`flex-1 text-[var(--ink)] ${disabled ? "opacity-40 line-through" : ""}`}>
+                  {item.category}
+                </span>
+                <span className={`text-[var(--ink-soft)] ${disabled ? "opacity-40 line-through" : ""}`}>
+                  ${item.low.toLocaleString("en-US")}–${item.high.toLocaleString("en-US")}
+                </span>
+              </div>
+            );
+          })}
           <div className="flex justify-between py-1.5 text-sm font-medium">
             <span className="text-[var(--ink)]">Total</span>
             <span className="text-[var(--ink)]">
-              ${totalLow.toLocaleString("en-US")}–${totalHigh.toLocaleString("en-US")}
+              ${activeLow.toLocaleString("en-US")}–${activeHigh.toLocaleString("en-US")}
             </span>
           </div>
         </div>

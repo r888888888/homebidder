@@ -112,13 +112,22 @@ export function HistoryPage() {
                     <td className="py-3 pr-4">{a.risk_level ?? "—"}</td>
                     <td className="py-3 pr-4">{a.investment_rating ?? "—"}</td>
                     <td className="py-3" onClick={(e) => e.stopPropagation()}>
-                      <Link
-                        to="/analysis"
-                        search={{ address: a.address, buyerContext: "" }}
-                        className="text-xs text-[var(--navy)] underline"
-                      >
-                        View
-                      </Link>
+                      <div className="flex items-center gap-3">
+                        <Link
+                          to="/analysis"
+                          search={{ address: a.address, buyerContext: "" }}
+                          className="text-xs text-[var(--navy)] underline"
+                        >
+                          View
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(a.id)}
+                          className="text-xs text-red-500 hover:text-red-700 underline"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                   {selectedId === a.id && detail && (

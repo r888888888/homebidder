@@ -34,6 +34,7 @@ def _make_property(
     avm_estimate: float | None = 1_100_000.0,
     listing_description: str = "Great fixer-upper. As-is sale.",
     detected_signals: list | None = None,
+    city: str | None = None,
 ) -> dict:
     if detected_signals is None:
         detected_signals = [
@@ -48,6 +49,7 @@ def _make_property(
         "bathrooms": bathrooms,
         "avm_estimate": avm_estimate,
         "listing_description": listing_description,
+        "city": city,
         "description_signals": {
             "detected_signals": detected_signals,
             "net_adjustment_pct": -2.0,
@@ -341,3 +343,336 @@ class TestEstimateRenovationCost:
             mock_client.messages.create.return_value = _make_llm_response(_GOOD_LLM_JSON)
             result = await estimate_renovation_cost(_make_property(), _make_offer())
         assert result["implied_equity_mid"] == result["renovated_fair_value"] - result["all_in_fixer_mid"]
+
+
+# ---------------------------------------------------------------------------
+# TestClassifyEra — pure unit tests, no mocks
+# ---------------------------------------------------------------------------
+
+class TestClassifyEra:
+    def test_pre_1940(self):
+        from agent.tools.renovation import _classify_era
+        label, at_risk = _classify_era(1925)
+        assert label == "pre_1940"
+        assert "electrical" in at_risk
+        assert "plumbing" in at_risk
+        assert "foundation" in at_risk
+
+    def test_1940s_1960s(self):
+        from agent.tools.renovation import _classify_era
+        label, at_risk = _classify_era(1955)
+        assert label == "1940s_1960s"
+        assert "electrical" in at_risk
+        assert "plumbing" in at_risk
+
+    def test_1960s_1978(self):
+        from agent.tools.renovation import _classify_era
+        label, at_risk = _classify_era(1968)
+        assert label == "1960s_1978"
+        assert "electrical" in at_risk
+        assert "plumbing" not in at_risk
+
+    def test_1978_1990(self):
+        from agent.tools.renovation import _classify_era
+        label, at_risk = _classify_era(1985)
+        assert label == "1978_1990"
+        assert at_risk == ["hvac"]
+
+    def test_post_2010(self):
+        from agent.tools.renovation import _classify_era
+        label, at_risk = _classify_era(2015)
+        assert label == "post_2010"
+        assert at_risk == []
+
+    def test_none_year(self):
+        from agent.tools.renovation import _classify_era
+        label, at_risk = _classify_era(None)
+        assert label == "unknown"
+        assert len(at_risk) > 0
+
+    def test_boundary_1940(self):
+        from agent.tools.renovation import _classify_era
+        label, _ = _classify_era(1940)
+        assert label == "1940s_1960s"
+
+    def test_boundary_1978(self):
+        from agent.tools.renovation import _classify_era
+        label, _ = _classify_era(1978)
+        assert label == "1978_1990"
+
+
+# ---------------------------------------------------------------------------
+# TestClassifyHazmat — pure unit tests, no mocks
+# ---------------------------------------------------------------------------
+
+class TestClassifyHazmat:
+    def test_post_1980_returns_none(self):
+        from agent.tools.renovation import _classify_hazmat
+        assert _classify_hazmat(1990, "mid", []) == "none"
+
+    def test_exactly_1980_returns_none(self):
+        from agent.tools.renovation import _classify_hazmat
+        assert _classify_hazmat(1980, "full", []) == "none"
+
+    def test_pre_1978_cosmetic_returns_encapsulation(self):
+        from agent.tools.renovation import _classify_hazmat
+        assert _classify_hazmat(1965, "cosmetic", []) == "encapsulation"
+
+    def test_pre_1978_mid_returns_partial(self):
+        from agent.tools.renovation import _classify_hazmat
+        assert _classify_hazmat(1965, "mid", []) == "partial"
+
+    def test_pre_1978_full_returns_full(self):
+        from agent.tools.renovation import _classify_hazmat
+        assert _classify_hazmat(1965, "full", []) == "full"
+
+    def test_asbestos_in_phrases_upgrades_to_full(self):
+        from agent.tools.renovation import _classify_hazmat
+        assert _classify_hazmat(1965, "mid", ["asbestos found in attic"]) == "full"
+
+    def test_lead_paint_in_phrases_upgrades_to_full(self):
+        from agent.tools.renovation import _classify_hazmat
+        assert _classify_hazmat(1965, "cosmetic", ["lead paint present"]) == "full"
+
+    def test_none_year_returns_none(self):
+        from agent.tools.renovation import _classify_hazmat
+        assert _classify_hazmat(None, "full", []) == "none"
+
+
+# ---------------------------------------------------------------------------
+# TestGetRegionalMultiplier — pure unit tests, no mocks
+# ---------------------------------------------------------------------------
+
+class TestGetRegionalMultiplier:
+    def test_san_francisco_above_one(self):
+        from agent.tools.renovation import _get_regional_multiplier
+        assert _get_regional_multiplier("San Francisco") > 1.0
+
+    def test_oakland_is_baseline(self):
+        from agent.tools.renovation import _get_regional_multiplier
+        assert _get_regional_multiplier("Oakland") == 1.0
+
+    def test_none_returns_one(self):
+        from agent.tools.renovation import _get_regional_multiplier
+        assert _get_regional_multiplier(None) == 1.0
+
+    def test_unknown_city_returns_one(self):
+        from agent.tools.renovation import _get_regional_multiplier
+        assert _get_regional_multiplier("Atlantis") == 1.0
+
+    def test_case_insensitive(self):
+        from agent.tools.renovation import _get_regional_multiplier
+        assert _get_regional_multiplier("SAN FRANCISCO") == _get_regional_multiplier("san francisco")
+
+    def test_hayward_below_one(self):
+        from agent.tools.renovation import _get_regional_multiplier
+        assert _get_regional_multiplier("Hayward") < 1.0
+
+    def test_palo_alto_above_sf_baseline_east_bay(self):
+        from agent.tools.renovation import _get_regional_multiplier
+        assert _get_regional_multiplier("Palo Alto") > _get_regional_multiplier("Oakland")
+
+
+# ---------------------------------------------------------------------------
+# TestBuildScopeProfile — pure unit tests, no mocks
+# ---------------------------------------------------------------------------
+
+_FIXER_SIGNAL = "Fixer / Contractor Special"
+_FIXER_SIGNALS = [_FIXER_SIGNAL]
+
+
+class TestBuildScopeProfile:
+    def test_cosmetic_phrase_yields_cosmetic_scope(self):
+        from agent.tools.renovation import build_scope_profile
+        profile = build_scope_profile(1965, _FIXER_SIGNALS, ["cosmetic fixer"])
+        assert profile["scope_level"] == "cosmetic"
+
+    def test_deferred_maintenance_yields_full_scope(self):
+        from agent.tools.renovation import build_scope_profile
+        profile = build_scope_profile(1965, _FIXER_SIGNALS, ["deferred maintenance"])
+        assert profile["scope_level"] == "full"
+
+    def test_default_fixer_is_mid(self):
+        from agent.tools.renovation import build_scope_profile
+        profile = build_scope_profile(1965, _FIXER_SIGNALS, ["fixer-upper"])
+        assert profile["scope_level"] == "mid"
+
+    def test_pre_1940_with_fixer_signal_upgrades_to_full(self):
+        from agent.tools.renovation import build_scope_profile
+        profile = build_scope_profile(1930, _FIXER_SIGNALS, ["fixer-upper"])
+        assert profile["scope_level"] == "full"
+
+    def test_good_bones_caps_at_mid(self):
+        from agent.tools.renovation import build_scope_profile
+        profile = build_scope_profile(1930, _FIXER_SIGNALS, ["good bones", "fixer-upper"])
+        assert profile["scope_level"] != "full"
+        assert profile["item_likelihood"]["foundation"] == "unlikely"
+        assert profile["item_likelihood"]["seismic"] == "unlikely"
+
+    def test_needs_new_roof_makes_roof_likely(self):
+        from agent.tools.renovation import build_scope_profile
+        profile = build_scope_profile(1985, _FIXER_SIGNALS, ["needs new roof"])
+        assert profile["item_likelihood"]["roof"] == "likely"
+
+    def test_post_1980_hazmat_is_none(self):
+        from agent.tools.renovation import build_scope_profile
+        profile = build_scope_profile(1990, _FIXER_SIGNALS, ["fixer-upper"])
+        assert profile["hazmat_tier"] == "none"
+
+    def test_pre_1978_cosmetic_hazmat_is_encapsulation(self):
+        from agent.tools.renovation import build_scope_profile
+        profile = build_scope_profile(1965, _FIXER_SIGNALS, ["cosmetic fixer"])
+        assert profile["hazmat_tier"] == "encapsulation"
+
+    def test_pre_1978_mid_hazmat_is_partial(self):
+        from agent.tools.renovation import build_scope_profile
+        profile = build_scope_profile(1965, _FIXER_SIGNALS, ["fixer-upper"])
+        assert profile["hazmat_tier"] == "partial"
+
+    def test_scope_reasoning_is_nonempty_list(self):
+        from agent.tools.renovation import build_scope_profile
+        profile = build_scope_profile(1965, _FIXER_SIGNALS, ["fixer-upper"])
+        assert isinstance(profile["scope_reasoning"], list)
+        assert len(profile["scope_reasoning"]) > 0
+
+    def test_all_core_items_in_item_likelihood(self):
+        from agent.tools.renovation import build_scope_profile
+        CORE_SLUGS = {"kitchen", "bathroom", "flooring", "paint", "roof",
+                      "electrical", "plumbing", "hvac", "foundation", "seismic", "windows"}
+        profile = build_scope_profile(1965, _FIXER_SIGNALS, ["fixer-upper"])
+        for slug in CORE_SLUGS:
+            assert slug in profile["item_likelihood"], f"{slug} missing from item_likelihood"
+
+    def test_buyer_notes_full_gut_overrides_cosmetic_phrase(self):
+        from agent.tools.renovation import build_scope_profile
+        profile = build_scope_profile(
+            1965, _FIXER_SIGNALS, ["cosmetic fixer"],
+            buyer_notes="planning a full gut renovation down to the studs"
+        )
+        assert profile["scope_level"] == "full"
+
+    def test_buyer_notes_just_painting_caps_at_cosmetic(self):
+        from agent.tools.renovation import build_scope_profile
+        profile = build_scope_profile(
+            1965, _FIXER_SIGNALS, ["deferred maintenance"],
+            buyer_notes="just planning to paint and update carpets"
+        )
+        assert profile["scope_level"] == "cosmetic"
+
+    def test_buyer_notes_new_kitchen_makes_kitchen_likely(self):
+        from agent.tools.renovation import build_scope_profile
+        profile = build_scope_profile(
+            1965, _FIXER_SIGNALS, ["cosmetic fixer"],
+            buyer_notes="new kitchen is our priority"
+        )
+        assert profile["item_likelihood"]["kitchen"] == "likely"
+
+    def test_cosmetic_scope_has_unlikely_roof_and_electrical(self):
+        from agent.tools.renovation import build_scope_profile
+        profile = build_scope_profile(1990, _FIXER_SIGNALS, ["cosmetic fixer"])
+        assert profile["item_likelihood"]["roof"] == "unlikely"
+        assert profile["item_likelihood"]["electrical"] == "unlikely"
+
+    def test_age_era_present_in_profile(self):
+        from agent.tools.renovation import build_scope_profile
+        profile = build_scope_profile(1965, _FIXER_SIGNALS, ["fixer-upper"])
+        assert "age_era" in profile
+        assert profile["age_era"] == "1960s_1978"
+
+
+# ---------------------------------------------------------------------------
+# TestEstimateRenovationCostWithScope — async, LLM mocked
+# ---------------------------------------------------------------------------
+
+class TestEstimateRenovationCostWithScope:
+    async def test_scope_level_present_in_result(self):
+        from agent.tools.renovation import estimate_renovation_cost
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}), \
+             patch("agent.tools.renovation.anthropic.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_cls.return_value = mock_client
+            mock_client.messages.create.return_value = _make_llm_response(_GOOD_LLM_JSON)
+            result = await estimate_renovation_cost(_make_property(), _make_offer())
+        assert "scope_level" in result
+
+    async def test_hazmat_tier_present_in_result(self):
+        from agent.tools.renovation import estimate_renovation_cost
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}), \
+             patch("agent.tools.renovation.anthropic.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_cls.return_value = mock_client
+            mock_client.messages.create.return_value = _make_llm_response(_GOOD_LLM_JSON)
+            result = await estimate_renovation_cost(_make_property(), _make_offer())
+        assert "hazmat_tier" in result
+
+    async def test_pre_1978_cosmetic_fixer_hazmat_is_encapsulation_not_full(self):
+        from agent.tools.renovation import estimate_renovation_cost
+        cosmetic_signals = [
+            {"label": "Fixer / Contractor Special", "category": "condition_negative",
+             "direction": "negative", "weight_pct": -2.0, "matched_phrases": ["cosmetic fixer"]},
+        ]
+        prop = _make_property(year_built=1965, detected_signals=cosmetic_signals)
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}), \
+             patch("agent.tools.renovation.anthropic.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_cls.return_value = mock_client
+            mock_client.messages.create.return_value = _make_llm_response(_GOOD_LLM_JSON)
+            result = await estimate_renovation_cost(prop, _make_offer())
+        assert result["hazmat_tier"] == "encapsulation"
+
+    async def test_post_1980_home_has_no_hazmat_in_prompt(self):
+        from agent.tools.renovation import estimate_renovation_cost
+        prop = _make_property(year_built=1990)
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}), \
+             patch("agent.tools.renovation.anthropic.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_cls.return_value = mock_client
+            mock_client.messages.create.return_value = _make_llm_response(_GOOD_LLM_JSON)
+            result = await estimate_renovation_cost(prop, _make_offer())
+        assert result["hazmat_tier"] == "none"
+        prompt_text = mock_client.messages.create.call_args[1]["messages"][0]["content"]
+        assert "hazmat" not in prompt_text.lower()
+        assert "asbestos" not in prompt_text.lower()
+        assert "lead paint" not in prompt_text.lower()
+
+    async def test_sf_property_prompt_contains_multiplier_above_one(self):
+        from agent.tools.renovation import estimate_renovation_cost
+        prop = _make_property(city="San Francisco")
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}), \
+             patch("agent.tools.renovation.anthropic.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_cls.return_value = mock_client
+            mock_client.messages.create.return_value = _make_llm_response(_GOOD_LLM_JSON)
+            result = await estimate_renovation_cost(prop, _make_offer())
+        assert result["regional_multiplier"] > 1.0
+        prompt_text = mock_client.messages.create.call_args[1]["messages"][0]["content"]
+        assert "1." in prompt_text  # multiplier like "1.18" appears in prompt
+
+    async def test_unlikely_items_excluded_from_prompt_for_cosmetic_scope(self):
+        from agent.tools.renovation import estimate_renovation_cost
+        cosmetic_signals = [
+            {"label": "Fixer / Contractor Special", "category": "condition_negative",
+             "direction": "negative", "weight_pct": -2.0, "matched_phrases": ["cosmetic fixer"]},
+        ]
+        prop = _make_property(year_built=1990, detected_signals=cosmetic_signals)
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}), \
+             patch("agent.tools.renovation.anthropic.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_cls.return_value = mock_client
+            mock_client.messages.create.return_value = _make_llm_response(_GOOD_LLM_JSON)
+            await estimate_renovation_cost(prop, _make_offer())
+        prompt_text = mock_client.messages.create.call_args[1]["messages"][0]["content"]
+        # Seismic and foundation should not appear in a cosmetic scope prompt for a 1990 home
+        assert "seismic" not in prompt_text.lower()
+        assert "foundation" not in prompt_text.lower()
+
+    async def test_age_era_present_in_result(self):
+        from agent.tools.renovation import estimate_renovation_cost
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}), \
+             patch("agent.tools.renovation.anthropic.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_cls.return_value = mock_client
+            mock_client.messages.create.return_value = _make_llm_response(_GOOD_LLM_JSON)
+            result = await estimate_renovation_cost(_make_property(year_built=1952), _make_offer())
+        assert "age_era" in result
+        assert result["age_era"] == "1940s_1960s"

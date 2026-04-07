@@ -153,6 +153,34 @@ describe("HistoryPage", () => {
     );
   });
 
+  it("each row has an inline delete button that calls DELETE and removes the row without expanding detail", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(ANALYSES_LIST), { status: 200 })
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    render(<HistoryPage />);
+    await waitFor(() =>
+      expect(screen.getByText(/450 SANCHEZ ST/i)).toBeInTheDocument()
+    );
+
+    const deleteButtons = screen.getAllByRole("button", { name: /delete/i });
+    // First delete button corresponds to first row (id=1)
+    fireEvent.click(deleteButtons[0]);
+
+    await waitFor(() =>
+      expect(screen.queryByText(/450 SANCHEZ ST/i)).not.toBeInTheDocument()
+    );
+    // Second row should still be present
+    expect(screen.getByText(/100 MAIN ST/i)).toBeInTheDocument();
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/analyses/1"),
+      { method: "DELETE" }
+    );
+  });
+
   it("delete button in detail calls DELETE and removes the row", async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(
@@ -171,10 +199,10 @@ describe("HistoryPage", () => {
     // Open detail
     fireEvent.click(screen.getByText(/450 SANCHEZ ST/i));
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: /delete/i })).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: /delete analysis/i })).toBeInTheDocument()
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /delete/i }));
+    fireEvent.click(screen.getByRole("button", { name: /delete analysis/i }));
 
     await waitFor(() =>
       expect(screen.queryByText(/450 SANCHEZ ST/i)).not.toBeInTheDocument()
