@@ -18,14 +18,14 @@ log = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 RENOVATION_BENCHMARKS: dict[str, dict] = {
-    "kitchen":        {"low": 80_000,  "high": 250_000, "unit": "flat",     "label": "Kitchen remodel"},
-    "bathroom":       {"low_per": 25_000, "high_per": 60_000,
-                       "low_gut_per": 50_000, "high_gut_per": 90_000,
+    "kitchen":        {"low": 50_000,  "high": 120_000, "unit": "flat",     "label": "Kitchen remodel"},
+    "bathroom":       {"low_per": 15_000, "high_per": 25_000,
+                       "low_gut_per": 30_000, "high_gut_per": 50_000,
                        "unit": "per_bath", "label": "Bathroom remodel"},
     "flooring":       {"low_per_sqft": 12, "high_per_sqft": 22, "unit": "per_sqft", "label": "Flooring replacement"},
     "paint":          {"low_per_sqft": 4,  "high_per_sqft": 8,  "unit": "per_sqft", "label": "Interior paint"},
     "roof":           {"low": 25_000,  "high": 60_000,  "unit": "flat",     "label": "Roof replacement"},
-    "electrical":     {"low": 15_000,  "high": 40_000,  "unit": "flat",     "label": "Electrical panel + rewire"},
+    "electrical":     {"low": 15_000,  "high": 50_000,  "unit": "flat",     "label": "Electrical panel + rewire"},
     "plumbing":       {"low": 15_000,  "high": 35_000,  "unit": "flat",     "label": "Plumbing repipe"},
     "hvac":           {"low": 15_000,  "high": 50_000,  "unit": "flat",     "label": "HVAC (furnace + ducts + AC)"},
     "foundation":     {"low": 20_000,  "high": 80_000,  "unit": "flat",     "label": "Foundation work"},
