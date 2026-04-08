@@ -86,7 +86,7 @@ async def _fetch_bart_stations() -> list[dict[str, Any]]:
     if _bart_cache is not None:
         return _bart_cache
 
-    bart_stations_url = f"https://api.bart.gov/api/stn.aspx?key={_url_quote(os.environ.get('BART_API_KEY'))}&cmd=stns&json=y"
+    bart_stations_url = f"https://api.bart.gov/api/stn.aspx?key={_url_quote(os.environ.get('BART_API_KEY', ''))}&cmd=stns&json=y"
 
     async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
         response = await client.get(bart_stations_url)

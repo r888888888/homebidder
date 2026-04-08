@@ -1,7 +1,6 @@
 # TODO
 
 - Debug whether FHFA data includes data for 94112.
-- Fix failing tests
 - Update investment analysis to move rent opportunity costs to 10/20/30 year scale
 - Remove outliers from comp analysis
 - Move BART API data into fetch script
@@ -23,6 +22,7 @@
 
 # DONE
 
+- Fix failing tests
 - Tweak fixer analysis card to show an offer price that subtracts the cost of renovations.
 - Add opportunity cost versus renting
 - Disable 1password for the property address search field
