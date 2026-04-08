@@ -13,11 +13,11 @@
 - Add StreetView link
 - Support school quality
 - Factor in seasonality of sales
-- Why does "88 Hoff St Apt 104, San Francisco, CA 94110" produce a low offer recc that's higher than the high offer recc?
 - Read rent estimation tools
 
 # DONE
 
+- Why does "88 Hoff St Apt 104, San Francisco, CA 94110" produce a low offer recc that's higher than the high offer recc?
 - Why does "88 Hoff St #104, San Francisco, CA 94110" not find the correct unit?
 - Assuming the DBI permit search works, let's cache it in the database. Use a 24 hour expiry.
 - Organize page into tabs

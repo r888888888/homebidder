@@ -230,13 +230,16 @@ def recommend_offer(
     # - Use ppsf*sqft only as fallback when comp median is missing
     total_adjustment = 0.0  # tracked for CI width calculation
 
+    property_type_raw = (listing.get("property_type") or "").lower()
+    is_condo = "condo" in property_type_raw
+
     if median_comp:
         fair_value = median_comp
 
         lot_adjustment_pct: float | None = None
         sqft_adjustment_pct: float | None = None
 
-        if lot_size and median_lot_size:
+        if not is_condo and lot_size and median_lot_size:
             lot_delta = (lot_size - median_lot_size) / median_lot_size
             lot_adjustment_pct = _clamp(lot_delta * 0.60, -0.20, 0.25)
             total_adjustment += lot_adjustment_pct

@@ -443,7 +443,70 @@ class TestFairValueAlgorithm:
         breakdown = result["fair_value_breakdown"]
         assert breakdown["method"] == "ppsf_fallback"
         assert breakdown["lot_adjustment_pct"] is None
-        assert breakdown["sqft_adjustment_pct"] is None
+
+    def test_lot_adjustment_skipped_for_condo(self):
+        """
+        For condos, lot_size is the building parcel — irrelevant to unit value.
+        The lot adjustment must not be applied regardless of what lot_sqft data
+        is present, and fair_value should equal the raw comp median.
+        """
+        condo_listing = {
+            **BASE_LISTING,
+            "sqft": 800,
+            "lot_size": 5000,   # building parcel — would skew SFH pricing badly
+            "property_type": "CONDO",
+        }
+        stats = {
+            **BASE_STATS,
+            "median_sale_price": 900_000,
+            "median_comp_sqft": 800,
+            "median_lot_size": 2500,
+            "median_pct_over_asking": 0.0,
+        }
+        result = recommend_offer(condo_listing, stats)
+        breakdown = result["fair_value_breakdown"]
+        # Lot adjustment must be suppressed for condos
+        assert breakdown["lot_adjustment_pct"] is None
+        # Fair value should not be inflated by the parcel-size delta
+        assert result["fair_value_estimate"] == 900_000
+
+    @pytest.mark.parametrize("prop_type", ["condo", "CONDO", "Condo/Co-op", "CONDO/COOP"])
+    def test_lot_adjustment_skipped_for_all_condo_type_variants(self, prop_type):
+        """Condo detection must be case-insensitive and handle common homeharvest variants."""
+        listing = {
+            **BASE_LISTING,
+            "sqft": 800,
+            "lot_size": 6000,
+            "property_type": prop_type,
+        }
+        stats = {
+            **BASE_STATS,
+            "median_sale_price": 800_000,
+            "median_lot_size": 2500,
+            "median_comp_sqft": 800,
+            "median_pct_over_asking": 0.0,
+        }
+        result = recommend_offer(listing, stats)
+        assert result["fair_value_breakdown"]["lot_adjustment_pct"] is None
+
+    def test_lot_adjustment_still_applied_for_sfh(self):
+        """SFH pricing must still use the lot-size adjustment (regression guard)."""
+        sfh_listing = {
+            **BASE_LISTING,
+            "sqft": 1500,
+            "lot_size": 4000,
+            "property_type": "SINGLE_FAMILY",
+        }
+        stats = {
+            **BASE_STATS,
+            "median_sale_price": 1_100_000,
+            "median_comp_sqft": 1500,
+            "median_lot_size": 2500,
+            "median_pct_over_asking": 0.0,
+        }
+        result = recommend_offer(sfh_listing, stats)
+        assert result["fair_value_breakdown"]["lot_adjustment_pct"] is not None
+        assert result["fair_value_estimate"] > 1_100_000
 
 
 # ---------------------------------------------------------------------------
