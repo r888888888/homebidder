@@ -194,4 +194,24 @@ describe("AnalysisPage", () => {
     const body2 = JSON.parse((init2 as RequestInit).body as string);
     expect(body2.force_refresh).toBe(true);
   });
+
+  it("passes an AbortSignal to fetch and aborts it on unmount", async () => {
+    const abortSpy = vi.fn();
+    const mockSignal = {} as AbortSignal;
+    const mockController = { signal: mockSignal, abort: abortSpy };
+    vi.spyOn(global, "AbortController").mockImplementation(
+      () => mockController as unknown as AbortController
+    );
+
+    vi.mocked(fetch).mockReturnValue(new Promise(() => {}) as Promise<Response>);
+
+    const { unmount } = renderAnalysisPage("450 Sanchez St, San Francisco, CA 94114");
+
+    await waitFor(() => expect(fetch).toHaveBeenCalledOnce());
+    const [, init] = vi.mocked(fetch).mock.calls[0];
+    expect((init as RequestInit).signal).toBe(mockSignal);
+
+    unmount();
+    expect(abortSpy).toHaveBeenCalled();
+  });
 });

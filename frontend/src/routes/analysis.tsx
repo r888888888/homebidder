@@ -25,6 +25,7 @@ export function AnalysisPage() {
     setEvents([]);
     setIsRunning(true);
 
+    const controller = new AbortController();
     let cancelled = false;
 
     async function stream() {
@@ -35,6 +36,7 @@ export function AnalysisPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ address, buyer_context: buyerContext, force_refresh: refreshKey > 0 }),
+          signal: controller.signal,
         });
       } catch {
         if (!cancelled) {
@@ -56,32 +58,36 @@ export function AnalysisPage() {
       const decoder = new TextDecoder();
       let buffer = "";
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done || cancelled) break;
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done || cancelled) break;
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
 
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          try {
-            const event: AnalysisEvent = JSON.parse(line.slice(6));
-            setEvents((prev) => [...prev, event]);
-            if (event.type === "error") toast.error(event.text ?? "An error occurred.");
-            if (event.type === "done") setIsRunning(false);
-          } catch {
-            // skip malformed
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            try {
+              const event: AnalysisEvent = JSON.parse(line.slice(6));
+              setEvents((prev) => [...prev, event]);
+              if (event.type === "error") toast.error(event.text ?? "An error occurred.");
+              if (event.type === "done") setIsRunning(false);
+            } catch {
+              // skip malformed
+            }
           }
         }
+      } catch {
+        // AbortError from abort() or stream read error — stop reading
       }
 
       if (!cancelled) setIsRunning(false);
     }
 
     stream();
-    return () => { cancelled = true; };
+    return () => { cancelled = true; controller.abort(); };
   }, [address, buyerContext, refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
