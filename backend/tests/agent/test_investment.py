@@ -87,7 +87,7 @@ class TestComputeInvestmentMetrics:
         )
 
         for key in ("monthly_buy_cost", "monthly_rent_equivalent", "monthly_cost_diff",
-                    "opportunity_cost_1yr", "opportunity_cost_3yr", "opportunity_cost_5yr"):
+                    "opportunity_cost_10yr", "opportunity_cost_20yr", "opportunity_cost_30yr"):
             assert key in result, f"missing key: {key}"
             assert result[key] is not None
 
@@ -102,9 +102,9 @@ class TestComputeInvestmentMetrics:
         )
 
         # buying at $1.2M vs $3k/mo rent — buying costs significantly more
-        assert result["opportunity_cost_1yr"] > 0
-        assert result["opportunity_cost_3yr"] > result["opportunity_cost_1yr"]
-        assert result["opportunity_cost_5yr"] > result["opportunity_cost_3yr"]
+        assert result["opportunity_cost_10yr"] > 0
+        assert result["opportunity_cost_20yr"] > result["opportunity_cost_10yr"]
+        assert result["opportunity_cost_30yr"] > result["opportunity_cost_20yr"]
 
     def test_opportunity_cost_exact_values(self):
         from agent.tools.investment import compute_investment_metrics, _monthly_mortgage_payment
@@ -121,9 +121,9 @@ class TestComputeInvestmentMetrics:
         expected_diff = round(expected_buy_cost - rent, 2)
 
         r = (1 + 10.0 / 100) ** (1 / 12) - 1
-        expected_opp_1yr = round(expected_diff * ((1 + r) ** 12 - 1) / r, 0)
-        expected_opp_3yr = round(expected_diff * ((1 + r) ** 36 - 1) / r, 0)
-        expected_opp_5yr = round(expected_diff * ((1 + r) ** 60 - 1) / r, 0)
+        expected_opp_10yr = round(expected_diff * ((1 + r) ** 120 - 1) / r, 0)
+        expected_opp_20yr = round(expected_diff * ((1 + r) ** 240 - 1) / r, 0)
+        expected_opp_30yr = round(expected_diff * ((1 + r) ** 360 - 1) / r, 0)
 
         result = compute_investment_metrics(
             property={"price": price},
@@ -134,9 +134,9 @@ class TestComputeInvestmentMetrics:
 
         assert result["monthly_buy_cost"] == pytest.approx(expected_buy_cost, abs=0.01)
         assert result["monthly_cost_diff"] == pytest.approx(expected_diff, abs=0.01)
-        assert result["opportunity_cost_1yr"] == expected_opp_1yr
-        assert result["opportunity_cost_3yr"] == expected_opp_3yr
-        assert result["opportunity_cost_5yr"] == expected_opp_5yr
+        assert result["opportunity_cost_10yr"] == expected_opp_10yr
+        assert result["opportunity_cost_20yr"] == expected_opp_20yr
+        assert result["opportunity_cost_30yr"] == expected_opp_30yr
 
     def test_opportunity_cost_null_when_no_rent_data(self):
         from agent.tools.investment import compute_investment_metrics
@@ -149,7 +149,7 @@ class TestComputeInvestmentMetrics:
             ba_value_drivers={},
         )
         for key in ("monthly_buy_cost", "monthly_rent_equivalent", "monthly_cost_diff",
-                    "opportunity_cost_1yr", "opportunity_cost_3yr", "opportunity_cost_5yr"):
+                    "opportunity_cost_10yr", "opportunity_cost_20yr", "opportunity_cost_30yr"):
             assert result_no_key[key] is None, f"expected None for {key}"
 
         # Explicit None
@@ -160,7 +160,7 @@ class TestComputeInvestmentMetrics:
             ba_value_drivers={"zip_median_rent": None},
         )
         for key in ("monthly_buy_cost", "monthly_rent_equivalent", "monthly_cost_diff",
-                    "opportunity_cost_1yr", "opportunity_cost_3yr", "opportunity_cost_5yr"):
+                    "opportunity_cost_10yr", "opportunity_cost_20yr", "opportunity_cost_30yr"):
             assert result_none[key] is None, f"expected None for {key}"
 
     def test_negative_diff_when_renting_costs_more(self):
@@ -175,6 +175,6 @@ class TestComputeInvestmentMetrics:
         )
 
         assert result["monthly_cost_diff"] < 0
-        assert result["opportunity_cost_1yr"] < 0
-        assert result["opportunity_cost_3yr"] < 0
-        assert result["opportunity_cost_5yr"] < 0
+        assert result["opportunity_cost_10yr"] < 0
+        assert result["opportunity_cost_20yr"] < 0
+        assert result["opportunity_cost_30yr"] < 0

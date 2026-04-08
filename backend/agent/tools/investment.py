@@ -78,15 +78,15 @@ def compute_investment_metrics(
         monthly_maintenance = price * _MAINTENANCE_ANNUAL_PCT / 12
         monthly_buy_cost = round(monthly_mortgage + monthly_maintenance, 2)
         monthly_cost_diff = round(monthly_buy_cost - zip_median_rent, 2)
-        opportunity_cost_1yr = _opportunity_cost_fv(monthly_cost_diff, 1)
-        opportunity_cost_3yr = _opportunity_cost_fv(monthly_cost_diff, 3)
-        opportunity_cost_5yr = _opportunity_cost_fv(monthly_cost_diff, 5)
+        opportunity_cost_10yr = _opportunity_cost_fv(monthly_cost_diff, 10)
+        opportunity_cost_20yr = _opportunity_cost_fv(monthly_cost_diff, 20)
+        opportunity_cost_30yr = _opportunity_cost_fv(monthly_cost_diff, 30)
     else:
         monthly_buy_cost = None
         monthly_cost_diff = None
-        opportunity_cost_1yr = None
-        opportunity_cost_3yr = None
-        opportunity_cost_5yr = None
+        opportunity_cost_10yr = None
+        opportunity_cost_20yr = None
+        opportunity_cost_30yr = None
 
     return {
         "projected_value_1yr": projected_1yr,
@@ -98,9 +98,9 @@ def compute_investment_metrics(
         "monthly_buy_cost": monthly_buy_cost,
         "monthly_rent_equivalent": zip_median_rent,
         "monthly_cost_diff": monthly_cost_diff,
-        "opportunity_cost_1yr": opportunity_cost_1yr,
-        "opportunity_cost_3yr": opportunity_cost_3yr,
-        "opportunity_cost_5yr": opportunity_cost_5yr,
+        "opportunity_cost_10yr": opportunity_cost_10yr,
+        "opportunity_cost_20yr": opportunity_cost_20yr,
+        "opportunity_cost_30yr": opportunity_cost_30yr,
         "rent_controlled": bool(ba_value_drivers.get("rent_controlled")),
         "rent_control_city": ba_value_drivers.get("rent_control_city"),
         "rent_control_implications": ba_value_drivers.get("implications"),

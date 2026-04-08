@@ -8,9 +8,9 @@ export interface InvestmentData {
   monthly_buy_cost: number | null;
   monthly_rent_equivalent: number | null;
   monthly_cost_diff: number | null;
-  opportunity_cost_1yr: number | null;
-  opportunity_cost_3yr: number | null;
-  opportunity_cost_5yr: number | null;
+  opportunity_cost_10yr: number | null;
+  opportunity_cost_20yr: number | null;
+  opportunity_cost_30yr: number | null;
   adu_potential: boolean;
   adu_rent_estimate: number | null;
   rent_controlled: boolean;
@@ -71,16 +71,16 @@ export function InvestmentCard({ investment }: Props) {
         {/* Opportunity cost vs. renting */}
         <div className="grid grid-cols-3 gap-3 rounded-xl bg-[var(--bg)] p-4 text-sm">
           <div>
-            <p className="text-xs text-[var(--ink-muted)]">1yr Opp. Cost</p>
-            <p className="font-semibold text-[var(--ink)]">{fmtUsd(investment.opportunity_cost_1yr)}</p>
+            <p className="text-xs text-[var(--ink-muted)]">10yr Opp. Cost</p>
+            <p className="font-semibold text-[var(--ink)]">{fmtUsd(investment.opportunity_cost_10yr)}</p>
           </div>
           <div>
-            <p className="text-xs text-[var(--ink-muted)]">3yr Opp. Cost</p>
-            <p className="font-semibold text-[var(--ink)]">{fmtUsd(investment.opportunity_cost_3yr)}</p>
+            <p className="text-xs text-[var(--ink-muted)]">20yr Opp. Cost</p>
+            <p className="font-semibold text-[var(--ink)]">{fmtUsd(investment.opportunity_cost_20yr)}</p>
           </div>
           <div>
-            <p className="text-xs text-[var(--ink-muted)]">5yr Opp. Cost</p>
-            <p className="font-semibold text-[var(--ink)]">{fmtUsd(investment.opportunity_cost_5yr)}</p>
+            <p className="text-xs text-[var(--ink-muted)]">30yr Opp. Cost</p>
+            <p className="font-semibold text-[var(--ink)]">{fmtUsd(investment.opportunity_cost_30yr)}</p>
           </div>
         </div>
 

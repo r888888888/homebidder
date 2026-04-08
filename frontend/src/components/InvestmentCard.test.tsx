@@ -12,9 +12,9 @@ const BASE: InvestmentData = {
   monthly_buy_cost: 7820.0,
   monthly_rent_equivalent: 3500.0,
   monthly_cost_diff: 4320.0,
-  opportunity_cost_1yr: 54200.0,
-  opportunity_cost_3yr: 180000.0,
-  opportunity_cost_5yr: 337000.0,
+  opportunity_cost_10yr: 1050000.0,
+  opportunity_cost_20yr: 3300000.0,
+  opportunity_cost_30yr: 8200000.0,
   adu_potential: true,
   adu_rent_estimate: 2600,
   rent_controlled: true,
@@ -39,9 +39,9 @@ describe("InvestmentCard", () => {
   it("renders opportunity cost section when rent data is available", () => {
     render(<InvestmentCard investment={BASE} />);
 
-    expect(screen.getByText(/1yr opp\. cost/i)).toBeInTheDocument();
-    expect(screen.getByText(/3yr opp\. cost/i)).toBeInTheDocument();
-    expect(screen.getByText(/5yr opp\. cost/i)).toBeInTheDocument();
+    expect(screen.getByText(/10yr opp\. cost/i)).toBeInTheDocument();
+    expect(screen.getByText(/20yr opp\. cost/i)).toBeInTheDocument();
+    expect(screen.getByText(/30yr opp\. cost/i)).toBeInTheDocument();
     expect(screen.getByText(/\$7,820.*mo.*\$3,500.*mo/i)).toBeInTheDocument();
   });
 
@@ -53,9 +53,9 @@ describe("InvestmentCard", () => {
           monthly_buy_cost: null,
           monthly_rent_equivalent: null,
           monthly_cost_diff: null,
-          opportunity_cost_1yr: null,
-          opportunity_cost_3yr: null,
-          opportunity_cost_5yr: null,
+          opportunity_cost_10yr: null,
+          opportunity_cost_20yr: null,
+          opportunity_cost_30yr: null,
         }}
       />
     );
@@ -88,9 +88,9 @@ describe("InvestmentCard", () => {
           monthly_buy_cost: null,
           monthly_rent_equivalent: null,
           monthly_cost_diff: null,
-          opportunity_cost_1yr: null,
-          opportunity_cost_3yr: null,
-          opportunity_cost_5yr: null,
+          opportunity_cost_10yr: null,
+          opportunity_cost_20yr: null,
+          opportunity_cost_30yr: null,
         }}
       />
     );
