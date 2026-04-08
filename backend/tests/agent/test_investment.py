@@ -18,6 +18,7 @@ class TestComputeInvestmentMetrics:
 
         assert result["rate_30yr_fixed"] == 6.5
         assert result["as_of_date"] == "2026-03-26"
+        assert result["purchase_price"] == 1_250_000
         assert result["projected_value_10yr"] > 1_250_000
         assert result["projected_value_20yr"] > result["projected_value_10yr"]
         assert result["projected_value_30yr"] > result["projected_value_20yr"]

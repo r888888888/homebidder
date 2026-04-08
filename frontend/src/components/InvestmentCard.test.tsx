@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { InvestmentCard, type InvestmentData } from "./InvestmentCard";
 
 const BASE: InvestmentData = {
+  purchase_price: 1250000,
   projected_value_10yr: 1850000,
   projected_value_20yr: 2730000,
   projected_value_30yr: 4040000,
@@ -30,6 +31,7 @@ describe("InvestmentCard", () => {
     render(<InvestmentCard investment={BASE} />);
 
     expect(screen.getByText(/investment analysis/i)).toBeInTheDocument();
+    expect(screen.getByText(/^today$/i)).toBeInTheDocument();
     expect(screen.getByText(/10yr projected value/i)).toBeInTheDocument();
     expect(screen.getByText(/20yr projected value/i)).toBeInTheDocument();
     expect(screen.getByText(/30yr projected value/i)).toBeInTheDocument();

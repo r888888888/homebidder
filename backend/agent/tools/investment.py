@@ -96,6 +96,7 @@ def compute_investment_metrics(
         opportunity_cost_30yr = None
 
     return {
+        "purchase_price": price if price > 0 else None,
         "projected_value_10yr": projected_10yr,
         "projected_value_20yr": projected_20yr,
         "projected_value_30yr": projected_30yr,

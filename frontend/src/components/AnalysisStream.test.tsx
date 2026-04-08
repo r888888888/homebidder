@@ -92,6 +92,7 @@ const OFFER_RESULT = {
 };
 
 const INVESTMENT_RESULT = {
+  purchase_price: 1250000,
   projected_value_10yr: 1850000,
   projected_value_20yr: 2730000,
   projected_value_30yr: 4040000,

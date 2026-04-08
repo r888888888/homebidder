@@ -1,4 +1,5 @@
 export interface InvestmentData {
+  purchase_price: number | null;
   projected_value_10yr: number | null;
   projected_value_20yr: number | null;
   projected_value_30yr: number | null;
@@ -49,7 +50,11 @@ export function InvestmentCard({ investment }: Props) {
 
       <div className="space-y-4 px-6 py-5">
         {/* Appreciation projections */}
-        <div className="grid grid-cols-3 gap-3 rounded-xl bg-[var(--bg)] p-4 text-sm">
+        <div className="grid grid-cols-4 gap-3 rounded-xl bg-[var(--bg)] p-4 text-sm">
+          <div>
+            <p className="text-xs text-[var(--ink-muted)]">Today</p>
+            <p className="font-semibold text-[var(--ink)]">{fmtUsd(investment.purchase_price)}</p>
+          </div>
           <div>
             <p className="text-xs text-[var(--ink-muted)]">10yr Projected Value</p>
             <p className="font-semibold text-[var(--ink)]">{fmtUsd(investment.projected_value_10yr)}</p>
