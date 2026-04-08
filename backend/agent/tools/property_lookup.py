@@ -398,6 +398,16 @@ def _select_best_homeharvest_row(df: Any, query_address: str):
         row_unit = _extract_unit_token(street)
         url_unit = _extract_unit_token(_safe(row, "property_url", ""))
 
+        # Fall back to structured unit fields when street and URL lack a unit token
+        if row_unit is None:
+            for field in ("unit_number", "unit", "apartment"):
+                val = _safe(row, field)
+                if val is not None:
+                    candidate = str(val).strip().lower()
+                    if candidate:
+                        row_unit = candidate
+                        break
+
         score = 0
 
         if target_base and row_base:

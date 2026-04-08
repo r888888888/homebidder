@@ -496,6 +496,41 @@ class TestHomeharvestListingHelper:
         assert result["price"] == 998_000.0
         assert result["sqft"] == 1105
 
+    async def test_homeharvest_listing_uses_unit_number_structured_field_when_street_and_url_lack_unit(self):
+        """
+        Some rows store the unit only in the unit_number structured field with a
+        bare street (e.g., street='88 Hoff St', unit_number='104') and a URL
+        that contains no recognisable unit token.  _select_best_homeharvest_row
+        should still select the row whose unit_number matches the query.
+        """
+        from agent.tools.property_lookup import _homeharvest_listing
+
+        row_other = {
+            **HOMEHARVEST_ROW,
+            "street": "88 Hoff St",
+            "unit_number": "101",
+            "property_url": "https://www.realtor.com/some-opaque-id-abc",
+            "list_price": 750_000.0,
+            "sqft": 850,
+        }
+        row_target = {
+            **HOMEHARVEST_ROW,
+            "street": "88 Hoff St",
+            "unit_number": "104",
+            "property_url": "https://www.realtor.com/some-opaque-id-def",
+            "list_price": 849_000.0,
+            "sqft": 920,
+        }
+        df = _make_homeharvest_df([row_other, row_target])
+
+        with patch("agent.tools.property_lookup.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+
+            result = await _homeharvest_listing("88 Hoff St #104, San Francisco, CA 94110")
+
+        assert result["price"] == 849_000.0
+        assert result["sqft"] == 920
+
     async def test_listing_description_extracted_from_text_column(self):
         """_homeharvest_listing reads the description from homeharvest's 'text' column."""
         from agent.tools.property_lookup import _homeharvest_listing

@@ -1,7 +1,5 @@
 # TODO
 
-- Incorporate React Query for API calls
-- Assuming the DBI permit search works, let's cache it in the database. Use a 24 hour expiry.
 - Code review of backend
 - Code review of frontend
 - Move feature flags into database, add admin portal
@@ -13,15 +11,17 @@
 - Review other potential factors for affecting retail price
 - Compact final analysis prompt
 - Add StreetView link
-- Organize page into tabs
 - Support school quality
 - Factor in seasonality of sales
-- Why does "88 Hoff St #104, San Francisco, CA 94110" not find the correct unit?
 - Why does "88 Hoff St Apt 104, San Francisco, CA 94110" produce a low offer recc that's higher than the high offer recc?
-- Readd rent estimation tools
+- Read rent estimation tools
 
 # DONE
 
+- Why does "88 Hoff St #104, San Francisco, CA 94110" not find the correct unit?
+- Assuming the DBI permit search works, let's cache it in the database. Use a 24 hour expiry.
+- Organize page into tabs
+- Incorporate React Query for API calls
 - Clicking on description should expand to full text
 - Can we persist the fixer analysis card in the database
 - Analyzing a property seems to insert it into the database twice
