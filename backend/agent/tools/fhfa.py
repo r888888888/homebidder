@@ -13,13 +13,14 @@ XLSX structure:
 import io
 import os
 import time
+from pathlib import Path
 from typing import Any
 
 import httpx
 import pandas as pd
 
 FHFA_URL = "https://www.fhfa.gov/hpi/download/annual/hpi_at_zip5.xlsx"
-CACHE_PATH = "/tmp/fhfa_hpi.xlsx"
+CACHE_PATH = str(Path(__file__).resolve().parent.parent.parent / "data" / "fhfa_hpi.xlsx")
 CACHE_TTL = 7 * 86_400  # 7 days
 
 _ZIP_COL = "Five-Digit ZIP Code"
