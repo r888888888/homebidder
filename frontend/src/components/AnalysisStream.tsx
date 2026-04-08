@@ -177,7 +177,7 @@ export function AnalysisStream({ events, isRunning }: Props) {
             {offerData ? (
               <OfferRecommendationCard offer={offerData} />
             ) : (
-              isRunning && <PanelSkeleton label="Computing offer range\u2026" />
+              isRunning && <PanelSkeleton label="Computing offer range…" />
             )}
             {renovationData && <FixerAnalysisCard data={renovationData} />}
           </div>
@@ -196,7 +196,7 @@ export function AnalysisStream({ events, isRunning }: Props) {
             {propertyData ? (
               <PropertySummaryCard property={propertyData} />
             ) : (
-              isRunning && <PanelSkeleton label="Looking up property\u2026" />
+              isRunning && <PanelSkeleton label="Looking up property…" />
             )}
             {neighborhoodData && (
               <NeighborhoodCard
@@ -220,7 +220,7 @@ export function AnalysisStream({ events, isRunning }: Props) {
             {compsData ? (
               <CompsCard comps={compsData} />
             ) : (
-              isRunning && <PanelSkeleton label="Fetching comparable sales\u2026" />
+              isRunning && <PanelSkeleton label="Fetching comparable sales…" />
             )}
             {investmentData && <InvestmentCard investment={investmentData} />}
           </div>
@@ -239,7 +239,7 @@ export function AnalysisStream({ events, isRunning }: Props) {
             {riskData ? (
               <RiskAnalysisCard risk={riskData} />
             ) : (
-              isRunning && <PanelSkeleton label="Assessing risk factors\u2026" />
+              isRunning && <PanelSkeleton label="Assessing risk factors…" />
             )}
             {permitsData && <PermitsCard permits={permitsData} />}
           </div>

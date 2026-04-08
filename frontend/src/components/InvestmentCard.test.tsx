@@ -3,9 +3,9 @@ import { describe, expect, it } from "vitest";
 import { InvestmentCard, type InvestmentData } from "./InvestmentCard";
 
 const BASE: InvestmentData = {
-  projected_value_1yr: 1300000,
-  projected_value_3yr: 1406080,
-  projected_value_5yr: 1520824,
+  projected_value_10yr: 1850000,
+  projected_value_20yr: 2730000,
+  projected_value_30yr: 4040000,
   rate_30yr_fixed: 6.63,
   as_of_date: "2026-03-26",
   hpi_yoy_assumption_pct: 4.0,
@@ -30,9 +30,9 @@ describe("InvestmentCard", () => {
     render(<InvestmentCard investment={BASE} />);
 
     expect(screen.getByText(/investment analysis/i)).toBeInTheDocument();
-    expect(screen.getByText(/1yr projected value/i)).toBeInTheDocument();
-    expect(screen.getByText(/3yr projected value/i)).toBeInTheDocument();
-    expect(screen.getByText(/5yr projected value/i)).toBeInTheDocument();
+    expect(screen.getByText(/10yr projected value/i)).toBeInTheDocument();
+    expect(screen.getByText(/20yr projected value/i)).toBeInTheDocument();
+    expect(screen.getByText(/30yr projected value/i)).toBeInTheDocument();
     expect(screen.getByText(/assumes 6.63% 30yr fixed/i)).toBeInTheDocument();
   });
 

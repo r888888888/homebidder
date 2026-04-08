@@ -72,9 +72,9 @@ def compute_investment_metrics(
         yoy_pct = 0.0
     growth = 1.0 + (yoy_pct / 100.0)
 
-    projected_1yr = round(price * pow(growth, 1), 0) if price > 0 else None
-    projected_3yr = round(price * pow(growth, 3), 0) if price > 0 else None
-    projected_5yr = round(price * pow(growth, 5), 0) if price > 0 else None
+    projected_10yr = round(price * pow(growth, 10), 0) if price > 0 else None
+    projected_20yr = round(price * pow(growth, 20), 0) if price > 0 else None
+    projected_30yr = round(price * pow(growth, 30), 0) if price > 0 else None
 
     # Opportunity cost vs. renting
     zip_median_rent = _optional_float(ba_value_drivers.get("zip_median_rent"))
@@ -96,9 +96,9 @@ def compute_investment_metrics(
         opportunity_cost_30yr = None
 
     return {
-        "projected_value_1yr": projected_1yr,
-        "projected_value_3yr": projected_3yr,
-        "projected_value_5yr": projected_5yr,
+        "projected_value_10yr": projected_10yr,
+        "projected_value_20yr": projected_20yr,
+        "projected_value_30yr": projected_30yr,
         "rate_30yr_fixed": rate_30,
         "as_of_date": as_of_date,
         "hpi_yoy_assumption_pct": yoy_pct,

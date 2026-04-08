@@ -18,9 +18,9 @@ class TestComputeInvestmentMetrics:
 
         assert result["rate_30yr_fixed"] == 6.5
         assert result["as_of_date"] == "2026-03-26"
-        assert result["projected_value_1yr"] > 1_250_000
-        assert result["projected_value_3yr"] > result["projected_value_1yr"]
-        assert result["projected_value_5yr"] > result["projected_value_3yr"]
+        assert result["projected_value_10yr"] > 1_250_000
+        assert result["projected_value_20yr"] > result["projected_value_10yr"]
+        assert result["projected_value_30yr"] > result["projected_value_20yr"]
         assert result["adu_potential"] is True
         assert result["adu_rent_estimate"] == 2400
 
@@ -34,9 +34,9 @@ class TestComputeInvestmentMetrics:
             ba_value_drivers={"adu_potential": False, "adu_rent_estimate": None},
         )
 
-        assert result["projected_value_1yr"] > 1_000_000
-        assert result["projected_value_3yr"] > result["projected_value_1yr"]
-        assert result["projected_value_5yr"] > result["projected_value_3yr"]
+        assert result["projected_value_10yr"] > 1_000_000
+        assert result["projected_value_20yr"] > result["projected_value_10yr"]
+        assert result["projected_value_30yr"] > result["projected_value_20yr"]
 
     def test_ba_value_drivers_fields_included(self):
         from agent.tools.investment import compute_investment_metrics

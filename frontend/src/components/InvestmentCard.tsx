@@ -1,7 +1,7 @@
 export interface InvestmentData {
-  projected_value_1yr: number | null;
-  projected_value_3yr: number | null;
-  projected_value_5yr: number | null;
+  projected_value_10yr: number | null;
+  projected_value_20yr: number | null;
+  projected_value_30yr: number | null;
   rate_30yr_fixed: number | null;
   as_of_date: string | null;
   hpi_yoy_assumption_pct: number | null;
@@ -51,16 +51,16 @@ export function InvestmentCard({ investment }: Props) {
         {/* Appreciation projections */}
         <div className="grid grid-cols-3 gap-3 rounded-xl bg-[var(--bg)] p-4 text-sm">
           <div>
-            <p className="text-xs text-[var(--ink-muted)]">1yr Projected Value</p>
-            <p className="font-semibold text-[var(--ink)]">{fmtUsd(investment.projected_value_1yr)}</p>
+            <p className="text-xs text-[var(--ink-muted)]">10yr Projected Value</p>
+            <p className="font-semibold text-[var(--ink)]">{fmtUsd(investment.projected_value_10yr)}</p>
           </div>
           <div>
-            <p className="text-xs text-[var(--ink-muted)]">3yr Projected Value</p>
-            <p className="font-semibold text-[var(--ink)]">{fmtUsd(investment.projected_value_3yr)}</p>
+            <p className="text-xs text-[var(--ink-muted)]">20yr Projected Value</p>
+            <p className="font-semibold text-[var(--ink)]">{fmtUsd(investment.projected_value_20yr)}</p>
           </div>
           <div>
-            <p className="text-xs text-[var(--ink-muted)]">5yr Projected Value</p>
-            <p className="font-semibold text-[var(--ink)]">{fmtUsd(investment.projected_value_5yr)}</p>
+            <p className="text-xs text-[var(--ink-muted)]">30yr Projected Value</p>
+            <p className="font-semibold text-[var(--ink)]">{fmtUsd(investment.projected_value_30yr)}</p>
           </div>
         </div>
 
