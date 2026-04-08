@@ -6,6 +6,7 @@ import gzip
 import io
 import os
 import time
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -14,7 +15,7 @@ REDFIN_TSV_URL = (
     "https://redfin-public-data.s3.us-west-2.amazonaws.com/"
     "redfin_market_tracker/zip_code_market_tracker.tsv000.gz"
 )
-CACHE_PATH = "/tmp/redfin_market.tsv.gz"
+CACHE_PATH = str(Path(__file__).resolve().parent.parent.parent / "data" / "redfin_market.tsv.gz")
 CACHE_TTL = 86_400  # 24 hours
 
 
