@@ -49,6 +49,46 @@ class TestFetchBaValueDrivers:
         assert result["rent_control_city"] == "San Francisco"
         assert result["nearest_bart_station"] == "16TH ST MISSION"
         assert result["transit_premium_likely"] is True
+        assert result["zip_median_rent"] == 4000.0
+
+    async def test_zip_median_rent_included_in_output_when_available(self):
+        from agent.tools.ba_value_drivers import fetch_ba_value_drivers
+
+        property_data = {
+            "property_type": "SINGLE_FAMILY",
+            "lot_size": 4000,
+            "city": "Oakland",
+            "year_built": 1960,
+            "latitude": None,
+            "longitude": None,
+        }
+
+        with patch("agent.tools.ba_value_drivers._load_caltrain_stations", return_value=[]), \
+             patch("agent.tools.ba_value_drivers._fetch_zip_median_rent", new=AsyncMock(return_value=3500.0)), \
+             patch("agent.tools.ba_value_drivers._fetch_bart_stations", new=AsyncMock(return_value=[])):
+            result = await fetch_ba_value_drivers(property_data, "94601")
+
+        assert result["zip_median_rent"] == 3500.0
+
+    async def test_zip_median_rent_is_none_when_census_fails(self):
+        from agent.tools.ba_value_drivers import fetch_ba_value_drivers
+
+        property_data = {
+            "property_type": "CONDO",
+            "lot_size": 0,
+            "city": "Fremont",
+            "year_built": 2000,
+            "latitude": None,
+            "longitude": None,
+        }
+
+        with patch("agent.tools.ba_value_drivers._load_caltrain_stations", return_value=[]), \
+             patch("agent.tools.ba_value_drivers._fetch_zip_median_rent", new=AsyncMock(return_value=None)), \
+             patch("agent.tools.ba_value_drivers._fetch_bart_stations", new=AsyncMock(return_value=[])):
+            result = await fetch_ba_value_drivers(property_data, "94538")
+
+        assert "zip_median_rent" in result
+        assert result["zip_median_rent"] is None
 
     async def test_no_adu_for_small_lot_or_non_sfr(self):
         from agent.tools.ba_value_drivers import fetch_ba_value_drivers

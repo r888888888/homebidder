@@ -1,13 +1,19 @@
 # TODO
 
+- Debug whether FHFA data includes data for 94112.
+- Fix failing tests
+- Update investment analysis to move rent opportunity costs to 10/20/30 year scale
+- Remove outliers from comp analysis
+- Move BART API data into fetch script
+- Move FHFA API data into fetch script
 - Code review of backend
 - Code review of frontend
+- Persist which renovation options were toggled in teh database
 - Move feature flags into database, add admin portal
 - Support inspection reports
 - Support pest inspection reports
 - Support disclosures
 - Support education locality
-- Add opportunity cost versus renting
 - Review other potential factors for affecting retail price
 - Compact final analysis prompt
 - Add StreetView link
@@ -17,6 +23,9 @@
 
 # DONE
 
+- Tweak fixer analysis card to show an offer price that subtracts the cost of renovations.
+- Add opportunity cost versus renting
+- Disable 1password for the property address search field
 - Why does "88 Hoff St Apt 104, San Francisco, CA 94110" produce a low offer recc that's higher than the high offer recc?
 - Why does "88 Hoff St #104, San Francisco, CA 94110" not find the correct unit?
 - Assuming the DBI permit search works, let's cache it in the database. Use a 24 hour expiry.

@@ -5,6 +5,12 @@ export interface InvestmentData {
   rate_30yr_fixed: number | null;
   as_of_date: string | null;
   hpi_yoy_assumption_pct: number | null;
+  monthly_buy_cost: number | null;
+  monthly_rent_equivalent: number | null;
+  monthly_cost_diff: number | null;
+  opportunity_cost_1yr: number | null;
+  opportunity_cost_3yr: number | null;
+  opportunity_cost_5yr: number | null;
   adu_potential: boolean;
   adu_rent_estimate: number | null;
   rent_controlled: boolean;
@@ -30,6 +36,9 @@ function fmtPct2(n: number | null): string {
 }
 
 export function InvestmentCard({ investment }: Props) {
+  const diffPositive =
+    investment.monthly_cost_diff != null && investment.monthly_cost_diff > 0;
+
   return (
     <div className="card overflow-hidden fade-up">
       <div className="flex items-center justify-between border-b border-[var(--line)] px-6 py-4">
@@ -39,6 +48,7 @@ export function InvestmentCard({ investment }: Props) {
       </div>
 
       <div className="space-y-4 px-6 py-5">
+        {/* Appreciation projections */}
         <div className="grid grid-cols-3 gap-3 rounded-xl bg-[var(--bg)] p-4 text-sm">
           <div>
             <p className="text-xs text-[var(--ink-muted)]">1yr Projected Value</p>
@@ -57,6 +67,35 @@ export function InvestmentCard({ investment }: Props) {
         <p className="text-xs text-[var(--ink-muted)]">
           Assumes {fmtPct2(investment.rate_30yr_fixed)} 30yr fixed (Freddie Mac PMMS, week of {investment.as_of_date ?? "—"})
         </p>
+
+        {/* Opportunity cost vs. renting */}
+        <div className="grid grid-cols-3 gap-3 rounded-xl bg-[var(--bg)] p-4 text-sm">
+          <div>
+            <p className="text-xs text-[var(--ink-muted)]">1yr Opp. Cost</p>
+            <p className="font-semibold text-[var(--ink)]">{fmtUsd(investment.opportunity_cost_1yr)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-[var(--ink-muted)]">3yr Opp. Cost</p>
+            <p className="font-semibold text-[var(--ink)]">{fmtUsd(investment.opportunity_cost_3yr)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-[var(--ink-muted)]">5yr Opp. Cost</p>
+            <p className="font-semibold text-[var(--ink)]">{fmtUsd(investment.opportunity_cost_5yr)}</p>
+          </div>
+        </div>
+
+        {investment.monthly_rent_equivalent != null ? (
+          <p className={`text-xs ${diffPositive ? "text-amber-600" : "text-emerald-600"}`}>
+            Buying costs {fmtUsd(investment.monthly_buy_cost)}/mo vs.{" "}
+            {fmtUsd(investment.monthly_rent_equivalent)}/mo to rent (diff:{" "}
+            {investment.monthly_cost_diff != null && investment.monthly_cost_diff > 0 ? "+" : ""}
+            {fmtUsd(investment.monthly_cost_diff)}/mo invested at 10%/yr)
+          </p>
+        ) : (
+          <p className="text-xs text-[var(--ink-muted)]">
+            Rent comparison unavailable (Census data not found for this ZIP)
+          </p>
+        )}
 
         {investment.adu_potential && (
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
@@ -84,7 +123,7 @@ export function InvestmentCard({ investment }: Props) {
         )}
 
         <p className="text-xs text-[var(--ink-muted)]">
-          Based on FHFA HPI trend — not financial advice.
+          Based on FHFA HPI trend and 20% down, 30yr fixed, 0.5% annual maintenance, 10% stock return — not financial advice.
         </p>
       </div>
     </div>

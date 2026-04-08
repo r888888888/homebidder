@@ -145,6 +145,17 @@ describe("FixerAnalysisCard", () => {
     );
     expect(screen.getByText(/−\$50,000/)).toBeInTheDocument();
   });
+
+  it("shows reno-adjusted offer label", () => {
+    render(<FixerAnalysisCard data={BASE} />);
+    expect(screen.getByText(/reno-adjusted offer/i)).toBeInTheDocument();
+  });
+
+  it("shows reno-adjusted offer value (offer_recommended − activeMid)", () => {
+    // offer=900k, activeMid=(65k+111k)/2=88k → 900k-88k=812k
+    render(<FixerAnalysisCard data={BASE} />);
+    expect(screen.getByText(/\$812,000/)).toBeInTheDocument();
+  });
 });
 
 describe("FixerAnalysisCard toggle behavior", () => {
@@ -207,6 +218,16 @@ describe("FixerAnalysisCard toggle behavior", () => {
     // Disable Kitchen; new savings: 1.1M - 940500 = 159500
     await userEvent.click(screen.getByRole("checkbox", { name: /toggle kitchen remodel/i }));
     expect(screen.getAllByText(/159,500/).length).toBeGreaterThan(0);
+  });
+
+  it("reno-adjusted offer updates when an item is disabled", async () => {
+    render(<FixerAnalysisCard data={BASE} />);
+    // Initial: 900k - 88k = 812k
+    expect(screen.getByText(/\$812,000/)).toBeInTheDocument();
+
+    // Disable Kitchen (35k-60k); Bathroom only (30k-51k), mid=40500 → 900k-40500=859500
+    await userEvent.click(screen.getByRole("checkbox", { name: /toggle kitchen remodel/i }));
+    expect(screen.getByText(/\$859,500/)).toBeInTheDocument();
   });
 
   it("verdict badge updates when disabling items changes the cost ratio", async () => {

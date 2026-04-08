@@ -30,7 +30,7 @@ async def _fetch_zip_median_rent(zip_code: str) -> float | None:
 
     if len(data) < 2:
         return None
-
+    
     headers, row = data[0], data[1]
     try:
         idx = headers.index(ACS_B25064)
@@ -42,7 +42,6 @@ async def _fetch_zip_median_rent(zip_code: str) -> float | None:
         return None
     return float(value)
 
-BART_STATIONS_URL = "https://api.bart.gov/api/stn.aspx?cmd=stns&json=y"
 CALTRAIN_PATH = Path(__file__).parent.parent.parent / "data" / "caltrain_stations.json"
 
 _bart_cache: list[dict[str, Any]] | None = None
@@ -87,8 +86,10 @@ async def _fetch_bart_stations() -> list[dict[str, Any]]:
     if _bart_cache is not None:
         return _bart_cache
 
+    bart_stations_url = f"https://api.bart.gov/api/stn.aspx?key={_url_quote(os.environ.get('BART_API_KEY'))}&cmd=stns&json=y"
+
     async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
-        response = await client.get(BART_STATIONS_URL)
+        response = await client.get(bart_stations_url)
         response.raise_for_status()
         payload = response.json()
 
@@ -186,6 +187,7 @@ async def fetch_ba_value_drivers(
     return {
         "adu_potential": is_adu_candidate,
         "adu_rent_estimate": adu_rent_estimate,
+        "zip_median_rent": zip_median_rent,
         "rent_controlled": rent_control["rent_controlled"],
         "rent_control_city": rent_control["rent_control_city"],
         "implications": rent_control["implications"],

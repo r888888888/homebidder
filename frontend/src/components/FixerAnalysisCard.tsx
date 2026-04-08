@@ -74,6 +74,7 @@ export function FixerAnalysisCard({ data }: Props) {
   const activeHigh = activeItems.reduce((sum, x) => sum + x.high, 0);
   const activeMid = Math.round((activeLow + activeHigh) / 2);
   const allInMid = data.offer_recommended + activeMid;
+  const renoAdjustedOffer = data.offer_recommended - activeMid;
   const savings = data.turnkey_value - allInMid;
   const verdict = deriveVerdict(savings, data.turnkey_value);
 
@@ -109,6 +110,15 @@ export function FixerAnalysisCard({ data }: Props) {
           <p className="text-base font-semibold text-[var(--ink)]">{fmt(data.turnkey_value)}</p>
           <p className="text-xs text-[var(--ink-soft)]">As-is (condition-adjusted)</p>
         </div>
+      </div>
+
+      {/* Reno-adjusted offer */}
+      <div className="mb-4 rounded-lg bg-[var(--surface)] p-3">
+        <p className="mb-1 text-xs text-[var(--ink-soft)]">Reno-adjusted offer</p>
+        <p className="text-base font-semibold text-[var(--ink)]">{fmt(renoAdjustedOffer)}</p>
+        <p className="text-xs text-[var(--ink-soft)]">
+          {fmt(data.offer_recommended)} base − {fmt(activeMid)} reno
+        </p>
       </div>
 
       {/* Post-renovation value + implied equity */}
@@ -163,7 +173,7 @@ export function FixerAnalysisCard({ data }: Props) {
                   aria-checked={!disabled}
                   aria-label={`Toggle ${item.category}`}
                   tabIndex={0}
-                  onClick={(e) => e.stopPropagation()}
+                  onClick={(e) => { e.stopPropagation(); toggleItem(i); }}
                   onKeyDown={(e) => {
                     if (e.key === " " || e.key === "Enter") {
                       e.preventDefault();
