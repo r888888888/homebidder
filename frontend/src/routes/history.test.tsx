@@ -181,6 +181,72 @@ describe("HistoryPage", () => {
     );
   });
 
+  it("renders FixerAnalysisCard when detail includes renovation_data", async () => {
+    const detailWithRenovation = {
+      ...ANALYSIS_DETAIL,
+      renovation_data: {
+        is_fixer: true,
+        fixer_signals: ["Fixer / Contractor Special"],
+        offer_recommended: 900_000,
+        renovation_estimate_low: 65_000,
+        renovation_estimate_mid: 88_000,
+        renovation_estimate_high: 111_000,
+        line_items: [{ category: "Kitchen remodel", low: 35_000, high: 60_000 }],
+        all_in_fixer_low: 965_000,
+        all_in_fixer_mid: 988_000,
+        all_in_fixer_high: 1_011_000,
+        turnkey_value: 1_100_000,
+        renovated_fair_value: 1_100_000,
+        implied_equity_mid: 112_000,
+        verdict: "cheaper_fixer" as const,
+        savings_mid: 112_000,
+        scope_notes: null,
+        disclaimer: "Rough estimates only.",
+      },
+    };
+
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(ANALYSES_LIST), { status: 200 })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(detailWithRenovation), { status: 200 })
+      );
+
+    render(<HistoryPage />);
+    await waitFor(() =>
+      expect(screen.getByText(/450 SANCHEZ ST/i)).toBeInTheDocument()
+    );
+
+    fireEvent.click(screen.getByText(/450 SANCHEZ ST/i));
+
+    await waitFor(() =>
+      expect(screen.getByText(/fixer analysis/i)).toBeInTheDocument()
+    );
+  });
+
+  it("does not render FixerAnalysisCard when renovation_data is null", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(ANALYSES_LIST), { status: 200 })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ...ANALYSIS_DETAIL, renovation_data: null }), { status: 200 })
+      );
+
+    render(<HistoryPage />);
+    await waitFor(() =>
+      expect(screen.getByText(/450 SANCHEZ ST/i)).toBeInTheDocument()
+    );
+
+    fireEvent.click(screen.getByText(/450 SANCHEZ ST/i));
+
+    await waitFor(() =>
+      expect(screen.getByText(/offer recommendation/i)).toBeInTheDocument()
+    );
+    expect(screen.queryByText(/fixer analysis/i)).not.toBeInTheDocument();
+  });
+
   it("delete button in detail calls DELETE and removes the row", async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(

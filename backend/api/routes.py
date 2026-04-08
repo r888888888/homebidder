@@ -99,6 +99,7 @@ async def get_analysis(analysis_id: int, db: AsyncSession = Depends(get_db)):
         "offer_data": json.loads(analysis.offer_data_json) if analysis.offer_data_json else None,
         "risk_data": json.loads(analysis.risk_data_json) if analysis.risk_data_json else None,
         "investment_data": json.loads(analysis.investment_data_json) if analysis.investment_data_json else None,
+        "renovation_data": json.loads(analysis.renovation_data_json) if analysis.renovation_data_json else None,
         "comps": [
             {
                 "address": c.address,

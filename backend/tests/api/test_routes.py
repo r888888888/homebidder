@@ -117,3 +117,90 @@ async def test_force_refresh_field_accepted(client):
             "force_refresh": True,
         })
     assert resp.status_code == 200
+
+
+async def test_get_analysis_includes_renovation_data(client):
+    """GET /api/analyses/{id} returns renovation_data when the analysis has it."""
+    import json, datetime
+    from db.models import Analysis, Listing
+    from db import engine
+    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlalchemy.orm import sessionmaker
+
+    renovation_payload = {
+        "is_fixer": True,
+        "fixer_signals": ["Fixer / Contractor Special"],
+        "offer_recommended": 900_000,
+        "renovation_estimate_low": 65_000,
+        "renovation_estimate_mid": 88_000,
+        "renovation_estimate_high": 111_000,
+        "line_items": [{"category": "Kitchen remodel", "low": 35_000, "high": 60_000}],
+        "all_in_fixer_low": 965_000,
+        "all_in_fixer_mid": 988_000,
+        "all_in_fixer_high": 1_011_000,
+        "turnkey_value": 1_100_000,
+        "renovated_fair_value": 1_100_000,
+        "implied_equity_mid": 112_000,
+        "verdict": "cheaper_fixer",
+        "savings_mid": 112_000,
+        "scope_notes": None,
+        "disclaimer": "Rough estimates only.",
+    }
+
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with async_session() as session:
+        listing = Listing(
+            address_input="2 Fixer St, Oakland, CA 94601",
+            address_matched="2 FIXER ST, OAKLAND, CA 94601",
+        )
+        session.add(listing)
+        await session.flush()
+        analysis = Analysis(
+            listing_id=listing.id,
+            session_id="fixer-session",
+            created_at=datetime.datetime.utcnow(),
+            renovation_data_json=json.dumps(renovation_payload),
+        )
+        session.add(analysis)
+        await session.commit()
+        analysis_id = analysis.id
+
+    resp = await client.get(f"/api/analyses/{analysis_id}")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "renovation_data" in data
+    assert data["renovation_data"]["is_fixer"] is True
+    assert data["renovation_data"]["verdict"] == "cheaper_fixer"
+    assert data["renovation_data"]["line_items"][0]["category"] == "Kitchen remodel"
+
+
+async def test_get_analysis_renovation_data_null_when_absent(client):
+    """GET /api/analyses/{id} returns renovation_data: null when no renovation data exists."""
+    import datetime
+    from db.models import Analysis, Listing
+    from db import engine
+    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlalchemy.orm import sessionmaker
+
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with async_session() as session:
+        listing = Listing(
+            address_input="3 Turnkey St, SF, CA 94110",
+            address_matched="3 TURNKEY ST, SF, CA 94110",
+        )
+        session.add(listing)
+        await session.flush()
+        analysis = Analysis(
+            listing_id=listing.id,
+            session_id="turnkey-session",
+            created_at=datetime.datetime.utcnow(),
+        )
+        session.add(analysis)
+        await session.commit()
+        analysis_id = analysis.id
+
+    resp = await client.get(f"/api/analyses/{analysis_id}")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "renovation_data" in data
+    assert data["renovation_data"] is None

@@ -4,6 +4,7 @@ import { PropertySummaryCard } from "../components/PropertySummaryCard";
 import { OfferRecommendationCard } from "../components/OfferRecommendationCard";
 import { RiskAnalysisCard } from "../components/RiskAnalysisCard";
 import { InvestmentCard } from "../components/InvestmentCard";
+import { FixerAnalysisCard } from "../components/FixerAnalysisCard";
 
 export const Route = createFileRoute("/history")({ component: HistoryPage });
 
@@ -31,6 +32,7 @@ interface AnalysisDetail {
   offer_data: Record<string, unknown> | null;
   risk_data: Record<string, unknown> | null;
   investment_data: Record<string, unknown> | null;
+  renovation_data: Record<string, unknown> | null;
   comps: unknown[];
 }
 
@@ -150,6 +152,11 @@ export function HistoryPage() {
                           {detail.investment_data && (
                             <InvestmentCard
                               investment={detail.investment_data as any}
+                            />
+                          )}
+                          {detail.renovation_data && (
+                            <FixerAnalysisCard
+                              data={detail.renovation_data as any}
                             />
                           )}
                           <div className="flex justify-end pt-2">
