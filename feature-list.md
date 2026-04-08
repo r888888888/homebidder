@@ -1,6 +1,5 @@
 # TODO
 
-- Clicking on description should expand to full text
 - Incorporate React Query for API calls
 - Assuming the DBI permit search works, let's cache it in the database. Use a 24 hour expiry.
 - Code review of backend
@@ -23,6 +22,7 @@
 
 # DONE
 
+- Clicking on description should expand to full text
 - Can we persist the fixer analysis card in the database
 - Analyzing a property seems to insert it into the database twice
 - Add renovation estimate for siding replacement

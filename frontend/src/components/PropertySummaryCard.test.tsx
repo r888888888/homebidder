@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
 import { PropertySummaryCard } from "./PropertySummaryCard";
 
@@ -193,6 +193,35 @@ describe("PropertySummaryCard", () => {
   it("hides listing description section when null", () => {
     render(<PropertySummaryCard property={{ ...BASE_PROPERTY, listing_description: null }} />);
     expect(screen.queryByText(/listing description/i)).not.toBeInTheDocument();
+  });
+
+  it("does not show Show more button for short descriptions", () => {
+    const short = "Charming Victorian with original hardwood floors.";
+    render(
+      <PropertySummaryCard property={{ ...BASE_PROPERTY, listing_description: short }} />
+    );
+    expect(screen.queryByRole("button", { name: /show more/i })).not.toBeInTheDocument();
+  });
+
+  it("shows Show more button for long descriptions", () => {
+    const long = "A".repeat(181);
+    render(
+      <PropertySummaryCard property={{ ...BASE_PROPERTY, listing_description: long }} />
+    );
+    expect(screen.getByRole("button", { name: /show more/i })).toBeInTheDocument();
+  });
+
+  it("clicking Show more reveals Show less and collapses again", () => {
+    const long = "A".repeat(181);
+    render(
+      <PropertySummaryCard property={{ ...BASE_PROPERTY, listing_description: long }} />
+    );
+    fireEvent.click(screen.getByRole("button", { name: /show more/i }));
+    expect(screen.getByRole("button", { name: /show less/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /show more/i })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /show less/i }));
+    expect(screen.getByRole("button", { name: /show more/i })).toBeInTheDocument();
   });
 
   it("renders AI fixer badge when llm is used with negative adjustment", () => {

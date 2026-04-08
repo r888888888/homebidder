@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 export interface PropertyData {
   address_input?: string | null;
   address_matched: string;
@@ -151,6 +153,7 @@ interface Props {
 }
 
 export function PropertySummaryCard({ property }: Props) {
+  const [descExpanded, setDescExpanded] = useState(false);
   const displayAddress = property.address_input?.trim() || property.address_matched;
   const matchedAddressDisplay = normalizeMatchedAddressWithUnit(
     property.address_input,
@@ -218,11 +221,25 @@ export function PropertySummaryCard({ property }: Props) {
           {" \u00b7 "}
           <span className="capitalize">{property.source}</span>
         </p>
-        {property.listing_description && (
-          <p className="mt-2 text-xs text-[var(--ink-soft)] leading-relaxed line-clamp-3">
-            {property.listing_description}
-          </p>
-        )}
+        {property.listing_description && (() => {
+          const isLong = property.listing_description.length > 180;
+          return (
+            <div className="mt-2">
+              <p className={`text-xs text-[var(--ink-soft)] leading-relaxed${!descExpanded && isLong ? " line-clamp-3" : ""}`}>
+                {property.listing_description}
+              </p>
+              {isLong && (
+                <button
+                  type="button"
+                  onClick={() => setDescExpanded((v) => !v)}
+                  className="mt-0.5 text-[11px] text-[var(--navy)] hover:underline"
+                >
+                  {descExpanded ? "Show less" : "Show more"}
+                </button>
+              )}
+            </div>
+          );
+        })()}
         {(descriptionSignals.length > 0 || llmBadgeLabel) && (
           <div className="mt-2">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--ink-muted)]">
