@@ -676,3 +676,72 @@ class TestEstimateRenovationCostWithScope:
             result = await estimate_renovation_cost(_make_property(year_built=1952), _make_offer())
         assert "age_era" in result
         assert result["age_era"] == "1940s_1960s"
+
+
+# ---------------------------------------------------------------------------
+# TestSidingLineItem — siding renovation benchmark and scope integration
+# ---------------------------------------------------------------------------
+
+class TestSidingLineItem:
+    def test_siding_in_renovation_benchmarks(self):
+        from agent.tools.renovation import RENOVATION_BENCHMARKS
+        assert "siding" in RENOVATION_BENCHMARKS
+
+    def test_siding_benchmark_has_required_fields(self):
+        from agent.tools.renovation import RENOVATION_BENCHMARKS
+        b = RENOVATION_BENCHMARKS["siding"]
+        assert "low" in b
+        assert "high" in b
+        assert b["unit"] == "flat"
+        assert "label" in b
+        assert b["low"] > 0
+        assert b["high"] > b["low"]
+
+    def test_siding_in_scope_defaults_all_levels(self):
+        from agent.tools.renovation import _SCOPE_DEFAULTS
+        for level in ("cosmetic", "mid", "full"):
+            assert "siding" in _SCOPE_DEFAULTS[level], f"siding missing from {level} scope defaults"
+
+    def test_siding_in_buyer_item_keywords(self):
+        from agent.tools.renovation import _BUYER_ITEM_KEYWORDS
+        slugs = [slug for _, slug in _BUYER_ITEM_KEYWORDS]
+        assert "siding" in slugs
+
+    def test_build_scope_profile_includes_siding_in_item_likelihood(self):
+        from agent.tools.renovation import build_scope_profile
+        profile = build_scope_profile(1965, _FIXER_SIGNALS, ["fixer-upper"])
+        assert "siding" in profile["item_likelihood"]
+
+    def test_siding_listing_mention_makes_siding_likely(self):
+        from agent.tools.renovation import build_scope_profile
+        profile = build_scope_profile(1965, _FIXER_SIGNALS, ["needs new siding", "fixer-upper"])
+        assert profile["item_likelihood"]["siding"] == "likely"
+
+    def test_full_scope_defaults_all_core_slugs_including_siding(self):
+        from agent.tools.renovation import build_scope_profile
+        profile = build_scope_profile(1965, _FIXER_SIGNALS, ["deferred maintenance"])
+        assert "siding" in profile["item_likelihood"]
+
+    async def test_siding_appears_in_llm_prompt_for_full_scope(self):
+        from agent.tools.renovation import estimate_renovation_cost
+        full_signals = [
+            {"label": "Fixer / Contractor Special", "category": "condition_negative",
+             "direction": "negative", "weight_pct": -2.0, "matched_phrases": ["deferred maintenance"]},
+        ]
+        prop = _make_property(detected_signals=full_signals)
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}), \
+             patch("agent.tools.renovation.anthropic.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_cls.return_value = mock_client
+            mock_client.messages.create.return_value = _make_llm_response(_GOOD_LLM_JSON)
+            await estimate_renovation_cost(prop, _make_offer())
+        prompt_text = mock_client.messages.create.call_args[1]["messages"][0]["content"]
+        assert "siding" in prompt_text.lower()
+
+    def test_all_core_items_in_item_likelihood_including_siding(self):
+        from agent.tools.renovation import build_scope_profile
+        CORE_SLUGS = {"kitchen", "bathroom", "flooring", "paint", "roof",
+                      "electrical", "plumbing", "hvac", "foundation", "seismic", "windows", "siding"}
+        profile = build_scope_profile(1965, _FIXER_SIGNALS, ["fixer-upper"])
+        for slug in CORE_SLUGS:
+            assert slug in profile["item_likelihood"], f"{slug} missing from item_likelihood"

@@ -31,6 +31,7 @@ RENOVATION_BENCHMARKS: dict[str, dict] = {
     "foundation":     {"low": 20_000,  "high": 80_000,  "unit": "flat",     "label": "Foundation work"},
     "seismic":        {"low": 10_000,  "high": 25_000,  "unit": "flat",     "label": "Seismic retrofit"},
     "windows":        {"low": 20_000,  "high": 60_000,  "unit": "flat",     "label": "Windows (full replacement)"},
+    "siding":         {"low": 15_000,  "high": 45_000,  "unit": "flat",     "label": "Siding replacement"},
     "hazmat_encap":   {"low": 2_000,   "high": 5_000,   "unit": "flat",     "label": "Lead paint encapsulation"},
     "hazmat_partial": {"low": 5_000,   "high": 12_000,  "unit": "flat",     "label": "Hazmat partial remediation"},
     "hazmat_full":    {"low": 8_000,   "high": 25_000,  "unit": "flat",     "label": "Hazmat full abatement"},
@@ -65,6 +66,7 @@ _SCOPE_DEFAULTS: dict[str, dict[str, str]] = {
         "roof": "unlikely",    "electrical": "unlikely",
         "plumbing": "unlikely","hvac": "unlikely",
         "foundation": "unlikely", "seismic": "unlikely", "windows": "unlikely",
+        "siding": "unlikely",
     },
     "mid": {
         "kitchen": "likely",   "bathroom": "likely",
@@ -72,6 +74,7 @@ _SCOPE_DEFAULTS: dict[str, dict[str, str]] = {
         "roof": "possible",    "electrical": "possible",
         "plumbing": "possible","hvac": "possible",
         "foundation": "unlikely", "seismic": "unlikely", "windows": "possible",
+        "siding": "possible",
     },
     "full": {
         "kitchen": "likely",   "bathroom": "likely",
@@ -79,6 +82,7 @@ _SCOPE_DEFAULTS: dict[str, dict[str, str]] = {
         "roof": "likely",      "electrical": "likely",
         "plumbing": "likely",  "hvac": "likely",
         "foundation": "possible", "seismic": "possible", "windows": "likely",
+        "siding": "possible",
     },
 }
 
@@ -96,6 +100,7 @@ _BUYER_ITEM_KEYWORDS: list[tuple[str, str]] = [
     ("flooring", "flooring"),
     ("floor", "flooring"),
     ("paint", "paint"),
+    ("siding", "siding"),
 ]
 
 
@@ -229,6 +234,9 @@ def build_scope_profile(
     if any(kw in combined_phrases for kw in ("foundation", "settling", "cracked foundation")):
         item_likelihood["foundation"] = "likely"
         reasoning.append("listing mentions foundation → foundation=likely")
+    if any(kw in combined_phrases for kw in ("siding", "new siding", "replace siding")):
+        item_likelihood["siding"] = "likely"
+        reasoning.append("listing mentions siding → siding=likely")
 
     # Buyer notes item overrides
     if buyer_lower:
@@ -384,7 +392,7 @@ async def estimate_renovation_cost(
     likely_lines: list[str] = []
     possible_lines: list[str] = []
     core_slugs = ["kitchen", "bathroom", "flooring", "paint", "roof",
-                  "electrical", "plumbing", "hvac", "foundation", "seismic", "windows"]
+                  "electrical", "plumbing", "hvac", "foundation", "seismic", "windows", "siding"]
 
     for slug in core_slugs:
         likelihood = item_likelihood.get(slug, "unlikely")

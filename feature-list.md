@@ -1,7 +1,7 @@
 # TODO
 
-- Add renovation estimate for siding replacement
 - Analyzing a property seems to insert it into the database twice
+- Clicking on description should expand to full text
 - Incorporate React Query for API calls
 - Assuming the DBI permit search works, let's cache it in the database. Use a 24 hour expiry.
 - Code review of backend
@@ -24,6 +24,7 @@
 
 # DONE
 
+- Add renovation estimate for siding replacement
 - Remove rentcast integration entirely
 - fix sensitivity of fixer/renovated badges
 - Brainstorm better methods for estimating renovation costs
