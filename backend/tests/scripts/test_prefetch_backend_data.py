@@ -12,6 +12,7 @@ async def test_prefetch_script_runs_all_prefetchers():
 
     with patch("scripts.prefetch_backend_data.prefetch_market_trends_dataset", AsyncMock(return_value=True)) as market_mock, \
          patch("scripts.prefetch_backend_data.prefetch_fhfa_hpi_dataset", AsyncMock(return_value=True)) as fhfa_mock, \
+         patch("scripts.prefetch_backend_data.prefetch_zillow_zhvi", AsyncMock(return_value=True)) as zillow_mock, \
          patch("scripts.prefetch_backend_data.prefetch_ca_hazard_geojson", AsyncMock(return_value={
              "ap_fault_zones.geojson": True,
              "liquefaction_zones.geojson": True,
@@ -23,11 +24,13 @@ async def test_prefetch_script_runs_all_prefetchers():
 
     assert result["market_trends"] is True
     assert result["fhfa_hpi"] is True
+    assert result["zillow_zhvi"] is True
     assert result["ca_hazards"]["ap_fault_zones.geojson"] is True
     assert result["bart_stations"] is False
     assert result["caltrain_stations"] is True
     market_mock.assert_awaited_once_with(force=True)
     fhfa_mock.assert_awaited_once_with(force=True)
+    zillow_mock.assert_awaited_once_with(force=True)
     hazard_mock.assert_awaited_once_with(force=True)
     bart_mock.assert_awaited_once_with(force=True)
     caltrain_mock.assert_awaited_once_with(force=True)

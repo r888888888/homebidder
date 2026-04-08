@@ -82,6 +82,39 @@ class TestFetchFhfaHpi:
         assert "yoy_change_pct" in result
 
 
+    async def test_falls_back_to_zillow_when_zip_not_in_fhfa(self, mock_xlsx_bytes, tmp_path):
+        cache = str(tmp_path / "fhfa.xlsx")
+        with open(cache, "wb") as f:
+            f.write(mock_xlsx_bytes)
+
+        zillow_result = {
+            "zip_code": "94109",
+            "yoy_change_pct": 3.5,
+            "three_yr_avg_chg_pct": 2.8,
+            "hpi_trend": "appreciating",
+            "as_of_year": 2024,
+            "source": "Zillow ZHVI",
+        }
+        with patch("agent.tools.fhfa.CACHE_PATH", cache), \
+             patch("agent.tools.fhfa.fetch_zillow_hpi", AsyncMock(return_value=zillow_result)) as mock_zillow:
+            result = await fetch_fhfa_hpi("94109")
+
+        mock_zillow.assert_awaited_once_with("94109")
+        assert result == zillow_result
+
+    async def test_no_zillow_fallback_when_fhfa_data_found(self, mock_xlsx_bytes, tmp_path):
+        cache = str(tmp_path / "fhfa.xlsx")
+        with open(cache, "wb") as f:
+            f.write(mock_xlsx_bytes)
+
+        with patch("agent.tools.fhfa.CACHE_PATH", cache), \
+             patch("agent.tools.fhfa.fetch_zillow_hpi", AsyncMock()) as mock_zillow:
+            result = await fetch_fhfa_hpi("94114")
+
+        mock_zillow.assert_not_awaited()
+        assert "yoy_change_pct" in result
+
+
 class TestPrefetchFhfa:
     async def test_prefetch_downloads_and_writes_file(self, tmp_path):
         mock_xlsx_bytes = _make_xlsx_bytes(SAMPLE_ROWS)

@@ -19,6 +19,8 @@ from typing import Any
 import httpx
 import pandas as pd
 
+from agent.tools.zillow_hpi import fetch_zillow_hpi
+
 FHFA_URL = "https://www.fhfa.gov/hpi/download/annual/hpi_at_zip5.xlsx"
 CACHE_PATH = str(Path(__file__).resolve().parent.parent.parent / "data" / "fhfa_hpi.xlsx")
 CACHE_TTL = 7 * 86_400  # 7 days
@@ -139,7 +141,7 @@ async def fetch_fhfa_hpi(zip_code: str) -> dict[str, Any]:
         return {"zip_code": zip_code, "error": f"Failed to parse FHFA HPI data: {exc}"}
 
     if not rows:
-        return {"zip_code": zip_code, "error": "No FHFA HPI data found for this ZIP"}
+        return await fetch_zillow_hpi(zip_code)
 
     stats = _compute_hpi_stats(rows)
     return {"zip_code": zip_code, **stats}
