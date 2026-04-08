@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { AnalysisEvent } from "../routes/index";
 import { Link } from "@tanstack/react-router";
 import ReactMarkdown from "react-markdown";
@@ -31,7 +32,75 @@ const TOOL_LABELS: Record<string, string> = {
   estimate_renovation_cost: "Estimating renovation costs",
 };
 
+type TabId = "decision" | "property" | "market" | "risk" | "analysis";
+
+const TABS: { id: TabId; label: string }[] = [
+  { id: "property", label: "Property" },
+  { id: "decision", label: "Decision" },
+  { id: "market", label: "Market" },
+  { id: "risk", label: "Risk" },
+  { id: "analysis", label: "Analysis" },
+];
+
+function TabBar({
+  active,
+  hasContent,
+  onSelect,
+}: {
+  active: TabId;
+  hasContent: Record<TabId, boolean>;
+  onSelect: (id: TabId) => void;
+}) {
+  return (
+    <div
+      role="tablist"
+      aria-label="Analysis sections"
+      className="flex gap-1 overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--card)] p-1"
+    >
+      {TABS.map(({ id, label }) => {
+        const isActive = id === active;
+        return (
+          <button
+            key={id}
+            role="tab"
+            type="button"
+            aria-selected={isActive}
+            aria-controls={`tabpanel-${id}`}
+            id={`tab-${id}`}
+            onClick={() => onSelect(id)}
+            className={[
+              "relative flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+              isActive
+                ? "bg-[var(--navy)] text-white"
+                : "text-[var(--ink-soft)] hover:bg-[var(--bg)] hover:text-[var(--ink)]",
+            ].join(" ")}
+          >
+            {label}
+            {hasContent[id] && !isActive && (
+              <span
+                aria-label="has content"
+                className="h-1.5 w-1.5 rounded-full bg-[var(--coral)]"
+              />
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function PanelSkeleton({ label }: { label: string }) {
+  return (
+    <div className="card flex items-center gap-3 p-5">
+      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 border-[var(--coral)] border-t-transparent animate-spin" />
+      <span className="text-sm text-[var(--ink-soft)]">{label}</span>
+    </div>
+  );
+}
+
 export function AnalysisStream({ events, isRunning }: Props) {
+  const [activeTab, setActiveTab] = useState<TabId>("decision");
+
   const textBlocks = events.filter((e) => e.type === "text");
   const toolCalls = events.filter((e) => e.type === "tool_call");
   const finalText = textBlocks.map((e) => e.text ?? "").join("");
@@ -81,102 +150,176 @@ export function AnalysisStream({ events, isRunning }: Props) {
 
   const analysisIdEvent = events.find((e) => e.type === "analysis_id");
 
+  const tabHasContent: Record<TabId, boolean> = {
+    decision: offerData != null || renovationData != null,
+    property: propertyData != null || neighborhoodData != null,
+    market: compsData != null || investmentData != null,
+    risk: riskData != null || permitsData != null,
+    analysis: toolCalls.length > 0 || finalText.length > 0,
+  };
+
   return (
     <div className="space-y-4 fade-up">
       {/* Validation banner — shown when the searched property has already sold */}
       {validationData && <ValidationBanner result={validationData} />}
 
-      {/* Property summary card */}
-      {propertyData && <PropertySummaryCard property={propertyData} />}
+      <TabBar active={activeTab} hasContent={tabHasContent} onSelect={setActiveTab} />
 
-      {/* Neighborhood card */}
-      {neighborhoodData && (
-        <NeighborhoodCard
-          neighborhood={neighborhoodData}
-          neighborhoodName={(propertyData?.neighborhoods as string | null) ?? null}
-        />
-      )}
-
-      {/* Comps table */}
-      {compsData && <CompsCard comps={compsData} />}
-
-      {/* Offer recommendation */}
-      {offerData && <OfferRecommendationCard offer={offerData} />}
-
-      {/* Risk assessment */}
-      {riskData && <RiskAnalysisCard risk={riskData} />}
-
-      {/* Investment analysis */}
-      {investmentData && <InvestmentCard investment={investmentData} />}
-
-      {/* Permit history */}
-      {permitsData && <PermitsCard permits={permitsData} />}
-
-      {/* Fixer vs turn-key comparison (fixer properties only) */}
-      {renovationData && <FixerAnalysisCard data={renovationData} />}
-
-      {/* Agent step progress */}
-      {toolCalls.length > 0 && (
-        <div className="card p-5">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-[var(--ink-muted)]">
-            Agent steps
-          </p>
-          <ol className="space-y-2">
-            {toolCalls.map((e, i) => (
-              <li key={i} className="flex items-center gap-3 text-sm text-[var(--ink)]">
-                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--green)] text-white">
-                  <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M2 6l3 3 5-5" />
-                  </svg>
-                </span>
-                <span>{TOOL_LABELS[e.tool ?? ""] ?? e.tool}</span>
-              </li>
-            ))}
-            {isRunning && (
-              <li className="flex items-center gap-3 text-sm text-[var(--ink-soft)]">
-                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 border-[var(--coral)] border-t-transparent animate-spin" />
-                <span>Working&hellip;</span>
-              </li>
+      {/* Decision tab */}
+      <div
+        id="tabpanel-decision"
+        role="tabpanel"
+        aria-labelledby="tab-decision"
+        hidden={activeTab !== "decision"}
+      >
+        {activeTab === "decision" && (
+          <div className="space-y-4">
+            {offerData ? (
+              <OfferRecommendationCard offer={offerData} />
+            ) : (
+              isRunning && <PanelSkeleton label="Computing offer range\u2026" />
             )}
-          </ol>
-        </div>
-      )}
+            {renovationData && <FixerAnalysisCard data={renovationData} />}
+          </div>
+        )}
+      </div>
 
-      {/* Final analysis */}
-      {finalText && (
-        <div className="card overflow-hidden">
-          <div className="border-b border-[var(--line)] px-6 py-4">
-            <p className="text-xs font-semibold uppercase tracking-widest text-[var(--ink-muted)]">
-              Analysis
-            </p>
+      {/* Property tab */}
+      <div
+        id="tabpanel-property"
+        role="tabpanel"
+        aria-labelledby="tab-property"
+        hidden={activeTab !== "property"}
+      >
+        {activeTab === "property" && (
+          <div className="space-y-4">
+            {propertyData ? (
+              <PropertySummaryCard property={propertyData} />
+            ) : (
+              isRunning && <PanelSkeleton label="Looking up property\u2026" />
+            )}
+            {neighborhoodData && (
+              <NeighborhoodCard
+                neighborhood={neighborhoodData}
+                neighborhoodName={(propertyData?.neighborhoods as string | null) ?? null}
+              />
+            )}
           </div>
-          <div className="prose prose-sm max-w-none px-6 py-5 text-[var(--ink)]">
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={{
-                h1: ({ node: _node, ...props }) => (
-                  <h1 className="display-title mt-0 text-xl font-semibold" {...props} />
-                ),
-                h2: ({ node: _node, ...props }) => (
-                  <h2 className="mt-4 text-base font-semibold" {...props} />
-                ),
-                h3: ({ node: _node, ...props }) => (
-                  <h3 className="mt-4 text-sm font-semibold" {...props} />
-                ),
-                p: ({ node: _node, ...props }) => <p className="my-1" {...props} />,
-                ul: ({ node: _node, ...props }) => (
-                  <ul className="my-2 list-disc pl-5" {...props} />
-                ),
-                ol: ({ node: _node, ...props }) => (
-                  <ol className="my-2 list-decimal pl-5" {...props} />
-                ),
-              }}
-            >
-              {finalText}
-            </ReactMarkdown>
+        )}
+      </div>
+
+      {/* Market tab */}
+      <div
+        id="tabpanel-market"
+        role="tabpanel"
+        aria-labelledby="tab-market"
+        hidden={activeTab !== "market"}
+      >
+        {activeTab === "market" && (
+          <div className="space-y-4">
+            {compsData ? (
+              <CompsCard comps={compsData} />
+            ) : (
+              isRunning && <PanelSkeleton label="Fetching comparable sales\u2026" />
+            )}
+            {investmentData && <InvestmentCard investment={investmentData} />}
           </div>
-        </div>
-      )}
+        )}
+      </div>
+
+      {/* Risk tab */}
+      <div
+        id="tabpanel-risk"
+        role="tabpanel"
+        aria-labelledby="tab-risk"
+        hidden={activeTab !== "risk"}
+      >
+        {activeTab === "risk" && (
+          <div className="space-y-4">
+            {riskData ? (
+              <RiskAnalysisCard risk={riskData} />
+            ) : (
+              isRunning && <PanelSkeleton label="Assessing risk factors\u2026" />
+            )}
+            {permitsData && <PermitsCard permits={permitsData} />}
+          </div>
+        )}
+      </div>
+
+      {/* Analysis tab */}
+      <div
+        id="tabpanel-analysis"
+        role="tabpanel"
+        aria-labelledby="tab-analysis"
+        hidden={activeTab !== "analysis"}
+      >
+        {activeTab === "analysis" && (
+          <div className="space-y-4">
+            {/* Agent step progress */}
+            {toolCalls.length > 0 && (
+              <div className="card p-5">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-[var(--ink-muted)]">
+                  Agent steps
+                </p>
+                <ol className="space-y-2">
+                  {toolCalls.map((e, i) => (
+                    <li key={i} className="flex items-center gap-3 text-sm text-[var(--ink)]">
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--green)] text-white">
+                        <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M2 6l3 3 5-5" />
+                        </svg>
+                      </span>
+                      <span>{TOOL_LABELS[e.tool ?? ""] ?? e.tool}</span>
+                    </li>
+                  ))}
+                  {isRunning && (
+                    <li className="flex items-center gap-3 text-sm text-[var(--ink-soft)]">
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 border-[var(--coral)] border-t-transparent animate-spin" />
+                      <span>Working&hellip;</span>
+                    </li>
+                  )}
+                </ol>
+              </div>
+            )}
+
+            {/* Final analysis */}
+            {finalText && (
+              <div className="card overflow-hidden">
+                <div className="border-b border-[var(--line)] px-6 py-4">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-[var(--ink-muted)]">
+                    Analysis
+                  </p>
+                </div>
+                <div className="prose prose-sm max-w-none px-6 py-5 text-[var(--ink)]">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      h1: ({ node: _node, ...props }) => (
+                        <h1 className="display-title mt-0 text-xl font-semibold" {...props} />
+                      ),
+                      h2: ({ node: _node, ...props }) => (
+                        <h2 className="mt-4 text-base font-semibold" {...props} />
+                      ),
+                      h3: ({ node: _node, ...props }) => (
+                        <h3 className="mt-4 text-sm font-semibold" {...props} />
+                      ),
+                      p: ({ node: _node, ...props }) => <p className="my-1" {...props} />,
+                      ul: ({ node: _node, ...props }) => (
+                        <ul className="my-2 list-disc pl-5" {...props} />
+                      ),
+                      ol: ({ node: _node, ...props }) => (
+                        <ol className="my-2 list-decimal pl-5" {...props} />
+                      ),
+                    }}
+                  >
+                    {finalText}
+                  </ReactMarkdown>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Saved link */}
       {analysisIdEvent?.id && (

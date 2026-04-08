@@ -67,6 +67,7 @@ describe("AnalysisPage", () => {
   });
 
   it("renders tool call steps as they arrive", async () => {
+    const user = userEvent.setup();
     vi.mocked(fetch).mockResolvedValue(
       mockSseStream([
         `data: ${JSON.stringify({ type: "tool_call", tool: "fetch_comps" })}\n\n`,
@@ -74,6 +75,11 @@ describe("AnalysisPage", () => {
       ])
     );
     renderAnalysisPage("450 Sanchez St, San Francisco, CA 94114");
+    // Agent steps are on the Analysis tab
+    await waitFor(() =>
+      expect(screen.getByRole("tab", { name: /analysis/i })).toBeInTheDocument()
+    );
+    await user.click(screen.getByRole("tab", { name: /analysis/i }));
     await waitFor(() =>
       expect(screen.getByText("Fetching comparable sales")).toBeInTheDocument()
     );

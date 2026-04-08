@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
 import { AnalysisStream } from "./AnalysisStream";
 
@@ -183,7 +184,8 @@ describe("AnalysisStream — analysis_id saved link", () => {
 });
 
 describe("AnalysisStream", () => {
-  it("renders cards from tool_result events", () => {
+  it("renders cards from tool_result events", async () => {
+    const user = userEvent.setup();
     const events = [
       {
         type: "tool_result" as const,
@@ -209,13 +211,21 @@ describe("AnalysisStream", () => {
 
     render(<AnalysisStream events={events} isRunning={false} />);
 
-    expect(screen.getByText(/450 Sanchez St, San Francisco, CA 94114/i)).toBeInTheDocument();
-    expect(screen.getByText(/median home value/i)).toBeInTheDocument();
-    expect(screen.getByText(/100 Comp St/i)).toBeInTheDocument();
+    // Decision tab (default) — offer card
     expect(screen.getByText(/offer recommendation/i)).toBeInTheDocument();
+
+    // Property tab — address and neighborhood
+    await user.click(screen.getByRole("tab", { name: /property/i }));
+    expect(screen.getByRole("heading", { name: /450 Sanchez St/i })).toBeInTheDocument();
+    expect(screen.getByText(/median home value/i)).toBeInTheDocument();
+
+    // Market tab — comps
+    await user.click(screen.getByRole("tab", { name: /market/i }));
+    expect(screen.getByText(/100 Comp St/i)).toBeInTheDocument();
   });
 
-  it("uses the latest property tool result when multiple are present", () => {
+  it("uses the latest property tool result when multiple are present", async () => {
+    const user = userEvent.setup();
     const events = [
       {
         type: "tool_result" as const,
@@ -241,11 +251,13 @@ describe("AnalysisStream", () => {
 
     render(<AnalysisStream events={events} isRunning={false} />);
 
-    expect(screen.getByText(/NEW ADDRESS/i)).toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: /property/i }));
+    expect(screen.getByRole("heading", { name: /NEW ADDRESS/i })).toBeInTheDocument();
     expect(screen.getByText(/\$1,750,000/)).toBeInTheDocument();
   });
 
-  it("renders investment card from compute_investment_metrics tool result", () => {
+  it("renders investment card from compute_investment_metrics tool result", async () => {
+    const user = userEvent.setup();
     const events = [
       {
         type: "tool_result" as const,
@@ -256,12 +268,14 @@ describe("AnalysisStream", () => {
 
     render(<AnalysisStream events={events} isRunning={false} />);
 
+    await user.click(screen.getByRole("tab", { name: /market/i }));
     expect(screen.getByText(/investment analysis/i)).toBeInTheDocument();
     expect(screen.getByText(/assumes 6.63% 30yr fixed/i)).toBeInTheDocument();
     expect(screen.getByText(/transit premium likely/i)).toBeInTheDocument();
   });
 
-  it("renders permits card from fetch_sf_permits tool result", () => {
+  it("renders permits card from fetch_sf_permits tool result", async () => {
+    const user = userEvent.setup();
     const events = [
       {
         type: "tool_result" as const,
@@ -272,6 +286,7 @@ describe("AnalysisStream", () => {
 
     render(<AnalysisStream events={events} isRunning={false} />);
 
+    await user.click(screen.getByRole("tab", { name: /risk/i }));
     expect(screen.getByText(/permit history/i)).toBeInTheDocument();
     expect(screen.getByText(/department of building inspection/i)).toBeInTheDocument();
     expect(screen.getByText(/complaint 202295394 is closed/i)).toBeInTheDocument();
@@ -330,7 +345,8 @@ describe("AnalysisStream", () => {
     expect(screen.queryByText(/fixer analysis/i)).not.toBeInTheDocument();
   });
 
-  it("renders final analysis with markdown formatting", () => {
+  it("renders final analysis with markdown formatting", async () => {
+    const user = userEvent.setup();
     const events = [
       {
         type: "text" as const,
@@ -340,10 +356,301 @@ describe("AnalysisStream", () => {
 
     render(<AnalysisStream events={events} isRunning={false} />);
 
+    await user.click(screen.getByRole("tab", { name: /analysis/i }));
     expect(screen.getByRole("heading", { level: 1, name: /summary/i })).toBeInTheDocument();
     expect(screen.getByText("important")).toContainHTML("<strong>important</strong>");
     expect(screen.getByRole("list")).toBeInTheDocument();
     expect(screen.getByText(/fast close/i)).toBeInTheDocument();
     expect(screen.getByText(/strong deposit/i)).toBeInTheDocument();
+  });
+});
+
+describe("AnalysisStream — tab layout", () => {
+  // ── Tab bar rendering ──────────────────────────────────────────────
+
+  it("renders all five tab buttons", () => {
+    render(<AnalysisStream events={[]} isRunning={false} />);
+    expect(screen.getByRole("tab", { name: /decision/i })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /property/i })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /market/i })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /risk/i })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /analysis/i })).toBeInTheDocument();
+  });
+
+  it("Decision tab is selected by default", () => {
+    render(<AnalysisStream events={[]} isRunning={false} />);
+    expect(screen.getByRole("tab", { name: /decision/i })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /property/i })).toHaveAttribute("aria-selected", "false");
+  });
+
+  // ── Tab switching ──────────────────────────────────────────────────
+
+  it("clicking Property tab makes it selected and deselects Decision", async () => {
+    const user = userEvent.setup();
+    render(<AnalysisStream events={[]} isRunning={false} />);
+    await user.click(screen.getByRole("tab", { name: /property/i }));
+    expect(screen.getByRole("tab", { name: /property/i })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /decision/i })).toHaveAttribute("aria-selected", "false");
+  });
+
+  it("cards for inactive tabs are not in the document after switching", async () => {
+    const user = userEvent.setup();
+    const events = [
+      {
+        type: "tool_result" as const,
+        tool: "recommend_offer",
+        result: OFFER_RESULT as unknown as Record<string, unknown>,
+      },
+      {
+        type: "tool_result" as const,
+        tool: "lookup_property_by_address",
+        result: PROPERTY_RESULT as unknown as Record<string, unknown>,
+      },
+    ];
+    render(<AnalysisStream events={events} isRunning={false} />);
+
+    // Decision tab is default — offer card visible
+    expect(screen.getByText(/offer recommendation/i)).toBeInTheDocument();
+
+    // Switch to Property tab — offer card unmounts, property card appears
+    await user.click(screen.getByRole("tab", { name: /property/i }));
+    expect(screen.queryByText(/offer recommendation/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /450 Sanchez St/i })).toBeInTheDocument();
+  });
+
+  // ── Content-availability dots ──────────────────────────────────────
+
+  it("shows availability dot on Property tab when property data is present and Decision is active", () => {
+    const events = [
+      {
+        type: "tool_result" as const,
+        tool: "lookup_property_by_address",
+        result: PROPERTY_RESULT as unknown as Record<string, unknown>,
+      },
+    ];
+    render(<AnalysisStream events={events} isRunning={false} />);
+    const propertyTab = screen.getByRole("tab", { name: /property/i });
+    expect(propertyTab.querySelector("[aria-label='has content']")).toBeInTheDocument();
+  });
+
+  it("does not show availability dot on the active tab", () => {
+    const events = [
+      {
+        type: "tool_result" as const,
+        tool: "recommend_offer",
+        result: OFFER_RESULT as unknown as Record<string, unknown>,
+      },
+    ];
+    render(<AnalysisStream events={events} isRunning={false} />);
+    const decisionTab = screen.getByRole("tab", { name: /decision/i });
+    expect(decisionTab.querySelector("[aria-label='has content']")).not.toBeInTheDocument();
+  });
+
+  it("does not show dot on a tab with no content", () => {
+    render(<AnalysisStream events={[]} isRunning={false} />);
+    const marketTab = screen.getByRole("tab", { name: /market/i });
+    expect(marketTab.querySelector("[aria-label='has content']")).not.toBeInTheDocument();
+  });
+
+  // ── Decision tab content ───────────────────────────────────────────
+
+  it("renders OfferRecommendationCard on Decision tab", () => {
+    const events = [
+      {
+        type: "tool_result" as const,
+        tool: "recommend_offer",
+        result: OFFER_RESULT as unknown as Record<string, unknown>,
+      },
+    ];
+    render(<AnalysisStream events={events} isRunning={false} />);
+    expect(screen.getByText(/offer recommendation/i)).toBeInTheDocument();
+  });
+
+  it("renders FixerAnalysisCard on Decision tab", () => {
+    const renovationResult = {
+      is_fixer: true,
+      fixer_signals: [],
+      offer_recommended: 900_000,
+      renovation_estimate_low: 65_000,
+      renovation_estimate_mid: 88_000,
+      renovation_estimate_high: 111_000,
+      line_items: [{ category: "Kitchen remodel", low: 35_000, high: 60_000 }],
+      all_in_fixer_low: 965_000,
+      all_in_fixer_mid: 988_000,
+      all_in_fixer_high: 1_011_000,
+      turnkey_value: 1_100_000,
+      renovated_fair_value: 1_100_000,
+      implied_equity_mid: 112_000,
+      verdict: "cheaper_fixer" as const,
+      savings_mid: 112_000,
+      scope_notes: null,
+      disclaimer: "Rough estimate.",
+    };
+    const events = [
+      {
+        type: "tool_result" as const,
+        tool: "estimate_renovation_cost",
+        result: renovationResult as unknown as Record<string, unknown>,
+      },
+    ];
+    render(<AnalysisStream events={events} isRunning={false} />);
+    expect(screen.getByText(/fixer analysis/i)).toBeInTheDocument();
+  });
+
+  // ── Property tab content ───────────────────────────────────────────
+
+  it("renders PropertySummaryCard and NeighborhoodCard on Property tab", async () => {
+    const user = userEvent.setup();
+    const events = [
+      {
+        type: "tool_result" as const,
+        tool: "lookup_property_by_address",
+        result: PROPERTY_RESULT as unknown as Record<string, unknown>,
+      },
+      {
+        type: "tool_result" as const,
+        tool: "fetch_neighborhood_context",
+        result: NEIGHBORHOOD_RESULT as unknown as Record<string, unknown>,
+      },
+    ];
+    render(<AnalysisStream events={events} isRunning={false} />);
+    await user.click(screen.getByRole("tab", { name: /property/i }));
+    expect(screen.getByRole("heading", { name: /450 Sanchez St/i })).toBeInTheDocument();
+    expect(screen.getByText(/median home value/i)).toBeInTheDocument();
+  });
+
+  // ── Market tab content ─────────────────────────────────────────────
+
+  it("renders CompsCard and InvestmentCard on Market tab", async () => {
+    const user = userEvent.setup();
+    const events = [
+      {
+        type: "tool_result" as const,
+        tool: "fetch_comps",
+        result: COMPS_RESULT as unknown as Record<string, unknown>,
+      },
+      {
+        type: "tool_result" as const,
+        tool: "compute_investment_metrics",
+        result: INVESTMENT_RESULT as unknown as Record<string, unknown>,
+      },
+    ];
+    render(<AnalysisStream events={events} isRunning={false} />);
+    await user.click(screen.getByRole("tab", { name: /market/i }));
+    expect(screen.getByText(/100 Comp St/i)).toBeInTheDocument();
+    expect(screen.getByText(/investment analysis/i)).toBeInTheDocument();
+  });
+
+  // ── Risk tab content ───────────────────────────────────────────────
+
+  it("renders RiskAnalysisCard on Risk tab", async () => {
+    const user = userEvent.setup();
+    const riskResult = {
+      overall_risk: "Moderate" as const,
+      score: 45,
+      factors: [{ name: "flood_zone", level: "low" as const, description: "No flood risk." }],
+    };
+    const events = [
+      {
+        type: "tool_result" as const,
+        tool: "assess_risk",
+        result: riskResult as unknown as Record<string, unknown>,
+      },
+    ];
+    render(<AnalysisStream events={events} isRunning={false} />);
+    await user.click(screen.getByRole("tab", { name: /risk/i }));
+    expect(screen.getByText(/risk assessment/i)).toBeInTheDocument();
+  });
+
+  it("renders PermitsCard on Risk tab when present", async () => {
+    const user = userEvent.setup();
+    const events = [
+      {
+        type: "tool_result" as const,
+        tool: "fetch_sf_permits",
+        result: PERMITS_RESULT as unknown as Record<string, unknown>,
+      },
+    ];
+    render(<AnalysisStream events={events} isRunning={false} />);
+    await user.click(screen.getByRole("tab", { name: /risk/i }));
+    expect(screen.getByText(/permit history/i)).toBeInTheDocument();
+  });
+
+  it("Risk tab shows no PermitsCard when fetch_sf_permits event is absent", async () => {
+    const user = userEvent.setup();
+    const riskResult = {
+      overall_risk: "Low" as const,
+      score: 20,
+      factors: [{ name: "flood_zone", level: "low" as const, description: "None." }],
+    };
+    const events = [
+      {
+        type: "tool_result" as const,
+        tool: "assess_risk",
+        result: riskResult as unknown as Record<string, unknown>,
+      },
+    ];
+    render(<AnalysisStream events={events} isRunning={false} />);
+    await user.click(screen.getByRole("tab", { name: /risk/i }));
+    expect(screen.queryByText(/permit history/i)).not.toBeInTheDocument();
+  });
+
+  // ── Analysis tab content ───────────────────────────────────────────
+
+  it("renders agent steps and final markdown on Analysis tab", async () => {
+    const user = userEvent.setup();
+    const events = [
+      { type: "tool_call" as const, tool: "fetch_comps" },
+      { type: "text" as const, text: "# Summary\n\nReady to bid." },
+    ];
+    render(<AnalysisStream events={events} isRunning={false} />);
+    await user.click(screen.getByRole("tab", { name: /analysis/i }));
+    expect(screen.getByText(/agent steps/i)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: /summary/i })).toBeInTheDocument();
+  });
+
+  // ── Global chrome outside tabs ─────────────────────────────────────
+
+  it("ValidationBanner renders above the tab bar in DOM order", () => {
+    const validationResult = {
+      actual_sold_price: 1_300_000,
+      estimated_price: 1_187_000,
+      error_dollars: 113_000,
+      error_pct: 8.7,
+      within_ci: false,
+      sold_date: "2026-01-15",
+      address: "450 Sanchez St",
+    };
+    const events = [
+      {
+        type: "validation_result" as const,
+        result: validationResult as unknown as Record<string, unknown>,
+      },
+    ];
+    render(<AnalysisStream events={events} isRunning={false} />);
+    const tabList = screen.getByRole("tablist");
+    const banner = screen.getByText(/validation mode/i).closest("[class]");
+    // banner should appear before the tablist in the DOM
+    expect(
+      banner!.compareDocumentPosition(tabList) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
+  it("saved link renders regardless of active tab", () => {
+    const events = [{ type: "analysis_id" as const, id: 99 }];
+    render(<AnalysisStream events={events} isRunning={false} />);
+    expect(screen.getByRole("link", { name: /view history/i })).toBeInTheDocument();
+  });
+
+  // ── Streaming + tab interaction ────────────────────────────────────
+
+  it("shows loading skeleton on Decision tab when running and no offer data yet", () => {
+    render(<AnalysisStream events={[]} isRunning={true} />);
+    expect(screen.getByText(/computing offer range/i)).toBeInTheDocument();
+  });
+
+  it("does not show skeleton when not running and no data", () => {
+    render(<AnalysisStream events={[]} isRunning={false} />);
+    expect(screen.queryByText(/computing offer range/i)).not.toBeInTheDocument();
   });
 });
