@@ -40,6 +40,8 @@ export function AnalysisForm({ onSubmit, isRunning }: Props) {
             value={address}
             onChange={(e) => setAddress(e.target.value)}
             disabled={isRunning}
+            autoComplete="off"
+            data-1p-ignore
             className="w-full rounded-xl border border-[var(--card-border)] bg-white py-3 pl-10 pr-4 text-sm shadow-sm placeholder:text-[var(--ink-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--coral)] disabled:opacity-50"
           />
         </div>
