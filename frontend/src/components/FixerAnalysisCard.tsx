@@ -151,25 +151,56 @@ export function FixerAnalysisCard({ data }: Props) {
           {data.line_items.map((item, i) => {
             const disabled = disabledIndices.has(i);
             return (
-              <div key={item.category} className="flex cursor-pointer items-center gap-2 py-1.5 text-sm" onClick={() => toggleItem(i)}>
-                <input
-                  type="checkbox"
-                  checked={!disabled}
-                  onChange={() => toggleItem(i)}
-                  onClick={(e) => e.stopPropagation()}
+              <div key={item.category} className="flex cursor-pointer items-center gap-3 py-3 text-sm" onClick={() => toggleItem(i)}>
+                {/* Custom animated checkbox */}
+                <div
+                  className={`flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded border-2 transition-[background-color,border-color] duration-150 ease-out ${
+                    !disabled
+                      ? "border-[var(--coral)] bg-[var(--coral)]"
+                      : "border-zinc-300 bg-white"
+                  }`}
+                  role="checkbox"
+                  aria-checked={!disabled}
                   aria-label={`Toggle ${item.category}`}
-                  className="h-3.5 w-3.5 shrink-0 cursor-pointer rounded accent-[var(--brand)]"
-                />
-                <span className={`flex-1 text-[var(--ink)] ${disabled ? "opacity-40 line-through" : ""}`}>
+                  tabIndex={0}
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => {
+                    if (e.key === " " || e.key === "Enter") {
+                      e.preventDefault();
+                      toggleItem(i);
+                    }
+                  }}
+                >
+                  <svg
+                    className="h-3 w-3 text-white"
+                    style={{
+                      opacity: !disabled ? 1 : 0,
+                      transform: !disabled ? "scale(1)" : "scale(0.3)",
+                      transition: "opacity 150ms ease-out, transform 250ms cubic-bezier(0.34, 1.56, 0.64, 1)",
+                    }}
+                    viewBox="0 0 12 12"
+                    fill="none"
+                    aria-hidden="true"
+                  >
+                    <polyline
+                      points="1.5,6 5,9.5 10.5,2"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </div>
+                <span className={`flex-1 text-[var(--ink)] transition-opacity duration-150 ${disabled ? "opacity-40 line-through" : ""}`}>
                   {item.category}
                 </span>
-                <span className={`text-[var(--ink-soft)] ${disabled ? "opacity-40 line-through" : ""}`}>
+                <span className={`text-[var(--ink-soft)] transition-opacity duration-150 ${disabled ? "opacity-40 line-through" : ""}`}>
                   ${item.low.toLocaleString("en-US")}–${item.high.toLocaleString("en-US")}
                 </span>
               </div>
             );
           })}
-          <div className="flex justify-between py-1.5 text-sm font-medium">
+          <div className="flex justify-between py-3 text-sm font-medium">
             <span className="text-[var(--ink)]">Total</span>
             <span className="text-[var(--ink)]">
               ${activeLow.toLocaleString("en-US")}–${activeHigh.toLocaleString("en-US")}
