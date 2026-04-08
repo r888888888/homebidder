@@ -114,6 +114,15 @@ def extract_description_signals(description_text: str | None) -> DescriptionSign
         )
         net_adjustment += rule["weight_pct"]
 
+    # Mutually exclusive: if both condition_negative and condition_positive fired,
+    # the signals contradict each other — suppress both and exclude their weights.
+    has_condition_neg = any(s["category"] == "condition_negative" for s in detected)
+    has_condition_pos = any(s["category"] == "condition_positive" for s in detected)
+    if has_condition_neg and has_condition_pos:
+        suppressed = {"condition_negative", "condition_positive"}
+        net_adjustment -= sum(s["weight_pct"] for s in detected if s["category"] in suppressed)
+        detected = [s for s in detected if s["category"] not in suppressed]
+
     net_adjustment = max(-MAX_ABS_ADJUSTMENT_PCT, min(MAX_ABS_ADJUSTMENT_PCT, net_adjustment))
 
     return {
