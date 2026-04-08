@@ -1,8 +1,5 @@
 # TODO
 
-- Debug whether FHFA data includes data for 94112.
-- Update investment analysis to move rent opportunity costs to 10/20/30 year scale
-- Remove outliers from comp analysis
 - Code review of backend
 - Code review of frontend
 - Persist which renovation options were toggled in teh database
@@ -20,6 +17,9 @@
 
 # DONE
 
+- Remove outliers from comp analysis
+- Update investment analysis to move rent opportunity costs to 10/20/30 year scale
+- Debug whether FHFA data includes data for 94112.
 - Move BART API data into fetch script
 - Move FHFA API data into fetch script
 - Fix failing tests

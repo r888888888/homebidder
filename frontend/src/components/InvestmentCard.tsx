@@ -89,7 +89,7 @@ export function InvestmentCard({ investment }: Props) {
             Buying costs {fmtUsd(investment.monthly_buy_cost)}/mo vs.{" "}
             {fmtUsd(investment.monthly_rent_equivalent)}/mo to rent (diff:{" "}
             {investment.monthly_cost_diff != null && investment.monthly_cost_diff > 0 ? "+" : ""}
-            {fmtUsd(investment.monthly_cost_diff)}/mo invested at 10%/yr)
+            {fmtUsd(investment.monthly_cost_diff)}/mo invested at 10%/yr; assumes 3%/yr rent growth)
           </p>
         ) : (
           <p className="text-xs text-[var(--ink-muted)]">
@@ -123,7 +123,7 @@ export function InvestmentCard({ investment }: Props) {
         )}
 
         <p className="text-xs text-[var(--ink-muted)]">
-          Based on FHFA HPI trend and 20% down, 30yr fixed, 0.5% annual maintenance, 10% stock return — not financial advice.
+          Based on FHFA HPI trend and 20% down, 30yr fixed, 0.5% annual maintenance, 10% stock return, 3%/yr rent growth — not financial advice.
         </p>
       </div>
     </div>

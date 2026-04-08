@@ -30,17 +30,39 @@ _CALTRAIN_STATIONS = [
     {"name": "San Jose Diridon", "lat": 37.3299, "lon": -121.9025},
 ]
 
-ACS_B25064 = "B25064_001E"
+ACS_B25064 = "B25064_001E"  # median gross rent, all units
+
+# ACS B25031: median gross rent by number of bedrooms
+_ACS_B25031_BY_BEDS: dict[int, str] = {
+    0: "B25031_002E",
+    1: "B25031_003E",
+    2: "B25031_004E",
+    3: "B25031_005E",
+    4: "B25031_006E",
+}
+_ACS_B25031_5PLUS = "B25031_007E"
 
 
-async def _fetch_zip_median_rent(zip_code: str) -> float | None:
+def _bedroom_acs_var(beds: int | None) -> str | None:
+    if beds is None:
+        return None
+    beds_int = int(beds)
+    if beds_int >= 5:
+        return _ACS_B25031_5PLUS
+    return _ACS_B25031_BY_BEDS.get(beds_int)
+
+
+async def _fetch_zip_median_rent(zip_code: str, beds: int | None = None) -> float | None:
     api_key = os.environ.get("CENSUS_API_KEY")
     if not api_key or not zip_code:
         return None
 
+    bedroom_var = _bedroom_acs_var(beds)
+    get_vars = f"{bedroom_var},{ACS_B25064}" if bedroom_var else ACS_B25064
+
     url = (
         "https://api.census.gov/data/2022/acs/acs5"
-        f"?get={ACS_B25064}&for=zip+code+tabulation+area:{_url_quote(zip_code)}&key={_url_quote(api_key)}"
+        f"?get={get_vars}&for=zip+code+tabulation+area:{_url_quote(zip_code)}&key={_url_quote(api_key)}"
     )
 
     async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
@@ -50,8 +72,19 @@ async def _fetch_zip_median_rent(zip_code: str) -> float | None:
 
     if len(data) < 2:
         return None
-    
+
     headers, row = data[0], data[1]
+
+    if bedroom_var:
+        try:
+            idx = headers.index(bedroom_var)
+            value = int(row[idx])
+            if value >= 0:
+                return float(value)
+        except (ValueError, IndexError):
+            pass
+
+    # Fall back to all-units median
     try:
         idx = headers.index(ACS_B25064)
         value = int(row[idx])
@@ -225,7 +258,7 @@ async def fetch_ba_value_drivers(
     lot_size = property.get("lot_size")
     is_adu_candidate = bool(lot_size and float(lot_size) >= 3000 and _is_sfr(property.get("property_type")))
 
-    zip_median_rent = await _fetch_zip_median_rent(zip_code)
+    zip_median_rent = await _fetch_zip_median_rent(zip_code, beds=property.get("bedrooms"))
     adu_rent_estimate = round(zip_median_rent * 0.65, 2) if (is_adu_candidate and zip_median_rent is not None) else None
 
     rent_control = _rent_control(property.get("city"), property.get("year_built"))

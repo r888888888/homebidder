@@ -4,7 +4,140 @@ Tests for ba_value_drivers.py.
 
 import json
 import os
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, Mock, MagicMock, patch
+
+
+def _make_census_response(vars_and_values: dict[str, int | str]) -> list:
+    """Build a minimal Census API JSON response [[headers], [values]]."""
+    headers = list(vars_and_values.keys()) + ["zip code tabulation area"]
+    row = [str(v) for v in vars_and_values.values()] + ["94110"]
+    return [headers, row]
+
+
+class TestFetchZipMedianRent:
+    async def test_fetches_bedroom_specific_variable_when_beds_known(self):
+        from agent.tools.ba_value_drivers import _fetch_zip_median_rent
+
+        response_data = _make_census_response({"B25031_005E": 4500, "B25064_001E": 3200})
+        mock_response = MagicMock()
+        mock_response.json.return_value = response_data
+        mock_response.raise_for_status = MagicMock()
+
+        captured_url = {}
+
+        async def fake_get(url, **kwargs):
+            captured_url["url"] = url
+            return mock_response
+
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client.get = fake_get
+
+        with patch.dict(os.environ, {"CENSUS_API_KEY": "testkey"}), \
+             patch("agent.tools.ba_value_drivers.httpx.AsyncClient", return_value=mock_client):
+            result = await _fetch_zip_median_rent("94110", beds=3)
+
+        assert "B25031_005E" in captured_url["url"]
+        assert result == 4500.0
+
+    async def test_falls_back_to_all_units_when_bedroom_value_is_negative(self):
+        from agent.tools.ba_value_drivers import _fetch_zip_median_rent
+
+        # Census returns -1 for bedroom-specific (insufficient samples)
+        response_data = _make_census_response({"B25031_005E": -1, "B25064_001E": 3200})
+        mock_response = MagicMock()
+        mock_response.json.return_value = response_data
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client.get = AsyncMock(return_value=mock_response)
+
+        with patch.dict(os.environ, {"CENSUS_API_KEY": "testkey"}), \
+             patch("agent.tools.ba_value_drivers.httpx.AsyncClient", return_value=mock_client):
+            result = await _fetch_zip_median_rent("94110", beds=3)
+
+        assert result == 3200.0
+
+    async def test_uses_all_units_variable_when_beds_none(self):
+        from agent.tools.ba_value_drivers import _fetch_zip_median_rent
+
+        response_data = _make_census_response({"B25064_001E": 3500})
+        mock_response = MagicMock()
+        mock_response.json.return_value = response_data
+        mock_response.raise_for_status = MagicMock()
+
+        captured_url = {}
+
+        async def fake_get(url, **kwargs):
+            captured_url["url"] = url
+            return mock_response
+
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client.get = fake_get
+
+        with patch.dict(os.environ, {"CENSUS_API_KEY": "testkey"}), \
+             patch("agent.tools.ba_value_drivers.httpx.AsyncClient", return_value=mock_client):
+            result = await _fetch_zip_median_rent("94110", beds=None)
+
+        assert "B25031" not in captured_url["url"]
+        assert result == 3500.0
+
+    async def test_five_plus_beds_uses_b25031_007e(self):
+        from agent.tools.ba_value_drivers import _fetch_zip_median_rent
+
+        response_data = _make_census_response({"B25031_007E": 6000, "B25064_001E": 3200})
+        mock_response = MagicMock()
+        mock_response.json.return_value = response_data
+        mock_response.raise_for_status = MagicMock()
+
+        captured_url = {}
+
+        async def fake_get(url, **kwargs):
+            captured_url["url"] = url
+            return mock_response
+
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client.get = fake_get
+
+        with patch.dict(os.environ, {"CENSUS_API_KEY": "testkey"}), \
+             patch("agent.tools.ba_value_drivers.httpx.AsyncClient", return_value=mock_client):
+            result = await _fetch_zip_median_rent("94110", beds=6)
+
+        assert "B25031_007E" in captured_url["url"]
+        assert result == 6000.0
+
+    async def test_fetch_ba_value_drivers_passes_bedrooms_to_rent_fetch(self):
+        from agent.tools.ba_value_drivers import fetch_ba_value_drivers
+
+        property_data = {
+            "property_type": "SINGLE_FAMILY",
+            "lot_size": 4000,
+            "city": "Oakland",
+            "year_built": 1960,
+            "latitude": None,
+            "longitude": None,
+            "bedrooms": 3,
+        }
+
+        captured_beds = {}
+
+        async def fake_fetch_rent(zip_code, beds=None):
+            captured_beds["beds"] = beds
+            return 4200.0
+
+        with patch("agent.tools.ba_value_drivers._load_caltrain_stations", return_value=[]), \
+             patch("agent.tools.ba_value_drivers._fetch_zip_median_rent", side_effect=fake_fetch_rent), \
+             patch("agent.tools.ba_value_drivers._fetch_bart_stations", new=AsyncMock(return_value=[])):
+            await fetch_ba_value_drivers(property_data, "94601")
+
+        assert captured_beds["beds"] == 3
 
 
 class TestPrefetchBartStations:

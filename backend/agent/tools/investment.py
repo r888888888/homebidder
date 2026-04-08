@@ -6,6 +6,7 @@ from typing import Any
 _DOWN_PAYMENT_PCT = 0.20
 _ANNUAL_STOCK_RETURN_PCT = 10.0   # historical S&P 500 nominal
 _MAINTENANCE_ANNUAL_PCT = 0.005   # 0.5% of property value / year
+_ANNUAL_RENT_INCREASE_PCT = 3.0   # Bay Area historical rent growth
 
 
 def _monthly_mortgage_payment(principal: float, annual_rate_pct: float, term_years: int = 30) -> float:
@@ -33,15 +34,21 @@ def _optional_float(value: Any) -> float | None:
         return None
 
 
-def _opportunity_cost_fv(monthly_diff: float, years: int) -> float:
-    """FV of investing monthly_diff in stocks at historical return over N years.
+def _opportunity_cost_fv(monthly_buy_cost: float, monthly_rent_0: float, years: int) -> float:
+    """FV of the buy-vs-rent cash-flow gap compounded at stock-market returns over N years,
+    accounting for annual rent growth.
 
-    Positive result: buying costs more (renting has lower monthly outlay).
-    Negative result: buying is cheaper (buying has a cash-flow advantage).
+    Positive result: buying costs more over the horizon.
+    Negative result: buying is cheaper (renting becomes pricier than buying).
     """
     r = (1 + _ANNUAL_STOCK_RETURN_PCT / 100) ** (1 / 12) - 1
+    g = (1 + _ANNUAL_RENT_INCREASE_PCT / 100) ** (1 / 12) - 1
     n = years * 12
-    return round(monthly_diff * ((1 + r) ** n - 1) / r, 0)
+    # Closed-form FV of a stream where buy_cost is fixed and rent grows at rate g per month:
+    #   FV = buy_cost * annuity_fv(r,n) - rent_0 * ((1+g)^n - (1+r)^n) / (g - r)
+    annuity = ((1 + r) ** n - 1) / r
+    rent_fv_term = ((1 + g) ** n - (1 + r) ** n) / (g - r)
+    return round(monthly_buy_cost * annuity - monthly_rent_0 * rent_fv_term, 0)
 
 
 def compute_investment_metrics(
@@ -78,9 +85,9 @@ def compute_investment_metrics(
         monthly_maintenance = price * _MAINTENANCE_ANNUAL_PCT / 12
         monthly_buy_cost = round(monthly_mortgage + monthly_maintenance, 2)
         monthly_cost_diff = round(monthly_buy_cost - zip_median_rent, 2)
-        opportunity_cost_10yr = _opportunity_cost_fv(monthly_cost_diff, 10)
-        opportunity_cost_20yr = _opportunity_cost_fv(monthly_cost_diff, 20)
-        opportunity_cost_30yr = _opportunity_cost_fv(monthly_cost_diff, 30)
+        opportunity_cost_10yr = _opportunity_cost_fv(monthly_buy_cost, zip_median_rent, 10)
+        opportunity_cost_20yr = _opportunity_cost_fv(monthly_buy_cost, zip_median_rent, 20)
+        opportunity_cost_30yr = _opportunity_cost_fv(monthly_buy_cost, zip_median_rent, 30)
     else:
         monthly_buy_cost = None
         monthly_cost_diff = None

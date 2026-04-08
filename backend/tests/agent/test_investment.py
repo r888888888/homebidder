@@ -107,13 +107,16 @@ class TestComputeInvestmentMetrics:
         assert result["opportunity_cost_30yr"] > result["opportunity_cost_20yr"]
 
     def test_opportunity_cost_exact_values(self):
-        from agent.tools.investment import compute_investment_metrics, _monthly_mortgage_payment
+        from agent.tools.investment import (
+            compute_investment_metrics,
+            _monthly_mortgage_payment,
+            _ANNUAL_RENT_INCREASE_PCT,
+        )
 
         price = 800_000
         rate = 6.0
         rent = 3_200.0
 
-        # Compute expected values using same helpers so we pin the formula, not the float
         loan = price * 0.80
         expected_mortgage = _monthly_mortgage_payment(loan, rate)
         expected_maintenance = price * 0.005 / 12
@@ -121,9 +124,14 @@ class TestComputeInvestmentMetrics:
         expected_diff = round(expected_buy_cost - rent, 2)
 
         r = (1 + 10.0 / 100) ** (1 / 12) - 1
-        expected_opp_10yr = round(expected_diff * ((1 + r) ** 120 - 1) / r, 0)
-        expected_opp_20yr = round(expected_diff * ((1 + r) ** 240 - 1) / r, 0)
-        expected_opp_30yr = round(expected_diff * ((1 + r) ** 360 - 1) / r, 0)
+        g = (1 + _ANNUAL_RENT_INCREASE_PCT / 100) ** (1 / 12) - 1
+
+        def expected_opp(n_months):
+            return round(
+                expected_buy_cost * ((1 + r) ** n_months - 1) / r
+                - rent * ((1 + g) ** n_months - (1 + r) ** n_months) / (g - r),
+                0,
+            )
 
         result = compute_investment_metrics(
             property={"price": price},
@@ -134,9 +142,31 @@ class TestComputeInvestmentMetrics:
 
         assert result["monthly_buy_cost"] == pytest.approx(expected_buy_cost, abs=0.01)
         assert result["monthly_cost_diff"] == pytest.approx(expected_diff, abs=0.01)
-        assert result["opportunity_cost_10yr"] == expected_opp_10yr
-        assert result["opportunity_cost_20yr"] == expected_opp_20yr
-        assert result["opportunity_cost_30yr"] == expected_opp_30yr
+        assert result["opportunity_cost_10yr"] == expected_opp(120)
+        assert result["opportunity_cost_20yr"] == expected_opp(240)
+        assert result["opportunity_cost_30yr"] == expected_opp(360)
+
+    def test_rent_growth_lowers_opportunity_cost_vs_flat(self):
+        """With rent growing annually, buying looks more favorable than flat-rent model."""
+        from agent.tools.investment import (
+            _opportunity_cost_fv,
+            _ANNUAL_RENT_INCREASE_PCT,
+        )
+
+        buy_cost = 6_500.0
+        rent_0 = 3_000.0
+
+        opp_with_growth = _opportunity_cost_fv(buy_cost, rent_0, 30)
+
+        # Simulate flat rent (0% growth) using the same function API
+        # by temporarily using g=0: formula reduces to (buy-rent)*FV_annuity
+        r = (1 + 10.0 / 100) ** (1 / 12) - 1
+        n = 360
+        opp_flat = round((buy_cost - rent_0) * ((1 + r) ** n - 1) / r, 0)
+
+        assert _ANNUAL_RENT_INCREASE_PCT > 0, "rent growth constant should be positive"
+        # Rent growth means renting gets pricier → buying looks better → lower (or less positive) opp cost
+        assert opp_with_growth < opp_flat
 
     def test_opportunity_cost_null_when_no_rent_data(self):
         from agent.tools.investment import compute_investment_metrics
