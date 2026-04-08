@@ -1,6 +1,7 @@
 """Bay Area investment value drivers: ADU, rent control, and transit proximity."""
 
 import json
+import time
 from math import atan2, cos, radians, sin, sqrt
 from pathlib import Path
 from typing import Any
@@ -9,6 +10,25 @@ import httpx
 
 import os
 from urllib.parse import quote as _url_quote
+
+BART_CACHE_PATH = str(Path(__file__).parent.parent.parent / "data" / "bart_stations.json")
+BART_CACHE_TTL = 30 * 86_400  # 30 days
+
+CALTRAIN_CACHE_PATH = str(Path(__file__).parent.parent.parent / "data" / "caltrain_stations.json")
+
+_CALTRAIN_STATIONS = [
+    {"name": "San Francisco", "lat": 37.7764, "lon": -122.3947},
+    {"name": "22nd Street", "lat": 37.7574, "lon": -122.3927},
+    {"name": "Bayshore", "lat": 37.7061, "lon": -122.4014},
+    {"name": "South San Francisco", "lat": 37.6557, "lon": -122.4047},
+    {"name": "Millbrae", "lat": 37.6000, "lon": -122.3867},
+    {"name": "San Mateo", "lat": 37.5681, "lon": -122.3258},
+    {"name": "Redwood City", "lat": 37.4852, "lon": -122.2319},
+    {"name": "Palo Alto", "lat": 37.4435, "lon": -122.1652},
+    {"name": "Mountain View", "lat": 37.3944, "lon": -122.0763},
+    {"name": "Sunnyvale", "lat": 37.3784, "lon": -122.0311},
+    {"name": "San Jose Diridon", "lat": 37.3299, "lon": -121.9025},
+]
 
 ACS_B25064 = "B25064_001E"
 
@@ -42,8 +62,6 @@ async def _fetch_zip_median_rent(zip_code: str) -> float | None:
         return None
     return float(value)
 
-CALTRAIN_PATH = Path(__file__).parent.parent.parent / "data" / "caltrain_stations.json"
-
 _bart_cache: list[dict[str, Any]] | None = None
 
 _RENT_CONTROL_CITIES = {
@@ -74,18 +92,33 @@ def _is_sfr(property_type: str | None) -> bool:
 
 
 def _load_caltrain_stations() -> list[dict[str, Any]]:
-    if not CALTRAIN_PATH.exists():
-        return []
-    with open(CALTRAIN_PATH, "r", encoding="utf-8") as f:
-        payload = json.load(f)
-    return payload if isinstance(payload, list) else []
+    try:
+        with open(CALTRAIN_CACHE_PATH, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+        return payload if isinstance(payload, list) else _CALTRAIN_STATIONS
+    except FileNotFoundError:
+        return _CALTRAIN_STATIONS
 
 
-async def _fetch_bart_stations() -> list[dict[str, Any]]:
-    global _bart_cache
-    if _bart_cache is not None:
-        return _bart_cache
+async def prefetch_caltrain_stations(force: bool = False) -> bool:
+    """
+    Write the built-in Caltrain station list to disk.
+    Returns True when written, False when the file already exists and force is False.
+    """
+    if not force and os.path.exists(CALTRAIN_CACHE_PATH):
+        return False
+    with open(CALTRAIN_CACHE_PATH, "w", encoding="utf-8") as f:
+        json.dump(_CALTRAIN_STATIONS, f)
+    return True
 
+
+def _bart_cache_valid() -> bool:
+    if not os.path.exists(BART_CACHE_PATH):
+        return False
+    return (time.time() - os.path.getmtime(BART_CACHE_PATH)) < BART_CACHE_TTL
+
+
+async def _download_bart_stations() -> list[dict[str, Any]]:
     bart_stations_url = f"https://api.bart.gov/api/stn.aspx?key={_url_quote(os.environ.get('BART_API_KEY', ''))}&cmd=stns&json=y"
 
     async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
@@ -107,9 +140,38 @@ async def _fetch_bart_stations() -> list[dict[str, Any]]:
             )
         except (TypeError, ValueError):
             continue
-
-    _bart_cache = normalized
     return normalized
+
+
+async def prefetch_bart_stations(force: bool = False) -> bool:
+    """
+    Download and cache BART stations to disk.
+    Returns True when a download happened, False when cache was already fresh.
+    """
+    if not force and _bart_cache_valid():
+        return False
+
+    stations = await _download_bart_stations()
+    with open(BART_CACHE_PATH, "w", encoding="utf-8") as f:
+        json.dump(stations, f)
+    return True
+
+
+async def _fetch_bart_stations() -> list[dict[str, Any]]:
+    """Read BART stations from disk cache. Does not make network calls at request time."""
+    global _bart_cache
+    if _bart_cache is not None:
+        return _bart_cache
+
+    try:
+        with open(BART_CACHE_PATH, "r", encoding="utf-8") as f:
+            stations = json.load(f)
+        _bart_cache = stations
+        return stations
+    except FileNotFoundError:
+        return []
+    except Exception:
+        return []
 
 
 def _nearest_station(lat: float, lon: float, stations: list[dict[str, Any]]) -> tuple[str | None, float | None, str | None]:
