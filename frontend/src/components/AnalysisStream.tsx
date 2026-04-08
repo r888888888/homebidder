@@ -25,7 +25,6 @@ const TOOL_LABELS: Record<string, string> = {
   recommend_offer: "Computing offer range",
   assess_risk: "Assessing risk factors",
   fetch_mortgage_rates: "Fetching mortgage rates",
-  fetch_rental_estimate: "Fetching rental estimate",
   fetch_ba_value_drivers: "Computing Bay Area value drivers",
   compute_investment_metrics: "Computing investment metrics",
   fetch_sf_permits: "Fetching SF permit history",

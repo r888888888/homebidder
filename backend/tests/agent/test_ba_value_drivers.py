@@ -31,8 +31,6 @@ class TestFetchBaValueDrivers:
             "latitude": 37.764,
             "longitude": -122.419,
         }
-        rental_estimate = {"rent_estimate": 5000}
-
         with patch("agent.tools.ba_value_drivers._load_caltrain_stations", return_value=fake_caltrain), \
              patch("agent.tools.ba_value_drivers._fetch_zip_median_rent", new=AsyncMock(return_value=4000.0)), \
              patch("agent.tools.ba_value_drivers.httpx.AsyncClient") as mock_cls:
@@ -43,7 +41,7 @@ class TestFetchBaValueDrivers:
                 json=Mock(return_value=bart_data),
             )
 
-            result = await fetch_ba_value_drivers(property_data, rental_estimate, "94110")
+            result = await fetch_ba_value_drivers(property_data, "94110")
 
         assert result["adu_potential"] is True
         assert result["adu_rent_estimate"] == 2600.0
@@ -67,7 +65,7 @@ class TestFetchBaValueDrivers:
         with patch("agent.tools.ba_value_drivers._load_caltrain_stations", return_value=[]), \
              patch("agent.tools.ba_value_drivers._fetch_zip_median_rent", new=AsyncMock(return_value=None)), \
              patch("agent.tools.ba_value_drivers._fetch_bart_stations", new=AsyncMock(return_value=[])):
-            result = await fetch_ba_value_drivers(property_data, {"rent_estimate": 3000}, "95112")
+            result = await fetch_ba_value_drivers(property_data, "95112")
 
         assert result["adu_potential"] is False
         assert result["adu_rent_estimate"] is None

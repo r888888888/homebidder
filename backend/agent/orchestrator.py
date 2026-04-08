@@ -28,7 +28,6 @@ from .tools.ca_hazards import fetch_ca_hazard_zones
 from .tools.calenviroscreen import fetch_calenviroscreen_data
 from .tools.sf_permits import fetch_sf_permits
 from .tools.risk import assess_risk
-from .tools.rentcast import fetch_rental_estimate
 from .tools.ba_value_drivers import fetch_ba_value_drivers
 from .tools.investment import compute_investment_metrics
 from .tools.renovation import estimate_renovation_cost, _is_fixer_property
@@ -46,7 +45,6 @@ Call the following tools to gather data:
 Market analysis and offer recommendation will be computed automatically after comps are fetched.
 Investment analysis will also be computed automatically after risk assessment:
 - fetch_mortgage_rates
-- fetch_rental_estimate
 - fetch_ba_value_drivers
 - compute_investment_metrics
 Your job is to write a clear, data-backed narrative once all results are available.
@@ -158,45 +156,30 @@ TOOLS: list[anthropic.types.ToolParam] = [
         },
     },
     {
-        "name": "fetch_rental_estimate",
-        "description": "Fetch rental estimate for the matched address using RentCast with ACS fallback.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "matched_address": {"type": "string"},
-                "zip_code": {"type": "string"},
-            },
-            "required": ["matched_address", "zip_code"],
-        },
-    },
-    {
         "name": "fetch_ba_value_drivers",
         "description": "Compute Bay Area value drivers: ADU potential, rent control implications, and transit proximity.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "property": {"type": "object"},
-                "rental_estimate": {"type": "object"},
                 "zip_code": {"type": "string"},
             },
-            "required": ["property", "rental_estimate", "zip_code"],
+            "required": ["property", "zip_code"],
         },
     },
     {
         "name": "compute_investment_metrics",
-        "description": "Compute investment metrics (yield, cashflow, appreciation, rating) from assembled inputs.",
+        "description": "Compute investment metrics (appreciation projections and Bay Area value drivers) from assembled inputs.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "property": {"type": "object"},
-                "rental_estimate": {"type": "object"},
                 "mortgage_rates": {"type": "object"},
                 "hpi_trend": {"type": "object"},
                 "ba_value_drivers": {"type": "object"},
             },
             "required": [
                 "property",
-                "rental_estimate",
                 "mortgage_rates",
                 "hpi_trend",
                 "ba_value_drivers",
@@ -228,9 +211,6 @@ async def _dispatch_tool(name: str, inputs: dict) -> tuple[str, dict | None]:
         return json.dumps(result), result
     elif name == "fetch_mortgage_rates":
         result = await fetch_mortgage_rates()
-        return json.dumps(result), result
-    elif name == "fetch_rental_estimate":
-        result = await fetch_rental_estimate(**inputs)
         return json.dumps(result), result
     elif name == "fetch_ba_value_drivers":
         result = await fetch_ba_value_drivers(**inputs)
@@ -737,31 +717,25 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
                 # Phase 8: auto-compute investment analysis inputs in parallel,
                 # then compute investment metrics.
                 listing_zip = str(listing.get("zip_code") or "")
-                matched_address = str(listing.get("address_matched") or address)
 
                 yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'fetch_mortgage_rates', 'input': {}})}\n\n"
-                yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'fetch_rental_estimate', 'input': {'matched_address': matched_address, 'zip_code': listing_zip}})}\n\n"
-                yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'fetch_ba_value_drivers', 'input': {'property': '...', 'rental_estimate': '...', 'zip_code': listing_zip}})}\n\n"
+                yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'fetch_ba_value_drivers', 'input': {'property': '...', 'zip_code': listing_zip}})}\n\n"
 
                 phase8_results = await asyncio.gather(
                     fetch_mortgage_rates(),
-                    fetch_rental_estimate(matched_address, listing_zip),
-                    fetch_ba_value_drivers(listing, {}, listing_zip),
+                    fetch_ba_value_drivers(listing, listing_zip),
                     return_exceptions=True,
                 )
 
                 mortgage_rates_result = phase8_results[0] if not isinstance(phase8_results[0], Exception) else {"error": str(phase8_results[0])}
-                rental_estimate_result = phase8_results[1] if not isinstance(phase8_results[1], Exception) else {"error": str(phase8_results[1])}
-                ba_drivers_result = phase8_results[2] if not isinstance(phase8_results[2], Exception) else {"error": str(phase8_results[2])}
+                ba_drivers_result = phase8_results[1] if not isinstance(phase8_results[1], Exception) else {"error": str(phase8_results[1])}
 
                 yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'fetch_mortgage_rates', 'result': mortgage_rates_result})}\n\n"
-                yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'fetch_rental_estimate', 'result': rental_estimate_result})}\n\n"
                 yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'fetch_ba_value_drivers', 'result': ba_drivers_result})}\n\n"
 
-                yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'compute_investment_metrics', 'input': {'property': '...', 'rental_estimate': '...', 'mortgage_rates': '...', 'hpi_trend': '...', 'ba_value_drivers': '...'}})}\n\n"
+                yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'compute_investment_metrics', 'input': {'property': '...', 'mortgage_rates': '...', 'hpi_trend': '...', 'ba_value_drivers': '...'}})}\n\n"
                 phase8_investment = compute_investment_metrics(
                     property=listing,
-                    rental_estimate=rental_estimate_result if isinstance(rental_estimate_result, dict) else {},
                     mortgage_rates=mortgage_rates_result if isinstance(mortgage_rates_result, dict) else {},
                     hpi_trend=phase6_fhfa if isinstance(phase6_fhfa, dict) else {},
                     ba_value_drivers=ba_drivers_result if isinstance(ba_drivers_result, dict) else {},

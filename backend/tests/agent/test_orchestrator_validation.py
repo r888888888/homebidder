@@ -43,7 +43,6 @@ OFFER_RESULT = {
         "base_comp_median": 1_200_000,
         "lot_adjustment_pct": 0,
         "sqft_adjustment_pct": 0,
-        "avm_blend_used": False,
     },
     "fair_value_confidence_interval": {
         "low": 1_100_000,
@@ -74,7 +73,6 @@ NEIGHBORHOOD_RESULT = {"zip_code": "94112"}
 MARKET_TRENDS = {"zip_code": "94112", "months": [], "trend": "flat"}
 FHFA = {"zip_code": "94112", "hpi_trend": "flat"}
 HAZARDS = {"alquist_priolo": False}
-RENTAL = {"monthly_rent": 4_500}
 MORTGAGE_RATES = {"rate_30yr": 6.5}
 BA_VALUE = {"adu_potential": False}
 INVESTMENT = {"investment_rating": "Hold", "gross_yield_pct": 3.2}
@@ -154,7 +152,6 @@ class TestValidationResultEvent:
              patch("agent.orchestrator.fetch_ca_hazard_zones", new_callable=AsyncMock, return_value=HAZARDS), \
              patch("agent.orchestrator.fetch_sf_permits", new_callable=AsyncMock, return_value=None), \
              patch("agent.orchestrator.fetch_mortgage_rates", new_callable=AsyncMock, return_value=MORTGAGE_RATES), \
-             patch("agent.orchestrator.fetch_rental_estimate", new_callable=AsyncMock, return_value=RENTAL), \
              patch("agent.orchestrator.fetch_ba_value_drivers", new_callable=AsyncMock, return_value=BA_VALUE), \
              patch("agent.orchestrator.compute_investment_metrics", return_value=INVESTMENT), \
              patch("agent.orchestrator.recommend_offer", return_value=OFFER_RESULT), \
@@ -214,7 +211,6 @@ class TestValidationResultEvent:
              patch("agent.orchestrator.fetch_ca_hazard_zones", new_callable=AsyncMock, return_value=HAZARDS), \
              patch("agent.orchestrator.fetch_sf_permits", new_callable=AsyncMock, return_value=None), \
              patch("agent.orchestrator.fetch_mortgage_rates", new_callable=AsyncMock, return_value=MORTGAGE_RATES), \
-             patch("agent.orchestrator.fetch_rental_estimate", new_callable=AsyncMock, return_value=RENTAL), \
              patch("agent.orchestrator.fetch_ba_value_drivers", new_callable=AsyncMock, return_value=BA_VALUE), \
              patch("agent.orchestrator.compute_investment_metrics", return_value=INVESTMENT), \
              patch("agent.orchestrator.recommend_offer", return_value=OFFER_RESULT), \
@@ -271,7 +267,6 @@ class TestValidationResultEvent:
              patch("agent.orchestrator.fetch_ca_hazard_zones", new_callable=AsyncMock, return_value=HAZARDS), \
              patch("agent.orchestrator.fetch_sf_permits", new_callable=AsyncMock, return_value=None), \
              patch("agent.orchestrator.fetch_mortgage_rates", new_callable=AsyncMock, return_value=MORTGAGE_RATES), \
-             patch("agent.orchestrator.fetch_rental_estimate", new_callable=AsyncMock, return_value=RENTAL), \
              patch("agent.orchestrator.fetch_ba_value_drivers", new_callable=AsyncMock, return_value=BA_VALUE), \
              patch("agent.orchestrator.compute_investment_metrics", return_value=INVESTMENT), \
              patch("agent.orchestrator.recommend_offer", return_value=OFFER_RESULT), \
@@ -325,7 +320,6 @@ class TestValidationResultEvent:
              patch("agent.orchestrator.fetch_ca_hazard_zones", new_callable=AsyncMock, return_value=HAZARDS), \
              patch("agent.orchestrator.fetch_sf_permits", new_callable=AsyncMock, return_value=None), \
              patch("agent.orchestrator.fetch_mortgage_rates", new_callable=AsyncMock, return_value=MORTGAGE_RATES), \
-             patch("agent.orchestrator.fetch_rental_estimate", new_callable=AsyncMock, return_value=RENTAL), \
              patch("agent.orchestrator.fetch_ba_value_drivers", new_callable=AsyncMock, return_value=BA_VALUE), \
              patch("agent.orchestrator.compute_investment_metrics", return_value=INVESTMENT), \
              patch("agent.orchestrator.recommend_offer", return_value=OFFER_RESULT), \

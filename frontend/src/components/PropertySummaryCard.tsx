@@ -126,13 +126,6 @@ function domLabel(listDate: string | null, daysOnMarket: number | null): string 
   return `${derivedDays} day${derivedDays === 1 ? "" : "s"}`;
 }
 
-function avmDelta(price: number | null, avm: number | null): string | null {
-  if (price == null || avm == null) return null;
-  const pct = ((avm - price) / price) * 100;
-  const sign = pct >= 0 ? "+" : "";
-  return `${sign}${pct.toFixed(1)}%`;
-}
-
 interface Field {
   label: string;
   value: React.ReactNode;
@@ -167,27 +160,7 @@ export function PropertySummaryCard({ property }: Props) {
     !!property.address_input &&
     property.address_input.trim().toLowerCase() !== matchedAddressDisplay.trim().toLowerCase();
 
-  const delta = avmDelta(property.price, property.avm_estimate);
-
   const priceDisplay = property.price != null ? fmtUsd(property.price) : "—";
-
-  const avmDisplay =
-    property.avm_estimate != null ? (
-      <span>
-        {fmtUsd(property.avm_estimate)}
-        {delta && (
-          <span
-            className={`ml-1.5 text-xs font-semibold ${
-              delta.startsWith("+") ? "text-[var(--green)]" : "text-[var(--coral)]"
-            }`}
-          >
-            {delta}
-          </span>
-        )}
-      </span>
-    ) : (
-      "N/A"
-    );
 
   const isCondo = /condo|townhome|townhouse/i.test(property.property_type ?? "");
   const descriptionSignals = property.description_signals?.detected_signals ?? [];
@@ -202,7 +175,6 @@ export function PropertySummaryCard({ property }: Props) {
 
   const coreFields: Field[] = [
     { label: "List Price", value: priceDisplay },
-    { label: "AVM Estimate", value: avmDisplay },
     { label: "HOA / mo", value: fmtUsd(property.hoa_fee) },
     { label: "Beds", value: fmt(property.bedrooms) },
     { label: "Baths", value: fmt(property.bathrooms) },

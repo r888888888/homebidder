@@ -109,7 +109,6 @@ def _mock_patches(side_effects, property_result=None):
         patch("agent.orchestrator.recommend_offer", return_value=FAKE_OFFER),
         patch("agent.orchestrator.assess_risk", return_value=FAKE_RISK),
         patch("agent.orchestrator.fetch_mortgage_rates", new_callable=AsyncMock, return_value={"rate_30yr_fixed": 6.0}),
-        patch("agent.orchestrator.fetch_rental_estimate", new_callable=AsyncMock, return_value={"rent_estimate": 4000}),
         patch("agent.orchestrator.fetch_ba_value_drivers", new_callable=AsyncMock, return_value={"adu_potential": False}),
         patch("agent.orchestrator.compute_investment_metrics", return_value=FAKE_INVESTMENT),
     ]
@@ -130,7 +129,6 @@ async def test_analysis_id_event_not_emitted_when_db_is_none():
          patch("agent.orchestrator.recommend_offer", return_value=FAKE_OFFER), \
          patch("agent.orchestrator.assess_risk", return_value=FAKE_RISK), \
          patch("agent.orchestrator.fetch_mortgage_rates", new_callable=AsyncMock, return_value={"rate_30yr_fixed": 6.0}), \
-         patch("agent.orchestrator.fetch_rental_estimate", new_callable=AsyncMock, return_value={"rent_estimate": 4000}), \
          patch("agent.orchestrator.fetch_ba_value_drivers", new_callable=AsyncMock, return_value={"adu_potential": False}), \
          patch("agent.orchestrator.compute_investment_metrics", return_value=FAKE_INVESTMENT):
 
@@ -167,7 +165,6 @@ async def test_analysis_id_event_emitted_when_db_provided():
              patch("agent.orchestrator.recommend_offer", return_value=FAKE_OFFER), \
              patch("agent.orchestrator.assess_risk", return_value=FAKE_RISK), \
              patch("agent.orchestrator.fetch_mortgage_rates", new_callable=AsyncMock, return_value={"rate_30yr_fixed": 6.0}), \
-             patch("agent.orchestrator.fetch_rental_estimate", new_callable=AsyncMock, return_value={"rent_estimate": 4000}), \
              patch("agent.orchestrator.fetch_ba_value_drivers", new_callable=AsyncMock, return_value={"adu_potential": False}), \
              patch("agent.orchestrator.compute_investment_metrics", return_value=FAKE_INVESTMENT):
 
@@ -211,7 +208,6 @@ async def test_listing_is_upserted_in_db():
              patch("agent.orchestrator.recommend_offer", return_value=FAKE_OFFER), \
              patch("agent.orchestrator.assess_risk", return_value=FAKE_RISK), \
              patch("agent.orchestrator.fetch_mortgage_rates", new_callable=AsyncMock, return_value={"rate_30yr_fixed": 6.0}), \
-             patch("agent.orchestrator.fetch_rental_estimate", new_callable=AsyncMock, return_value={"rent_estimate": 4000}), \
              patch("agent.orchestrator.fetch_ba_value_drivers", new_callable=AsyncMock, return_value={"adu_potential": False}), \
              patch("agent.orchestrator.compute_investment_metrics", return_value=FAKE_INVESTMENT):
 
@@ -257,7 +253,6 @@ async def test_analysis_record_created_in_db():
              patch("agent.orchestrator.recommend_offer", return_value=FAKE_OFFER), \
              patch("agent.orchestrator.assess_risk", return_value=FAKE_RISK), \
              patch("agent.orchestrator.fetch_mortgage_rates", new_callable=AsyncMock, return_value={"rate_30yr_fixed": 6.0}), \
-             patch("agent.orchestrator.fetch_rental_estimate", new_callable=AsyncMock, return_value={"rent_estimate": 4000}), \
              patch("agent.orchestrator.fetch_ba_value_drivers", new_callable=AsyncMock, return_value={"adu_potential": False}), \
              patch("agent.orchestrator.compute_investment_metrics", return_value=FAKE_INVESTMENT):
 
@@ -304,7 +299,6 @@ async def test_comps_saved_in_db():
              patch("agent.orchestrator.recommend_offer", return_value=FAKE_OFFER), \
              patch("agent.orchestrator.assess_risk", return_value=FAKE_RISK), \
              patch("agent.orchestrator.fetch_mortgage_rates", new_callable=AsyncMock, return_value={"rate_30yr_fixed": 6.0}), \
-             patch("agent.orchestrator.fetch_rental_estimate", new_callable=AsyncMock, return_value={"rent_estimate": 4000}), \
              patch("agent.orchestrator.fetch_ba_value_drivers", new_callable=AsyncMock, return_value={"adu_potential": False}), \
              patch("agent.orchestrator.compute_investment_metrics", return_value=FAKE_INVESTMENT):
 
@@ -355,7 +349,6 @@ async def test_analysis_persisted_when_property_lookup_raises():
              patch("agent.orchestrator.recommend_offer", return_value=FAKE_OFFER), \
              patch("agent.orchestrator.assess_risk", return_value=FAKE_RISK), \
              patch("agent.orchestrator.fetch_mortgage_rates", new_callable=AsyncMock, return_value={"rate_30yr_fixed": 6.0}), \
-             patch("agent.orchestrator.fetch_rental_estimate", new_callable=AsyncMock, return_value={"rent_estimate": 4000}), \
              patch("agent.orchestrator.fetch_ba_value_drivers", new_callable=AsyncMock, return_value={"adu_potential": False}), \
              patch("agent.orchestrator.compute_investment_metrics", return_value=FAKE_INVESTMENT):
 
@@ -410,7 +403,6 @@ async def test_analysis_persisted_when_max_tokens():
              patch("agent.orchestrator.recommend_offer", return_value=FAKE_OFFER), \
              patch("agent.orchestrator.assess_risk", return_value=FAKE_RISK), \
              patch("agent.orchestrator.fetch_mortgage_rates", new_callable=AsyncMock, return_value={"rate_30yr_fixed": 6.0}), \
-             patch("agent.orchestrator.fetch_rental_estimate", new_callable=AsyncMock, return_value={"rent_estimate": 4000}), \
              patch("agent.orchestrator.fetch_ba_value_drivers", new_callable=AsyncMock, return_value={"adu_potential": False}), \
              patch("agent.orchestrator.compute_investment_metrics", return_value=FAKE_INVESTMENT):
 

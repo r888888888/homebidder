@@ -7,7 +7,40 @@ from typing import Any
 
 import httpx
 
-from .rentcast import _fetch_zip_median_rent
+import os
+from urllib.parse import quote as _url_quote
+
+ACS_B25064 = "B25064_001E"
+
+
+async def _fetch_zip_median_rent(zip_code: str) -> float | None:
+    api_key = os.environ.get("CENSUS_API_KEY")
+    if not api_key or not zip_code:
+        return None
+
+    url = (
+        "https://api.census.gov/data/2022/acs/acs5"
+        f"?get={ACS_B25064}&for=zip+code+tabulation+area:{_url_quote(zip_code)}&key={_url_quote(api_key)}"
+    )
+
+    async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+        response = await client.get(url)
+        response.raise_for_status()
+        data = response.json()
+
+    if len(data) < 2:
+        return None
+
+    headers, row = data[0], data[1]
+    try:
+        idx = headers.index(ACS_B25064)
+        value = int(row[idx])
+    except (ValueError, IndexError):
+        return None
+
+    if value < 0:
+        return None
+    return float(value)
 
 BART_STATIONS_URL = "https://api.bart.gov/api/stn.aspx?cmd=stns&json=y"
 CALTRAIN_PATH = Path(__file__).parent.parent.parent / "data" / "caltrain_stations.json"
@@ -123,7 +156,6 @@ def _rent_control(city: str | None, year_built: int | None) -> dict[str, Any]:
 
 async def fetch_ba_value_drivers(
     property: dict[str, Any],
-    rental_estimate: dict[str, Any],
     zip_code: str,
 ) -> dict[str, Any]:
     """Compute Bay Area-specific value drivers with no external paid APIs."""

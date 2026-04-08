@@ -24,7 +24,7 @@ const BASE_PROPERTY = {
   days_on_market: 5,
   list_date: null,
   price_history: [],
-  avm_estimate: 1_300_000,
+  avm_estimate: null,
   listing_description: null,
   description_signals: {
     version: "v1",
@@ -41,8 +41,6 @@ describe("PropertySummaryCard", () => {
 
     expect(screen.getByText(/450 Sanchez St, San Francisco, CA 94114/i)).toBeInTheDocument();
     expect(screen.getByText(/\$1,250,000/)).toBeInTheDocument();
-    expect(screen.getByText(/\$1,300,000/)).toBeInTheDocument();
-    expect(screen.getByText(/\+4\.0%|\+\$50,000/i)).toBeInTheDocument();
     expect(screen.getByText(/single.?family/i)).toBeInTheDocument();
     expect(screen.getByText(/2,500/)).toBeInTheDocument();
 
@@ -71,28 +69,11 @@ describe("PropertySummaryCard", () => {
     ).toBeInTheDocument();
   });
 
-  it.each([
-    {
-      name: "null list price",
-      patch: { price: null },
-      label: /^list price$/i,
-      value: "—",
-    },
-    {
-      name: "null AVM",
-      patch: { avm_estimate: null },
-      text: /N\/A/i,
-    },
-  ])("renders fallback values for $name", ({ patch, label, value, text }) => {
-    render(<PropertySummaryCard property={{ ...BASE_PROPERTY, ...patch }} />);
+  it("renders fallback value for null list price", () => {
+    render(<PropertySummaryCard property={{ ...BASE_PROPERTY, price: null }} />);
 
-    if (text) {
-      expect(screen.getByText(text)).toBeInTheDocument();
-      return;
-    }
-
-    const dt = screen.getByText(label!);
-    expect(dt.nextElementSibling?.textContent).toBe(value);
+    const dt = screen.getByText(/^list price$/i);
+    expect(dt.nextElementSibling?.textContent).toBe("—");
   });
 
   it.each([

@@ -1,7 +1,7 @@
 # TODO
 
-- fix sensitivity of fixer/renovated badges
-- Remove rentcast integration entirely
+- Add renovation estimate for siding replacement
+- Analyzing a property seems to insert it into the database twice
 - Incorporate React Query for API calls
 - Assuming the DBI permit search works, let's cache it in the database. Use a 24 hour expiry.
 - Code review of backend
@@ -20,9 +20,12 @@
 - Factor in seasonality of sales
 - Why does "88 Hoff St #104, San Francisco, CA 94110" not find the correct unit?
 - Why does "88 Hoff St Apt 104, San Francisco, CA 94110" produce a low offer recc that's higher than the high offer recc?
+- Readd rent estimation tools
 
 # DONE
 
+- Remove rentcast integration entirely
+- fix sensitivity of fixer/renovated badges
 - Brainstorm better methods for estimating renovation costs
   - Make each line item in renovation toggleable to adjust total renovation estimate
 - Add an option to delete analysis from database

@@ -31,7 +31,7 @@ const PROPERTY_RESULT = {
   days_on_market: 5,
   list_date: null,
   price_history: [],
-  avm_estimate: 1_300_000,
+  avm_estimate: null,
   listing_description: "Contractor special, tenant occupied",
   description_signals: {
     version: "v1",
@@ -91,14 +91,9 @@ const OFFER_RESULT = {
 };
 
 const INVESTMENT_RESULT = {
-  gross_yield_pct: 3.8,
-  price_to_rent_ratio: 21.0,
-  monthly_cashflow_estimate: -1150,
-  adu_gross_yield_boost_pct: 5.6,
   projected_value_1yr: 1300000,
   projected_value_3yr: 1406080,
   projected_value_5yr: 1520824,
-  investment_rating: "Buy",
   rate_30yr_fixed: 6.63,
   as_of_date: "2026-03-26",
   hpi_yoy_assumption_pct: 4.0,

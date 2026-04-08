@@ -60,7 +60,6 @@ def _compute_fair_value_ci(
     method: str,
     market_stats: dict[str, Any],
     total_adjustment: float,
-    avm_blend_used: bool,
     list_price: float,
 ) -> dict[str, Any]:
     """
@@ -111,10 +110,6 @@ def _compute_fair_value_ci(
     if abs(total_adjustment) > 0.15:
         ci_pct += 1.0
         factors.append("large_adjustment")
-
-    # AVM provides independent corroboration
-    if avm_blend_used:
-        ci_pct -= 1.0
 
     # List price convergence: only when list price is credible (not an SF underpricing play)
     # Condition: fair_value ≈ list_price (<3% apart) AND list_price >= 95% of fair_value
@@ -220,7 +215,6 @@ def recommend_offer(
     list_date = listing.get("list_date")
     median_lot_size = market_stats.get("median_lot_size")
     median_comp_sqft = market_stats.get("median_comp_sqft")
-    avm_estimate = listing.get("avm_estimate")
     description_signals = listing.get("description_signals") or {}
     condition_signals = description_signals.get("detected_signals") or []
     # Passthrough overbid stats from market_stats
@@ -253,40 +247,29 @@ def recommend_offer(
             total_adjustment += sqft_adjustment_pct
 
         fair_value = round(fair_value * (1 + total_adjustment))
-        avm_blend_used = False
-
-        # Light AVM blend to stabilize sparse/noisy comp sets.
-        if avm_estimate:
-            fair_value = round(fair_value * 0.85 + avm_estimate * 0.15)
-            avm_blend_used = True
         fair_value_breakdown = {
             "method": "median_comp_anchor",
             "base_comp_median": median_comp,
             "lot_adjustment_pct": round(lot_adjustment_pct * 100, 2) if lot_adjustment_pct is not None else None,
             "sqft_adjustment_pct": round(sqft_adjustment_pct * 100, 2) if sqft_adjustment_pct is not None else None,
-            "avm_blend_used": avm_blend_used,
         }
     elif ppsf and sqft:
         fair_value = round(ppsf * sqft)
         total_adjustment = 0.0
-        avm_blend_used = False
         fair_value_breakdown = {
             "method": "ppsf_fallback",
             "base_comp_median": None,
             "lot_adjustment_pct": None,
             "sqft_adjustment_pct": None,
-            "avm_blend_used": False,
         }
     else:
         fair_value = round(list_price)
         total_adjustment = 0.0
-        avm_blend_used = False
         fair_value_breakdown = {
             "method": "list_price_fallback",
             "base_comp_median": None,
             "lot_adjustment_pct": None,
             "sqft_adjustment_pct": None,
-            "avm_blend_used": False,
         }
 
     # --- Fair value confidence interval ---
@@ -295,7 +278,6 @@ def recommend_offer(
         method=fair_value_breakdown["method"],
         market_stats=market_stats,
         total_adjustment=total_adjustment,
-        avm_blend_used=avm_blend_used,
         list_price=list_price,
     )
 

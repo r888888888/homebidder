@@ -419,7 +419,6 @@ class TestFairValueAlgorithm:
             **BASE_LISTING,
             "sqft": 1800,
             "lot_size": 3200,
-            "avm_estimate": 1_260_000,
         }
         stats = {
             **BASE_STATS,
@@ -433,7 +432,6 @@ class TestFairValueAlgorithm:
         assert breakdown["method"] == "median_comp_anchor"
         assert breakdown["lot_adjustment_pct"] is not None
         assert breakdown["sqft_adjustment_pct"] is not None
-        assert breakdown["avm_blend_used"] is True
 
     def test_breakdown_uses_ppsf_fallback_method_when_median_comp_missing(self):
         listing = {**BASE_LISTING, "sqft": 1500}
@@ -446,7 +444,6 @@ class TestFairValueAlgorithm:
         assert breakdown["method"] == "ppsf_fallback"
         assert breakdown["lot_adjustment_pct"] is None
         assert breakdown["sqft_adjustment_pct"] is None
-        assert breakdown["avm_blend_used"] is False
 
 
 # ---------------------------------------------------------------------------
@@ -544,18 +541,6 @@ class TestFairValueCI:
         ci_large = recommend_offer(listing_large, stats)["fair_value_confidence_interval"]["ci_pct"]
         ci_small = recommend_offer(listing_small, stats)["fair_value_confidence_interval"]["ci_pct"]
         assert ci_large > ci_small
-
-    def test_ci_narrows_with_avm_blend(self):
-        """AVM blend provides independent corroboration — should decrease ci_pct."""
-        stats = {**BASE_STATS, "median_sale_price": 1_100_000, "median_pct_over_asking": 0.0}
-        with_avm = recommend_offer({**BASE_LISTING, "avm_estimate": 1_100_000}, stats)
-        without_avm = recommend_offer(
-            {k: v for k, v in BASE_LISTING.items() if k != "avm_estimate"}, stats
-        )
-        assert (
-            with_avm["fair_value_confidence_interval"]["ci_pct"]
-            < without_avm["fair_value_confidence_interval"]["ci_pct"]
-        )
 
     def test_ci_narrows_when_fair_value_converges_with_list_price(self):
         """When comp-based fair value ≈ list price, both signals agree — CI tightens slightly."""
