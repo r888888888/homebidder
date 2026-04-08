@@ -3,8 +3,6 @@
 - Debug whether FHFA data includes data for 94112.
 - Update investment analysis to move rent opportunity costs to 10/20/30 year scale
 - Remove outliers from comp analysis
-- Move BART API data into fetch script
-- Move FHFA API data into fetch script
 - Code review of backend
 - Code review of frontend
 - Persist which renovation options were toggled in teh database
@@ -22,6 +20,8 @@
 
 # DONE
 
+- Move BART API data into fetch script
+- Move FHFA API data into fetch script
 - Fix failing tests
 - Tweak fixer analysis card to show an offer price that subtracts the cost of renovations.
 - Add opportunity cost versus renting
