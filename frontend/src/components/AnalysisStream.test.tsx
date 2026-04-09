@@ -352,6 +352,11 @@ describe("AnalysisStream", () => {
     expect(screen.queryByText(/fixer analysis/i)).not.toBeInTheDocument();
   });
 
+  it("renders fixer skeleton when isRunning and renovation data not yet available", () => {
+    render(<AnalysisStream events={[]} isRunning={true} />);
+    expect(screen.getByText(/analyzing renovation potential/i)).toBeInTheDocument();
+  });
+
   it("renders final analysis with markdown formatting", async () => {
     const user = userEvent.setup();
     const events = [

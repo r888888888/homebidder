@@ -179,7 +179,11 @@ export function AnalysisStream({ events, isRunning }: Props) {
             ) : (
               isRunning && <PanelSkeleton label="Computing offer range…" />
             )}
-            {renovationData && <FixerAnalysisCard data={renovationData} />}
+            {renovationData ? (
+              <FixerAnalysisCard data={renovationData} />
+            ) : (
+              isRunning && <PanelSkeleton label="Analyzing renovation potential…" />
+            )}
           </div>
         )}
       </div>
