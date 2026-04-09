@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 log = logging.getLogger(__name__)
 
-from .tools.property_lookup import lookup_property_by_address, _geocode
+from .tools.property_lookup import lookup_property_by_address, _geocode, _extract_unit_token
 from .tools.neighborhood import fetch_neighborhood_context
 from .tools.comps import fetch_comps
 from .tools.pricing import analyze_market, recommend_offer
@@ -33,6 +33,21 @@ from .tools.investment import compute_investment_metrics
 from .tools.renovation import estimate_renovation_cost, _is_fixer_property
 
 MODEL = "claude-sonnet-4-6"
+
+
+def _insert_unit_into_address(address_matched: str, unit: str) -> str:
+    """
+    Insert a unit token after the street component of a geocoder-normalised address.
+    Mirrors the frontend's normalizeMatchedAddressWithUnit logic so the cache key
+    format is consistent between lookup and storage.
+
+    Example: ("1250 ELLIS ST, SAN FRANCISCO, CA 94109", "2")
+             -> "1250 ELLIS ST UNIT 2, SAN FRANCISCO, CA 94109"
+    """
+    parts = address_matched.split(",", 1)
+    if len(parts) == 2:
+        return f"{parts[0].strip()} UNIT {unit.upper()}, {parts[1].strip()}"
+    return f"{address_matched} UNIT {unit.upper()}"
 
 SYSTEM_PROMPT = """You are HomeBidder, an expert real estate analyst helping home buyers make competitive, data-driven offers in the SF Bay Area.
 
@@ -241,7 +256,14 @@ async def _persist_analysis(
     from sqlalchemy import select
     from db.models import Listing, Analysis, Comp
 
-    address_matched = (property_result or {}).get("address_matched") or address_input
+    address_matched_base = (property_result or {}).get("address_matched") or address_input
+    # Qualify the DB key with unit info when the geocoder stripped it, so that
+    # different units in the same building get separate Listing rows.
+    unit = (property_result or {}).get("unit") if property_result else None
+    if unit and not _extract_unit_token(address_matched_base):
+        address_matched = _insert_unit_into_address(address_matched_base, unit)
+    else:
+        address_matched = address_matched_base
 
     # Upsert Listing
     stmt = select(Listing).where(Listing.address_matched == address_matched)
@@ -427,7 +449,15 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
         try:
             geo = await _geocode(address)
             address_matched = geo["address_matched"]
-            cached = await _load_cached_analysis(db, address_matched)
+            # If the user supplied a unit number that the geocoder stripped, qualify
+            # the cache key with the unit so analyses for different units in the same
+            # building do not collide (e.g. "#1" vs "#2" at 1250 Ellis St).
+            user_unit = _extract_unit_token(address)
+            if user_unit and not _extract_unit_token(address_matched):
+                address_matched_cache_key = _insert_unit_into_address(address_matched, user_unit)
+            else:
+                address_matched_cache_key = address_matched
+            cached = await _load_cached_analysis(db, address_matched_cache_key)
             if cached is not None:
                 async for chunk in _stream_cached_analysis(cached):
                     yield chunk

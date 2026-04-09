@@ -95,13 +95,13 @@ describe("FixerAnalysisCard", () => {
 
   it("shows turn-key AVM", () => {
     render(<FixerAnalysisCard data={BASE} />);
-    // $1,100,000 formatted — may appear in both Fair Value and Post-reno value cells
+    // $1,100,000 formatted — appears in the Fair Value cell
     expect(screen.getAllByText(/1,100,000/).length).toBeGreaterThan(0);
   });
 
   it("shows savings amount when fixer is cheaper", () => {
     render(<FixerAnalysisCard data={BASE} />);
-    // savings_mid = 112,000 — may also appear as implied_equity
+    // savings_mid = 112,000 — appears in the savings banner
     expect(screen.getAllByText(/112,000/).length).toBeGreaterThan(0);
   });
 
@@ -109,7 +109,7 @@ describe("FixerAnalysisCard", () => {
     // FLIP_BASE: offer=900k, items=[Full gut 200k-220k + paint 5k-8k], turnkey=1M → overage shown
     render(<FixerAnalysisCard data={FLIP_BASE} />);
     // activeLow=205k, activeHigh=228k, activeMid=216.5k, allInMid=1116.5k, overage=116.5k
-    // appears in both the delta banner and implied equity — use getAllByText
+    // appears in the delta banner
     expect(screen.getAllByText(/116,500/).length).toBeGreaterThan(0);
   });
 
@@ -122,28 +122,6 @@ describe("FixerAnalysisCard", () => {
   it("renders disclaimer text", () => {
     render(<FixerAnalysisCard data={BASE} />);
     expect(screen.getByText(/get contractor bids/i)).toBeInTheDocument();
-  });
-
-  it("shows post-renovation value", () => {
-    render(<FixerAnalysisCard data={BASE} />);
-    expect(screen.getAllByText(/post-reno value/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/\$1,100,000/).length).toBeGreaterThan(0);
-  });
-
-  it("shows positive implied equity in green", () => {
-    render(<FixerAnalysisCard data={BASE} />);
-    expect(screen.getByText(/implied equity/i)).toBeInTheDocument();
-    // positive equity shows with + prefix
-    expect(screen.getByText(/\+\$112,000/)).toBeInTheDocument();
-  });
-
-  it("shows negative implied equity with minus prefix", () => {
-    render(
-      <FixerAnalysisCard
-        data={{ ...BASE, implied_equity_mid: -50_000, renovated_fair_value: 938_000 }}
-      />
-    );
-    expect(screen.getByText(/−\$50,000/)).toBeInTheDocument();
   });
 
   it("shows reno-adjusted offer label", () => {

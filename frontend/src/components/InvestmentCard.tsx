@@ -52,7 +52,7 @@ export function InvestmentCard({ investment }: Props) {
         {/* Appreciation projections */}
         <div className="grid grid-cols-4 gap-3 rounded-xl bg-[var(--bg)] p-4 text-sm">
           <div>
-            <p className="text-xs text-[var(--ink-muted)]">Fair Value</p>
+            <p className="text-xs text-[var(--ink-muted)]">Today</p>
             <p className="font-semibold text-[var(--ink)]">{fmtUsd(investment.purchase_price)}</p>
           </div>
           <div>

@@ -81,8 +81,6 @@ export function FixerAnalysisCard({ data }: Props) {
   const absSavings = Math.abs(savings);
   const isWinner = verdict === "cheaper_fixer";
   const isLoser = verdict === "cheaper_turnkey";
-  const equityPositive = data.renovated_fair_value - allInMid >= 0;
-  const impliedEquity = data.renovated_fair_value - allInMid;
 
   return (
     <div className="card p-6">
@@ -119,22 +117,6 @@ export function FixerAnalysisCard({ data }: Props) {
         <p className="text-xs text-[var(--ink-soft)]">
           {fmt(data.offer_recommended)} base − {fmt(activeMid)} reno
         </p>
-      </div>
-
-      {/* Post-renovation value + implied equity */}
-      <div className="mb-4 grid grid-cols-2 gap-3">
-        <div className="rounded-lg bg-[var(--surface)] p-3">
-          <p className="mb-1 text-xs text-[var(--ink-soft)]">Post-reno value (est.)</p>
-          <p className="text-base font-semibold text-[var(--ink)]">{fmt(data.renovated_fair_value)}</p>
-          <p className="text-xs text-[var(--ink-soft)]">Fair value after renovation</p>
-        </div>
-        <div className="rounded-lg bg-[var(--surface)] p-3">
-          <p className="mb-1 text-xs text-[var(--ink-soft)]">Implied equity (mid)</p>
-          <p className={`text-base font-semibold ${equityPositive ? "text-emerald-700" : "text-red-700"}`}>
-            {equityPositive ? "+" : "−"}{fmt(impliedEquity)}
-          </p>
-          <p className="text-xs text-[var(--ink-soft)]">Post-reno value − all-in cost</p>
-        </div>
       </div>
 
       {/* vs fair value delta */}
