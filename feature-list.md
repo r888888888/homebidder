@@ -1,6 +1,5 @@
 # TODO
 
-- Property mismatch on "84 Caroline Way, Daly City, CA 94014". examine why the property summary card is wrong.
 - Code review of backend
 - Code review of frontend
 - Persist which renovation options were toggled in teh database
@@ -17,6 +16,7 @@
 
 # DONE
 
+- Property mismatch on "84 Caroline Way, Daly City, CA 94014". examine why the property summary card is wrong.
 - Property mismatch on "1250 Ellis St #2, San Francisco, CA 94109". examine why the property summary card is wrong.
 - Improve the fixer analysis card. Remove the post-renovation value, remove the implied equity value.
 - The redfin and realtor links do not work

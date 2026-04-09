@@ -993,3 +993,23 @@ class TestSelectBestHomeharvest:
             result = await _homeharvest_listing("84 Caroline Way, Daly City, CA 94014")
 
         assert result == {}
+
+    def test_does_not_match_different_building_same_unit_number(self):
+        """
+        A row at a DIFFERENT building that happens to share the same unit number
+        must NOT be selected. Unit match alone (without any base address match)
+        should not produce a positive score.
+
+        Regression: nearby radius search for "1250 Ellis St #2" was returning
+        data from "1240 Ellis St #2" because the unit bonus (+8) pushed the score
+        positive even with zero base-address overlap.
+        """
+        from agent.tools.property_lookup import _select_best_homeharvest_row
+
+        # Different street number, same unit — wrong building entirely
+        rows = [
+            {**HOMEHARVEST_ROW, "street": "1240 Ellis St #2", "list_price": 800_000.0, "property_url": ""},
+        ]
+        df = _make_homeharvest_df(rows)
+        result = _select_best_homeharvest_row(df, "1250 Ellis St #2, San Francisco, CA 94109")
+        assert result is None

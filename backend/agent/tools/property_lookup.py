@@ -427,24 +427,32 @@ def _select_best_homeharvest_row(df: Any, query_address: str):
                         break
 
         score = 0
+        base_matched = False
 
         if target_base and row_base:
             if row_base == target_base:
                 score += 4
+                base_matched = True
             elif _same_street_number(target_base, row_base) and (
                 target_base in row_base or row_base in target_base
             ):
                 # Partial match only when street numbers agree — prevents e.g.
                 # "184 Caroline Way" from matching a "84 Caroline Way" query.
                 score += 2
+                base_matched = True
 
         if target_unit:
-            if row_unit == target_unit or url_unit == target_unit:
-                score += 8
-            elif row_unit is None and url_unit is None:
-                score -= 1
-            else:
-                score -= 4
+            # Only award unit score when the base address also matched.
+            # A same-numbered unit at a different building (e.g. "1240 Ellis St #2"
+            # for a "1250 Ellis St #2" query) must not score positively — the unit
+            # bonus alone would push it past the best_score <= 0 guard.
+            if not target_base or base_matched:
+                if row_unit == target_unit or url_unit == target_unit:
+                    score += 8
+                elif row_unit is None and url_unit is None:
+                    score -= 1
+                else:
+                    score -= 4
         elif row_unit is not None or url_unit is not None:
             # No unit in query: mildly prefer bare-address rows so a unit listing
             # doesn't beat a bare-address row on a tie.
