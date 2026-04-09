@@ -49,6 +49,10 @@ SIGNAL_RULES: list[_SignalRule] = [
             r"\bsweat\s+equity\b",
             r"\bhandyman\s+special\b",
             r"\bdiamond\s+in\s+the\s+rough\b",
+            # Specific real estate terms — near-unambiguous fixer signals
+            r"\bdeferred\s+maintenance\b",
+            r"\bconservatorship\s+sale\b",
+            r"\bprobate\b",
         ],
     },
     {
@@ -59,8 +63,6 @@ SIGNAL_RULES: list[_SignalRule] = [
         "phrases": [
             r"\brenovat(?:ed|ion|e)\b",
             r"\bremodel(?:ed|ing)?\b",
-            r"\bupdated?\b",
-            r"\bnew\s+appliances?\b",
             r"\bmove[-\s]?in\s+ready\b",
             r"\bturn[-\s]?key\b",
         ],
