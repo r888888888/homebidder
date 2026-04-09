@@ -209,6 +209,54 @@ class TestHomeharvest:
         assert result["year_built"] == 1928
         assert result["source"] == "homeharvest"
 
+    async def test_listing_url_passed_through_from_homeharvest(self):
+        """listing_url is included in the result when homeharvest provides property_url."""
+        from agent.tools.property_lookup import lookup_property_by_address
+
+        realtor_url = "https://www.realtor.com/realestateandhomes-detail/450-Sanchez-St_San-Francisco_CA_94114_M89012-34567/"
+        with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
+             patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh:
+
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.return_value = _make_census_mock()
+            mock_hh.return_value = {
+                "price": 1_250_000.0,
+                "bedrooms": 3,
+                "bathrooms": 2.0,
+                "sqft": 1800,
+                "year_built": 1928,
+                "lot_size": 2500,
+                "property_type": "SINGLE_FAMILY",
+                "hoa_fee": None,
+                "days_on_market": 5,
+                "price_history": [],
+                "property_url": realtor_url,
+                "source": "homeharvest",
+            }
+
+            result = await lookup_property_by_address("450 Sanchez St, San Francisco, CA 94114")
+
+        assert result["listing_url"] == realtor_url
+
+    async def test_listing_url_is_none_when_no_homeharvest_data(self):
+        """listing_url is None when no homeharvest listing was found."""
+        from agent.tools.property_lookup import lookup_property_by_address
+
+        with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
+             patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh:
+
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.return_value = _make_census_mock()
+            mock_hh.return_value = {}
+
+            result = await lookup_property_by_address("450 Sanchez St, San Francisco, CA 94114")
+
+        assert result["listing_url"] is None
+
     async def test_unit_address_prefers_exact_input_for_listing_lookup(self):
         """
         Condo/unit searches should query listing sources with the full input

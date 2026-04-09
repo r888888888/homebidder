@@ -188,7 +188,8 @@ class TestToolResultSseEvents:
              patch("agent.orchestrator.fetch_fhfa_hpi", new_callable=AsyncMock, return_value={}), \
              patch("agent.orchestrator.fetch_ca_hazard_zones", new_callable=AsyncMock, return_value={}), \
              patch("agent.orchestrator.fetch_calenviroscreen_data", return_value=ces_data), \
-             patch("agent.orchestrator.get_current_mortgage_rate_pct", new_callable=AsyncMock, return_value=7.0):
+             patch("agent.orchestrator.get_current_mortgage_rate_pct", new_callable=AsyncMock, return_value=7.0), \
+             patch("agent.orchestrator.estimate_renovation_cost", new_callable=AsyncMock, return_value=None):
 
             mock_client = AsyncMock()
             mock_cls.return_value = mock_client
@@ -316,7 +317,8 @@ class TestToolResultSseEvents:
         with patch("agent.orchestrator.anthropic.AsyncAnthropic") as mock_cls, \
              patch("agent.orchestrator.fetch_comps", new_callable=AsyncMock, return_value=fake_comps), \
              patch("agent.orchestrator.get_current_mortgage_rate_pct", new_callable=AsyncMock, return_value=5.75), \
-             patch("agent.orchestrator.recommend_offer", return_value=fake_offer) as mock_recommend:
+             patch("agent.orchestrator.recommend_offer", return_value=fake_offer) as mock_recommend, \
+             patch("agent.orchestrator.estimate_renovation_cost", new_callable=AsyncMock, return_value=None):
 
             mock_client = AsyncMock()
             mock_cls.return_value = mock_client
@@ -393,7 +395,8 @@ class TestToolResultSseEvents:
                  "contingency_recommendation": {"waive_appraisal": False, "waive_loan": False, "keep_inspection": True},
                  "hoa_equivalent_sfh_value": None,
              }) as mock_recommend, \
-             patch("agent.orchestrator.lookup_property_by_address", new_callable=AsyncMock, return_value=fake_property):
+             patch("agent.orchestrator.lookup_property_by_address", new_callable=AsyncMock, return_value=fake_property), \
+             patch("agent.orchestrator.estimate_renovation_cost", new_callable=AsyncMock, return_value=None):
 
             mock_client = AsyncMock()
             mock_cls.return_value = mock_client

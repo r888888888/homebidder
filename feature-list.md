@@ -1,5 +1,8 @@
 # TODO
 
+- Improve the fixer analysis card. Remove the post-renovation value, remove the implied equity value.
+- Property mismatch on "1250 Ellis St #2, San Francisco, CA 94109"
+- Property mismatch on "84 Caroline Way, Daly City, CA 94014"
 - Code review of backend
 - Code review of frontend
 - Persist which renovation options were toggled in teh database
@@ -10,13 +13,15 @@
 - Support education locality
 - Review other potential factors for affecting retail price
 - Compact final analysis prompt
-- Add StreetView link
 - Support school quality
 - Factor in seasonality of sales
 - Read rent estimation tools
 
 # DONE
 
+- The redfin and realtor links do not work
+- Add links to real estate sites (redfin, zillow, realtor, etc)
+- Add StreetView link
 - Examine description of https://www.redfin.com/CA/San-Francisco/286-Crescent-Ave-94110/home/1687833 for more fixer keywords. Then reassess the logic for identifying fixer/renovated properties and remove keywords that are not strong signals.
 - The fixer analysis card should always be displayed.
 - The investment analysis for "24 Victoria St, San Francisco, CA 94132" seems to have a distorted projection.

@@ -95,6 +95,7 @@ async def lookup_property_by_address(address: str) -> dict[str, Any]:
         "description_signals": description_signals,
         "price_history": listing.get("price_history", []),
         "avm_estimate": None,
+        "listing_url": listing.get("property_url") or None,
         "source": source,
     }
 
@@ -206,6 +207,7 @@ async def _homeharvest_listing(matched_address: str) -> dict[str, Any]:
         ),
         "price_history": _safe(row, "price_history", []) or [],
         "unit": str(unit_raw).strip() if unit_raw else None,
+        "property_url": str(_safe(row, "property_url", "") or ""),
         "source": "homeharvest",
     }
 
@@ -267,6 +269,7 @@ async def _homeharvest_nearby_unit_listing(base_address: str, query_address: str
         ),
         "price_history": _safe(row, "price_history", []) or [],
         "unit": str(unit_raw).strip() if unit_raw else None,
+        "property_url": str(_safe(row, "property_url", "") or ""),
         "source": "homeharvest",
     }
 

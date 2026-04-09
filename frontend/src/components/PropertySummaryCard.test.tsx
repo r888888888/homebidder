@@ -13,6 +13,7 @@ const BASE_PROPERTY = {
   city: "San Francisco",
   neighborhoods: "Noe Valley, Castro",
   unit: null,
+  listing_url: "https://www.realtor.com/realestateandhomes-detail/450-Sanchez-St_San-Francisco_CA_94114_M89012-34567/",
   price: 1_250_000,
   bedrooms: 3,
   bathrooms: 2,
@@ -284,5 +285,51 @@ describe("PropertySummaryCard", () => {
       />
     );
     expect(screen.queryByText(/^ai:/i)).not.toBeInTheDocument();
+  });
+
+  describe("external listing links", () => {
+    it("renders Zillow link with address slug in href", () => {
+      render(<PropertySummaryCard property={BASE_PROPERTY} />);
+      const link = screen.getByRole("link", { name: /zillow/i });
+      expect(link).toHaveAttribute("href", expect.stringContaining("zillow.com"));
+      expect(link).toHaveAttribute("href", expect.stringContaining("450-sanchez-st"));
+      expect(link).toHaveAttribute("target", "_blank");
+      expect(link).toHaveAttribute("rel", expect.stringContaining("noopener"));
+    });
+
+    it("renders Redfin link pointing to zip code search", () => {
+      render(<PropertySummaryCard property={BASE_PROPERTY} />);
+      const link = screen.getByRole("link", { name: /redfin/i });
+      expect(link).toHaveAttribute("href", expect.stringContaining("redfin.com"));
+      expect(link).toHaveAttribute("href", expect.stringContaining("94114"));
+      expect(link).toHaveAttribute("target", "_blank");
+    });
+
+    it("renders Realtor link using listing_url from backend", () => {
+      render(<PropertySummaryCard property={BASE_PROPERTY} />);
+      const link = screen.getByRole("link", { name: /realtor/i });
+      expect(link).toHaveAttribute(
+        "href",
+        "https://www.realtor.com/realestateandhomes-detail/450-Sanchez-St_San-Francisco_CA_94114_M89012-34567/"
+      );
+      expect(link).toHaveAttribute("target", "_blank");
+    });
+
+    it("renders Realtor link using constructed URL when listing_url is absent", () => {
+      render(<PropertySummaryCard property={{ ...BASE_PROPERTY, listing_url: null }} />);
+      const link = screen.getByRole("link", { name: /realtor/i });
+      expect(link).toHaveAttribute("href", expect.stringContaining("realtor.com"));
+      expect(link).toHaveAttribute("href", expect.stringContaining("450-Sanchez-St"));
+      expect(link).toHaveAttribute("href", expect.stringContaining("94114"));
+    });
+
+    it("renders Street View link with lat/lng in href", () => {
+      render(<PropertySummaryCard property={BASE_PROPERTY} />);
+      const link = screen.getByRole("link", { name: /street view/i });
+      expect(link).toHaveAttribute("href", expect.stringContaining("google.com/maps"));
+      expect(link).toHaveAttribute("href", expect.stringContaining("37.7612"));
+      expect(link).toHaveAttribute("href", expect.stringContaining("-122.4313"));
+      expect(link).toHaveAttribute("target", "_blank");
+    });
   });
 });

@@ -743,11 +743,11 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
                 )
                 yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'compute_investment_metrics', 'result': phase8_investment})}\n\n"
 
-                # Phase 9: fixer vs turn-key comparison (fixer properties only)
+                # Phase 9: renovation cost estimation for all properties
                 is_fixer = _is_fixer_property(listing)
                 fv_estimate = offer_result.get("fair_value_estimate")
                 log.info("Phase 9 guard: is_fixer=%s fair_value_estimate=%s", is_fixer, fv_estimate)
-                if is_fixer and fv_estimate:
+                if fv_estimate:
                     yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'estimate_renovation_cost', 'input': {}})}\n\n"
                     try:
                         renovation_result = await estimate_renovation_cost(listing, offer_result, buyer_context=buyer_context)

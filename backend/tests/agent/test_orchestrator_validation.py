@@ -156,7 +156,8 @@ class TestValidationResultEvent:
              patch("agent.orchestrator.compute_investment_metrics", return_value=INVESTMENT), \
              patch("agent.orchestrator.recommend_offer", return_value=OFFER_RESULT), \
              patch("agent.orchestrator.assess_risk", return_value=RISK), \
-             patch("agent.orchestrator.get_current_mortgage_rate_pct", new_callable=AsyncMock, return_value=6.5):
+             patch("agent.orchestrator.get_current_mortgage_rate_pct", new_callable=AsyncMock, return_value=6.5), \
+             patch("agent.orchestrator.estimate_renovation_cost", new_callable=AsyncMock, return_value=None):
 
             mock_client = AsyncMock()
             mock_cls.return_value = mock_client
@@ -215,7 +216,8 @@ class TestValidationResultEvent:
              patch("agent.orchestrator.compute_investment_metrics", return_value=INVESTMENT), \
              patch("agent.orchestrator.recommend_offer", return_value=OFFER_RESULT), \
              patch("agent.orchestrator.assess_risk", return_value=RISK), \
-             patch("agent.orchestrator.get_current_mortgage_rate_pct", new_callable=AsyncMock, return_value=6.5):
+             patch("agent.orchestrator.get_current_mortgage_rate_pct", new_callable=AsyncMock, return_value=6.5), \
+             patch("agent.orchestrator.estimate_renovation_cost", new_callable=AsyncMock, return_value=None):
 
             mock_client = AsyncMock()
             mock_cls.return_value = mock_client
@@ -271,7 +273,8 @@ class TestValidationResultEvent:
              patch("agent.orchestrator.compute_investment_metrics", return_value=INVESTMENT), \
              patch("agent.orchestrator.recommend_offer", return_value=OFFER_RESULT), \
              patch("agent.orchestrator.assess_risk", return_value=RISK), \
-             patch("agent.orchestrator.get_current_mortgage_rate_pct", new_callable=AsyncMock, return_value=6.5):
+             patch("agent.orchestrator.get_current_mortgage_rate_pct", new_callable=AsyncMock, return_value=6.5), \
+             patch("agent.orchestrator.estimate_renovation_cost", new_callable=AsyncMock, return_value=None):
 
             mock_client = AsyncMock()
             mock_cls.return_value = mock_client
@@ -324,7 +327,8 @@ class TestValidationResultEvent:
              patch("agent.orchestrator.compute_investment_metrics", return_value=INVESTMENT), \
              patch("agent.orchestrator.recommend_offer", return_value=OFFER_RESULT), \
              patch("agent.orchestrator.assess_risk", return_value=RISK), \
-             patch("agent.orchestrator.get_current_mortgage_rate_pct", new_callable=AsyncMock, return_value=6.5):
+             patch("agent.orchestrator.get_current_mortgage_rate_pct", new_callable=AsyncMock, return_value=6.5), \
+             patch("agent.orchestrator.estimate_renovation_cost", new_callable=AsyncMock, return_value=None):
 
             mock_client = AsyncMock()
             mock_cls.return_value = mock_client

@@ -42,6 +42,7 @@ export interface PropertyData {
   } | null;
   price_history: unknown[];
   avm_estimate: number | null;
+  listing_url?: string | null;
   source: string;
 }
 
@@ -53,6 +54,34 @@ function fmt(n: number | null | undefined, opts?: Intl.NumberFormatOptions): str
 function fmtUsd(n: number | null | undefined): string {
   if (n == null) return "—";
   return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+}
+
+function zillowUrl(p: PropertyData): string {
+  const slug = p.address_matched
+    .toLowerCase()
+    .replace(/,/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-");
+  return `https://www.zillow.com/homes/${slug}_rb/`;
+}
+
+function redfinUrl(p: PropertyData): string {
+  return `https://www.redfin.com/zipcode/${p.zip_code}/homes-for-sale`;
+}
+
+function toTitleCase(s: string): string {
+  return s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function realtorUrl(p: PropertyData): string {
+  if (p.listing_url) return p.listing_url;
+  const street = toTitleCase(p.address_matched.split(",")[0].trim()).replace(/\s+/g, "-");
+  const city = (p.city ?? "").replace(/\s+/g, "-");
+  return `https://www.realtor.com/realestateandhomes-detail/${street}_${city}_${p.state}_${p.zip_code}/`;
+}
+
+function streetViewUrl(p: PropertyData): string {
+  return `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${p.latitude},${p.longitude}`;
 }
 
 function formatPropertyType(raw: string | null | undefined): string {
@@ -221,6 +250,24 @@ export function PropertySummaryCard({ property }: Props) {
           {" \u00b7 "}
           <span className="capitalize">{property.source}</span>
         </p>
+        <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
+          {[
+            { label: "Zillow", href: zillowUrl(property) },
+            { label: "Redfin", href: redfinUrl(property) },
+            { label: "Realtor", href: realtorUrl(property) },
+            { label: "Street View", href: streetViewUrl(property) },
+          ].map(({ label, href }) => (
+            <a
+              key={label}
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[11px] text-[var(--navy)] hover:underline"
+            >
+              {label} ↗
+            </a>
+          ))}
+        </div>
         {property.listing_description && (() => {
           const isLong = property.listing_description.length > 180;
           return (
