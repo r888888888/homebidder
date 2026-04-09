@@ -739,6 +739,7 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
                     mortgage_rates=mortgage_rates_result if isinstance(mortgage_rates_result, dict) else {},
                     hpi_trend=phase6_fhfa if isinstance(phase6_fhfa, dict) else {},
                     ba_value_drivers=ba_drivers_result if isinstance(ba_drivers_result, dict) else {},
+                    fair_value=offer_result.get("fair_value_estimate") if isinstance(offer_result, dict) else None,
                 )
                 yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'compute_investment_metrics', 'result': phase8_investment})}\n\n"
 

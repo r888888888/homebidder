@@ -101,8 +101,20 @@ class TestFetchZillowHpi:
             result = await fetch_zillow_hpi("94109")
         assert "yoy_change_pct" in result
         assert "three_yr_avg_chg_pct" in result
+        assert "five_yr_avg_chg_pct" in result
         assert "hpi_trend" in result
         assert result["source"] == "Zillow ZHVI"
+
+    async def test_five_yr_avg_correct_value(self, tmp_path):
+        """SAMPLE_VALUES has 4 annual changes (2021-2024); 5yr avg uses all 4."""
+        cache = str(tmp_path / "zillow.csv")
+        csv_bytes = _make_csv_bytes("94109", SAMPLE_VALUES)
+        with open(cache, "wb") as f:
+            f.write(csv_bytes)
+        with patch("agent.tools.zillow_hpi.CACHE_PATH", cache):
+            result = await fetch_zillow_hpi("94109")
+        # 2021: +5.0, 2022: -2.0, 2023: +3.0, 2024: +3.0 → avg = 2.25
+        assert result["five_yr_avg_chg_pct"] == pytest.approx(2.25, abs=0.1)
 
     async def test_returns_error_for_zip_not_in_dataset(self, tmp_path):
         cache = str(tmp_path / "zillow.csv")

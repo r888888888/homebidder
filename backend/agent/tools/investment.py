@@ -56,17 +56,20 @@ def compute_investment_metrics(
     mortgage_rates: dict[str, Any],
     hpi_trend: dict[str, Any],
     ba_value_drivers: dict[str, Any],
+    fair_value: float | None = None,
 ) -> dict[str, Any]:
     """Compute appreciation projections and Bay Area value drivers."""
-    price = _safe_float(property.get("price"))
+    price = fair_value if fair_value is not None else _safe_float(property.get("price"))
 
     raw_rate_30 = _optional_float(mortgage_rates.get("rate_30yr_fixed"))
     rate_30 = raw_rate_30 if raw_rate_30 is not None else 6.5
     as_of_date = mortgage_rates.get("as_of_date")
 
-    # Prefer the 3-year average HPI change to smooth out single-year volatility.
-    # Fall back to yoy_change_pct (or legacy yoy_appreciation_pct) if unavailable.
-    growth_pct = _optional_float(hpi_trend.get("three_yr_avg_chg_pct"))
+    # Prefer the 5-year average HPI change for long-term projections, falling back to
+    # 3-year avg, then yoy, to smooth out single-year volatility.
+    growth_pct = _optional_float(hpi_trend.get("five_yr_avg_chg_pct"))
+    if growth_pct is None:
+        growth_pct = _optional_float(hpi_trend.get("three_yr_avg_chg_pct"))
     if growth_pct is None:
         growth_pct = _optional_float(hpi_trend.get("yoy_change_pct"))
     if growth_pct is None:

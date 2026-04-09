@@ -1,6 +1,5 @@
 # TODO
 
-- Examine description of https://www.redfin.com/CA/San-Francisco/286-Crescent-Ave-94110/home/1687833 for more fixer keywords
 - Code review of backend
 - Code review of frontend
 - Persist which renovation options were toggled in teh database
@@ -18,6 +17,7 @@
 
 # DONE
 
+- Examine description of https://www.redfin.com/CA/San-Francisco/286-Crescent-Ave-94110/home/1687833 for more fixer keywords. Then reassess the logic for identifying fixer/renovated properties and remove keywords that are not strong signals.
 - The fixer analysis card should always be displayed.
 - The investment analysis for "24 Victoria St, San Francisco, CA 94132" seems to have a distorted projection.
 - The highway proximity metric is not working correctly.

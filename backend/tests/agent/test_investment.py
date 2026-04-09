@@ -210,6 +210,45 @@ class TestComputeInvestmentMetrics:
         assert result["opportunity_cost_20yr"] < 0
         assert result["opportunity_cost_30yr"] < 0
 
+    def test_uses_five_yr_avg_over_three_yr_avg_for_projection(self):
+        """When five_yr_avg_chg_pct is provided, projections use it instead of three_yr_avg_chg_pct."""
+        from agent.tools.investment import compute_investment_metrics
+        from math import pow
+
+        price = 1_000_000
+        three_yr = 6.0
+        five_yr = 4.5
+
+        result = compute_investment_metrics(
+            property={"price": price},
+            mortgage_rates={"rate_30yr_fixed": 6.5},
+            hpi_trend={"three_yr_avg_chg_pct": three_yr, "five_yr_avg_chg_pct": five_yr},
+            ba_value_drivers={},
+        )
+
+        expected_10yr = round(price * pow(1 + five_yr / 100, 10), 0)
+        assert result["projected_value_10yr"] == expected_10yr
+        assert result["hpi_yoy_assumption_pct"] == five_yr
+
+    def test_falls_back_to_three_yr_when_no_five_yr_avg(self):
+        """When five_yr_avg_chg_pct is absent, falls back to three_yr_avg_chg_pct."""
+        from agent.tools.investment import compute_investment_metrics
+        from math import pow
+
+        price = 1_000_000
+        three_yr = 5.0
+
+        result = compute_investment_metrics(
+            property={"price": price},
+            mortgage_rates={"rate_30yr_fixed": 6.5},
+            hpi_trend={"three_yr_avg_chg_pct": three_yr},
+            ba_value_drivers={},
+        )
+
+        expected_10yr = round(price * pow(1 + three_yr / 100, 10), 0)
+        assert result["projected_value_10yr"] == expected_10yr
+        assert result["hpi_yoy_assumption_pct"] == three_yr
+
     def test_uses_three_yr_avg_over_single_yoy_for_projection(self):
         """When three_yr_avg_chg_pct is provided, projections use it instead of yoy_change_pct."""
         from agent.tools.investment import compute_investment_metrics
@@ -251,3 +290,67 @@ class TestComputeInvestmentMetrics:
         expected_10yr = round(price * pow(1 + yoy / 100, 10), 0)
         assert result["projected_value_10yr"] == expected_10yr
         assert result["hpi_yoy_assumption_pct"] == yoy
+
+    def test_uses_fair_value_for_projections_when_provided(self):
+        """When fair_value is passed, projections and purchase_price use it instead of list price."""
+        from agent.tools.investment import compute_investment_metrics
+        from math import pow
+
+        list_price = 1_250_000
+        fair_value = 1_100_000
+        growth = 4.0
+
+        result = compute_investment_metrics(
+            property={"price": list_price},
+            mortgage_rates={"rate_30yr_fixed": 6.5},
+            hpi_trend={"yoy_change_pct": growth},
+            ba_value_drivers={},
+            fair_value=fair_value,
+        )
+
+        expected_10yr = round(fair_value * pow(1 + growth / 100, 10), 0)
+        assert result["purchase_price"] == fair_value
+        assert result["projected_value_10yr"] == expected_10yr
+        assert result["projected_value_10yr"] != round(list_price * pow(1 + growth / 100, 10), 0)
+
+    def test_uses_fair_value_for_opportunity_cost(self):
+        """When fair_value is passed, monthly mortgage is computed from fair value, not list price."""
+        from agent.tools.investment import compute_investment_metrics, _monthly_mortgage_payment
+
+        list_price = 1_500_000
+        fair_value = 1_200_000
+        rent = 4_000.0
+
+        result = compute_investment_metrics(
+            property={"price": list_price},
+            mortgage_rates={"rate_30yr_fixed": 6.5},
+            hpi_trend={},
+            ba_value_drivers={"zip_median_rent": rent},
+            fair_value=fair_value,
+        )
+
+        expected_loan = fair_value * 0.80
+        expected_mortgage = _monthly_mortgage_payment(expected_loan, 6.5)
+        expected_maintenance = fair_value * 0.005 / 12
+        expected_buy_cost = round(expected_mortgage + expected_maintenance, 2)
+
+        assert result["monthly_buy_cost"] == pytest.approx(expected_buy_cost, abs=0.01)
+
+    def test_falls_back_to_list_price_when_no_fair_value(self):
+        """Without fair_value, behavior is unchanged — list price is used."""
+        from agent.tools.investment import compute_investment_metrics
+        from math import pow
+
+        price = 900_000
+        growth = 3.5
+
+        result = compute_investment_metrics(
+            property={"price": price},
+            mortgage_rates={"rate_30yr_fixed": 6.5},
+            hpi_trend={"yoy_change_pct": growth},
+            ba_value_drivers={},
+        )
+
+        expected_10yr = round(price * pow(1 + growth / 100, 10), 0)
+        assert result["purchase_price"] == price
+        assert result["projected_value_10yr"] == expected_10yr

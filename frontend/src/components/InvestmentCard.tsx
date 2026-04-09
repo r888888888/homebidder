@@ -52,7 +52,7 @@ export function InvestmentCard({ investment }: Props) {
         {/* Appreciation projections */}
         <div className="grid grid-cols-4 gap-3 rounded-xl bg-[var(--bg)] p-4 text-sm">
           <div>
-            <p className="text-xs text-[var(--ink-muted)]">Today</p>
+            <p className="text-xs text-[var(--ink-muted)]">Fair Value</p>
             <p className="font-semibold text-[var(--ink)]">{fmtUsd(investment.purchase_price)}</p>
           </div>
           <div>
@@ -70,7 +70,7 @@ export function InvestmentCard({ investment }: Props) {
         </div>
 
         <p className="text-xs text-[var(--ink-muted)]">
-          Assumes {fmtPct2(investment.rate_30yr_fixed)} 30yr fixed (Freddie Mac PMMS, week of {investment.as_of_date ?? "—"})
+          Fair value {fmtUsd(investment.purchase_price)} projected at {fmtPct2(investment.hpi_yoy_assumption_pct)}/yr (5yr avg HPI) · Assumes {fmtPct2(investment.rate_30yr_fixed)} 30yr fixed (Freddie Mac PMMS, week of {investment.as_of_date ?? "—"})
         </p>
 
         {/* Opportunity cost vs. renting */}

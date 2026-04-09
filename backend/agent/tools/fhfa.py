@@ -97,12 +97,14 @@ def _parse_hpi_xlsx(raw_bytes: bytes, zip_code: str) -> list[dict[str, Any]]:
 
 
 def _compute_hpi_stats(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    """Derive YoY change, 3-year average, trend, and most recent year."""
+    """Derive YoY change, 3-year average, 5-year average, trend, and most recent year."""
     if not rows:
         return {}
 
     yoy = rows[0]["annual_chg"]
     three_yr = sum(r["annual_chg"] for r in rows[:3]) / len(rows[:3])
+    five_yr_rows = rows[:5]
+    five_yr = sum(r["annual_chg"] for r in five_yr_rows) / len(five_yr_rows)
 
     if yoy > 1.0:
         trend = "appreciating"
@@ -114,6 +116,7 @@ def _compute_hpi_stats(rows: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "yoy_change_pct": round(yoy, 2),
         "three_yr_avg_chg_pct": round(three_yr, 2),
+        "five_yr_avg_chg_pct": round(five_yr, 2),
         "hpi_trend": trend,
         "as_of_year": int(rows[0]["year"]),
     }

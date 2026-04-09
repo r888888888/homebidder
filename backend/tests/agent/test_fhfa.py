@@ -54,6 +54,27 @@ class TestComputeHpiStats:
         stats = _compute_hpi_stats(rows)
         assert stats["yoy_change_pct"] == pytest.approx(4.2)
 
+    def test_five_yr_avg_averages_up_to_five_rows(self):
+        rows = [
+            {"zip_code": "94114", "year": "2024", "annual_chg": 4.0},
+            {"zip_code": "94114", "year": "2023", "annual_chg": 2.0},
+            {"zip_code": "94114", "year": "2022", "annual_chg": 6.0},
+            {"zip_code": "94114", "year": "2021", "annual_chg": 8.0},
+            {"zip_code": "94114", "year": "2020", "annual_chg": 5.0},
+            {"zip_code": "94114", "year": "2019", "annual_chg": 1.0},  # should be excluded
+        ]
+        stats = _compute_hpi_stats(rows)
+        assert stats["five_yr_avg_chg_pct"] == pytest.approx((4.0 + 2.0 + 6.0 + 8.0 + 5.0) / 5, abs=0.01)
+
+    def test_five_yr_avg_uses_all_rows_when_fewer_than_five(self):
+        rows = [
+            {"zip_code": "94114", "year": "2024", "annual_chg": 4.2},
+            {"zip_code": "94114", "year": "2023", "annual_chg": -1.1},
+            {"zip_code": "94114", "year": "2022", "annual_chg": 8.5},
+        ]
+        stats = _compute_hpi_stats(rows)
+        assert stats["five_yr_avg_chg_pct"] == pytest.approx((4.2 + -1.1 + 8.5) / 3, abs=0.01)
+
 
 class TestFetchFhfaHpi:
     @pytest.fixture()
