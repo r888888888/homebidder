@@ -161,6 +161,8 @@ async def _homeharvest_listing(matched_address: str) -> dict[str, Any]:
         return {}
 
     row = _select_best_homeharvest_row(df, matched_address)
+    if row is None:
+        return {}
 
     # If the row has no meaningful listing data (e.g. a building-level APARTMENT
     # record returned by the search), treat it as no listing found.
@@ -226,6 +228,8 @@ async def _homeharvest_nearby_unit_listing(base_address: str, query_address: str
         return {}
 
     row = _select_best_homeharvest_row(df, query_address)
+    if row is None:
+        return {}
 
     has_data = any([
         _safe(row, "list_price") is not None,
@@ -384,10 +388,21 @@ def _normalize_street_base(text: str | None) -> str:
     return out
 
 
+def _same_street_number(base1: str, base2: str) -> bool:
+    """Return True when both normalised bases start with the same street number."""
+    def _first(s: str) -> str:
+        parts = s.split()
+        return parts[0] if parts else ""
+    return _first(base1) == _first(base2)
+
+
 def _select_best_homeharvest_row(df: Any, query_address: str):
     """
     Choose the best-matching homeharvest row for query_address.
     Important for multi-unit buildings where top result may be another unit.
+
+    Returns None when no row has any address overlap with the query, so callers
+    can return {} rather than displaying a completely wrong property.
     """
     target_unit = _extract_unit_token(query_address)
     target_base = _normalize_street_base(query_address)
@@ -416,7 +431,11 @@ def _select_best_homeharvest_row(df: Any, query_address: str):
         if target_base and row_base:
             if row_base == target_base:
                 score += 4
-            elif target_base in row_base or row_base in target_base:
+            elif _same_street_number(target_base, row_base) and (
+                target_base in row_base or row_base in target_base
+            ):
+                # Partial match only when street numbers agree — prevents e.g.
+                # "184 Caroline Way" from matching a "84 Caroline Way" query.
                 score += 2
 
         if target_unit:
@@ -426,10 +445,18 @@ def _select_best_homeharvest_row(df: Any, query_address: str):
                 score -= 1
             else:
                 score -= 4
+        elif row_unit is not None or url_unit is not None:
+            # No unit in query: mildly prefer bare-address rows so a unit listing
+            # doesn't beat a bare-address row on a tie.
+            score -= 1
 
         if score > best_score:
             best_score = score
             best_row = row
+
+    # If no row overlaps the target address at all, signal no valid match.
+    if target_base and best_score <= 0:
+        return None
 
     return best_row
 

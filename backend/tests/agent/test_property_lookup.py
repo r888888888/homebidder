@@ -874,3 +874,122 @@ class TestListingLookupCandidates:
             "821 FOLSOM ST UNIT 515, SAN FRANCISCO, CA, 94107",
         )
         assert "821 FOLSOM ST UNIT 515, SAN FRANCISCO, CA, 94107" in candidates
+
+
+# ---------------------------------------------------------------------------
+# _select_best_homeharvest_row — wrong-property guard
+# ---------------------------------------------------------------------------
+
+class TestSelectBestHomeharvest:
+    """
+    Verifies that _select_best_homeharvest_row rejects unrelated results rather
+    than returning the first row as a false "best match".
+    """
+
+    def test_returns_none_when_no_row_overlaps_target_address(self):
+        """
+        When every row in the DataFrame has a completely different street,
+        return None instead of the first arbitrary row.
+        This prevents the property card from displaying wrong-property data
+        (the root cause of the '84 Caroline Way' mismatch).
+        """
+        from agent.tools.property_lookup import _select_best_homeharvest_row
+
+        rows = [
+            {**HOMEHARVEST_ROW, "street": "84 Crestlake Dr", "property_url": ""},
+            {**HOMEHARVEST_ROW, "street": "86 Caroline Way", "property_url": ""},
+        ]
+        df = _make_homeharvest_df(rows)
+        result = _select_best_homeharvest_row(df, "84 Caroline Way, Daly City, CA 94014")
+        assert result is None
+
+    def test_does_not_match_different_street_number_via_substring(self):
+        """
+        '84 caroline way' is a substring of '184 caroline way', but the street
+        numbers differ — this must NOT produce a partial-match score.
+        Returning 184 Caroline Way data for a '84 Caroline Way' query is a mismatch.
+        """
+        from agent.tools.property_lookup import _select_best_homeharvest_row
+
+        rows = [
+            {**HOMEHARVEST_ROW, "street": "184 Caroline Way", "property_url": ""},
+        ]
+        df = _make_homeharvest_df(rows)
+        result = _select_best_homeharvest_row(df, "84 Caroline Way, Daly City, CA 94014")
+        assert result is None
+
+    def test_prefers_bare_address_row_over_unit_row_when_query_has_no_unit(self):
+        """
+        When the query has no unit and both a bare-address row and a unit row
+        match the same building, the bare-address row should win even if the
+        unit row appears first in the DataFrame.
+        """
+        from agent.tools.property_lookup import _select_best_homeharvest_row, _safe
+
+        row_unit = {
+            **HOMEHARVEST_ROW,
+            "street": "84 Caroline Way Unit B",
+            "list_price": 750_000.0,
+            "sqft": 1100,
+            "unit_number": "B",
+            "property_url": "",
+        }
+        row_bare = {
+            **HOMEHARVEST_ROW,
+            "street": "84 Caroline Way",
+            "list_price": 850_000.0,
+            "sqft": 1400,
+            "unit_number": None,
+            "property_url": "",
+        }
+        # Unit row is first — current bug causes it to win on a tie
+        df = _make_homeharvest_df([row_unit, row_bare])
+        result = _select_best_homeharvest_row(df, "84 Caroline Way, Daly City, CA 94014")
+        assert _safe(result, "list_price") == 850_000.0  # bare-address row
+
+    def test_returns_unit_row_when_no_bare_address_row_exists(self):
+        """
+        When only unit rows exist for the building, return the first match
+        rather than None — some listing data is better than none.
+        """
+        from agent.tools.property_lookup import _select_best_homeharvest_row
+
+        row_a = {
+            **HOMEHARVEST_ROW,
+            "street": "84 Caroline Way Unit A",
+            "list_price": 700_000.0,
+            "sqft": 1000,
+            "unit_number": "A",
+            "property_url": "",
+        }
+        row_b = {
+            **HOMEHARVEST_ROW,
+            "street": "84 Caroline Way Unit B",
+            "list_price": 750_000.0,
+            "sqft": 1100,
+            "unit_number": "B",
+            "property_url": "",
+        }
+        df = _make_homeharvest_df([row_a, row_b])
+        result = _select_best_homeharvest_row(df, "84 Caroline Way, Daly City, CA 94014")
+        assert result is not None
+
+    async def test_homeharvest_listing_returns_empty_when_no_row_matches_address(self):
+        """
+        When _select_best_homeharvest_row finds no valid address match,
+        _homeharvest_listing must return {} rather than exposing wrong-property data.
+        """
+        from agent.tools.property_lookup import _homeharvest_listing
+
+        wrong_property_row = {
+            **HOMEHARVEST_ROW,
+            "street": "200 Some Other St",
+            "list_price": 999_000.0,
+        }
+        df = _make_homeharvest_df([wrong_property_row])
+
+        with patch("agent.tools.property_lookup.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+            result = await _homeharvest_listing("84 Caroline Way, Daly City, CA 94014")
+
+        assert result == {}
