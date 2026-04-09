@@ -64,13 +64,17 @@ def compute_investment_metrics(
     rate_30 = raw_rate_30 if raw_rate_30 is not None else 6.5
     as_of_date = mortgage_rates.get("as_of_date")
 
-    # FHFA tool emits yoy_change_pct; keep yoy_appreciation_pct as backward-compatible fallback.
-    yoy_pct = _optional_float(hpi_trend.get("yoy_change_pct"))
-    if yoy_pct is None:
-        yoy_pct = _optional_float(hpi_trend.get("yoy_appreciation_pct"))
-    if yoy_pct is None:
-        yoy_pct = 0.0
-    growth = 1.0 + (yoy_pct / 100.0)
+    # Prefer the 3-year average HPI change to smooth out single-year volatility.
+    # Fall back to yoy_change_pct (or legacy yoy_appreciation_pct) if unavailable.
+    growth_pct = _optional_float(hpi_trend.get("three_yr_avg_chg_pct"))
+    if growth_pct is None:
+        growth_pct = _optional_float(hpi_trend.get("yoy_change_pct"))
+    if growth_pct is None:
+        growth_pct = _optional_float(hpi_trend.get("yoy_appreciation_pct"))
+    if growth_pct is None:
+        growth_pct = 0.0
+    yoy_pct = growth_pct  # kept for output label
+    growth = 1.0 + (growth_pct / 100.0)
 
     projected_10yr = round(price * pow(growth, 10), 0) if price > 0 else None
     projected_20yr = round(price * pow(growth, 20), 0) if price > 0 else None

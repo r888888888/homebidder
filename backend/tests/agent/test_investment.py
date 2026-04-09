@@ -209,3 +209,45 @@ class TestComputeInvestmentMetrics:
         assert result["opportunity_cost_10yr"] < 0
         assert result["opportunity_cost_20yr"] < 0
         assert result["opportunity_cost_30yr"] < 0
+
+    def test_uses_three_yr_avg_over_single_yoy_for_projection(self):
+        """When three_yr_avg_chg_pct is provided, projections use it instead of yoy_change_pct."""
+        from agent.tools.investment import compute_investment_metrics
+        from math import pow
+
+        price = 1_000_000
+        yoy = 7.65     # volatile single-year value
+        avg3 = 5.17    # smoothed 3-year average
+
+        result = compute_investment_metrics(
+            property={"price": price},
+            mortgage_rates={"rate_30yr_fixed": 6.5},
+            hpi_trend={"yoy_change_pct": yoy, "three_yr_avg_chg_pct": avg3},
+            ba_value_drivers={},
+        )
+
+        expected_10yr = round(price * pow(1 + avg3 / 100, 10), 0)
+        expected_30yr = round(price * pow(1 + avg3 / 100, 30), 0)
+
+        assert result["projected_value_10yr"] == expected_10yr
+        assert result["projected_value_30yr"] == expected_30yr
+        assert result["hpi_yoy_assumption_pct"] == avg3
+
+    def test_falls_back_to_yoy_when_no_three_yr_avg(self):
+        """When three_yr_avg_chg_pct is absent, projections fall back to yoy_change_pct."""
+        from agent.tools.investment import compute_investment_metrics
+        from math import pow
+
+        price = 1_000_000
+        yoy = 4.0
+
+        result = compute_investment_metrics(
+            property={"price": price},
+            mortgage_rates={"rate_30yr_fixed": 6.5},
+            hpi_trend={"yoy_change_pct": yoy},
+            ba_value_drivers={},
+        )
+
+        expected_10yr = round(price * pow(1 + yoy / 100, 10), 0)
+        assert result["projected_value_10yr"] == expected_10yr
+        assert result["hpi_yoy_assumption_pct"] == yoy
