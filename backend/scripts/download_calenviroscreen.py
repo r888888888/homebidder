@@ -16,6 +16,7 @@ import sys
 import tempfile
 import zipfile
 from pathlib import Path
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Config
@@ -90,8 +91,39 @@ def _find_shp(directory: Path) -> Path:
     return matches[0]
 
 
+def _reproject_geometry(geom: dict[str, Any], transformer) -> dict[str, Any]:
+    """
+    Reproject all coordinates in a GeoJSON geometry dict using *transformer*.
+
+    Handles Point, LineString, Polygon, MultiPoint, MultiLineString,
+    MultiPolygon, and GeometryCollection.
+    """
+    def _transform(coords: Any) -> Any:
+        if not coords:
+            return coords
+        # Leaf: a single [x, y] coordinate pair
+        if isinstance(coords[0], (int, float)):
+            lon, lat = transformer.transform(coords[0], coords[1])
+            return [lon, lat]
+        # Container: list of rings / list of points / etc.
+        return [_transform(c) for c in coords]
+
+    gtype = geom.get("type", "")
+    if gtype == "GeometryCollection":
+        return {
+            "type": "GeometryCollection",
+            "geometries": [_reproject_geometry(g, transformer) for g in geom.get("geometries", [])],
+        }
+    return {"type": gtype, "coordinates": _transform(geom.get("coordinates"))}
+
+
 def _convert(shp_path: Path, out_path: Path) -> None:
     import shapefile  # pyshp
+    import pyproj
+
+    # CalEnviroScreen 4.0 shapefiles are always in EPSG:3310 (NAD83 / California Albers).
+    # GeoJSON requires WGS84 (EPSG:4326), so we reproject every coordinate.
+    transformer = pyproj.Transformer.from_crs("EPSG:3310", "EPSG:4326", always_xy=True)
 
     print(f"Converting {shp_path.name} → {out_path.name} ...")
     with shapefile.Reader(str(shp_path)) as sf:
@@ -110,7 +142,7 @@ def _convert(shp_path: Path, out_path: Path) -> None:
 
         features = []
         for shape_rec in sf.shapeRecords():
-            geom = shape_rec.shape.__geo_interface__
+            geom = _reproject_geometry(shape_rec.shape.__geo_interface__, transformer)
             props = dict(zip(fields, shape_rec.record))
             # Convert any non-serialisable types (e.g. Decimal) to float/None
             clean_props = {}
