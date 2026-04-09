@@ -39,5 +39,5 @@ Thumbs.db
 *.log
 backend/homebidder.log*
 
-# Large prefetched hazard datasets (keep curated static data like caltrain_stations.json)
-backend/data/*.geojson
+# All data files in backend/data/
+backend/data/
