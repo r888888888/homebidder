@@ -745,3 +745,221 @@ class TestSidingLineItem:
         profile = build_scope_profile(1965, _FIXER_SIGNALS, ["fixer-upper"])
         for slug in CORE_SLUGS:
             assert slug in profile["item_likelihood"], f"{slug} missing from item_likelihood"
+
+
+# ---------------------------------------------------------------------------
+# TestCenturyOldSFHItems — new renovation items for ~100-year-old Bay Area SFHs
+# ---------------------------------------------------------------------------
+
+_CENTURY_NEW_SLUGS = ["sewer_lateral", "insulation", "termite_dryrot", "deck_porch", "chimney"]
+
+
+class TestCenturyOldSFHItems:
+    # --- Benchmark existence and structure ---
+
+    def test_new_slugs_in_renovation_benchmarks(self):
+        from agent.tools.renovation import RENOVATION_BENCHMARKS
+        for slug in _CENTURY_NEW_SLUGS:
+            assert slug in RENOVATION_BENCHMARKS, f"{slug} missing from RENOVATION_BENCHMARKS"
+
+    def test_new_benchmarks_have_required_fields(self):
+        from agent.tools.renovation import RENOVATION_BENCHMARKS
+        for slug in _CENTURY_NEW_SLUGS:
+            b = RENOVATION_BENCHMARKS[slug]
+            assert "low" in b, f"{slug} missing 'low'"
+            assert "high" in b, f"{slug} missing 'high'"
+            assert "unit" in b, f"{slug} missing 'unit'"
+            assert "label" in b, f"{slug} missing 'label'"
+            assert b["low"] > 0, f"{slug} low must be > 0"
+            assert b["high"] > b["low"], f"{slug} high must exceed low"
+
+    # --- Era classification ---
+
+    def test_pre_1940_era_at_risk_includes_sewer_lateral(self):
+        from agent.tools.renovation import _classify_era
+        _, at_risk = _classify_era(1920)
+        assert "sewer_lateral" in at_risk
+
+    def test_pre_1940_era_at_risk_includes_insulation(self):
+        from agent.tools.renovation import _classify_era
+        _, at_risk = _classify_era(1920)
+        assert "insulation" in at_risk
+
+    def test_pre_1940_era_at_risk_includes_termite_dryrot(self):
+        from agent.tools.renovation import _classify_era
+        _, at_risk = _classify_era(1920)
+        assert "termite_dryrot" in at_risk
+
+    def test_pre_1940_era_at_risk_includes_chimney(self):
+        from agent.tools.renovation import _classify_era
+        _, at_risk = _classify_era(1920)
+        assert "chimney" in at_risk
+
+    def test_pre_1940_era_at_risk_includes_deck_porch(self):
+        from agent.tools.renovation import _classify_era
+        _, at_risk = _classify_era(1920)
+        assert "deck_porch" in at_risk
+
+    def test_pre_1940_era_at_risk_includes_siding(self):
+        from agent.tools.renovation import _classify_era
+        _, at_risk = _classify_era(1920)
+        assert "siding" in at_risk
+
+    def test_cosmetic_pre_1940_siding_bumped_to_possible(self):
+        from agent.tools.renovation import build_scope_profile
+        profile = build_scope_profile(1920, _FIXER_SIGNALS, ["cosmetic fixer"])
+        assert profile["item_likelihood"]["siding"] == "possible"
+
+    def test_post_1960_era_does_not_include_sewer_lateral(self):
+        from agent.tools.renovation import _classify_era
+        _, at_risk = _classify_era(1968)
+        assert "sewer_lateral" not in at_risk
+
+    # --- Scope defaults coverage ---
+
+    def test_new_slugs_in_scope_defaults_all_levels(self):
+        from agent.tools.renovation import _SCOPE_DEFAULTS
+        for level in ("cosmetic", "mid", "full"):
+            for slug in _CENTURY_NEW_SLUGS:
+                assert slug in _SCOPE_DEFAULTS[level], f"{slug} missing from {level} scope defaults"
+
+    # --- build_scope_profile: full scope pre-1940 ---
+
+    def test_full_scope_pre_1940_sewer_lateral_is_likely(self):
+        from agent.tools.renovation import build_scope_profile
+        profile = build_scope_profile(1920, _FIXER_SIGNALS, ["deferred maintenance"])
+        assert profile["item_likelihood"]["sewer_lateral"] == "likely"
+
+    def test_full_scope_pre_1940_insulation_is_likely(self):
+        from agent.tools.renovation import build_scope_profile
+        profile = build_scope_profile(1920, _FIXER_SIGNALS, ["deferred maintenance"])
+        assert profile["item_likelihood"]["insulation"] == "likely"
+
+    def test_full_scope_pre_1940_termite_dryrot_is_likely(self):
+        from agent.tools.renovation import build_scope_profile
+        profile = build_scope_profile(1920, _FIXER_SIGNALS, ["deferred maintenance"])
+        assert profile["item_likelihood"]["termite_dryrot"] == "likely"
+
+    # --- build_scope_profile: cosmetic pre-1940 gets era bump to possible ---
+
+    def test_cosmetic_pre_1940_sewer_lateral_bumped_to_possible(self):
+        from agent.tools.renovation import build_scope_profile
+        profile = build_scope_profile(1920, _FIXER_SIGNALS, ["cosmetic fixer"])
+        assert profile["item_likelihood"]["sewer_lateral"] == "possible"
+
+    def test_cosmetic_pre_1940_insulation_bumped_to_possible(self):
+        from agent.tools.renovation import build_scope_profile
+        profile = build_scope_profile(1920, _FIXER_SIGNALS, ["cosmetic fixer"])
+        assert profile["item_likelihood"]["insulation"] == "possible"
+
+    def test_cosmetic_pre_1940_termite_dryrot_bumped_to_possible(self):
+        from agent.tools.renovation import build_scope_profile
+        profile = build_scope_profile(1920, _FIXER_SIGNALS, ["cosmetic fixer"])
+        assert profile["item_likelihood"]["termite_dryrot"] == "possible"
+
+    def test_cosmetic_post_1978_new_items_stay_unlikely(self):
+        from agent.tools.renovation import build_scope_profile
+        profile = build_scope_profile(1985, _FIXER_SIGNALS, ["cosmetic fixer"])
+        assert profile["item_likelihood"]["sewer_lateral"] == "unlikely"
+        assert profile["item_likelihood"]["termite_dryrot"] == "unlikely"
+
+    # --- Listing phrase overrides ---
+
+    def test_termite_in_listing_makes_termite_dryrot_likely(self):
+        from agent.tools.renovation import build_scope_profile
+        profile = build_scope_profile(1920, _FIXER_SIGNALS, ["termite damage noted"])
+        assert profile["item_likelihood"]["termite_dryrot"] == "likely"
+
+    def test_dry_rot_in_listing_makes_termite_dryrot_likely(self):
+        from agent.tools.renovation import build_scope_profile
+        profile = build_scope_profile(1985, _FIXER_SIGNALS, ["fixer-upper", "dry rot in subfloor"])
+        assert profile["item_likelihood"]["termite_dryrot"] == "likely"
+
+    def test_structural_pest_in_listing_makes_termite_dryrot_likely(self):
+        from agent.tools.renovation import build_scope_profile
+        profile = build_scope_profile(1990, _FIXER_SIGNALS, ["structural pest report attached"])
+        assert profile["item_likelihood"]["termite_dryrot"] == "likely"
+
+    def test_sewer_in_listing_makes_sewer_lateral_likely(self):
+        from agent.tools.renovation import build_scope_profile
+        profile = build_scope_profile(1985, _FIXER_SIGNALS, ["sewer lateral needs replacement"])
+        assert profile["item_likelihood"]["sewer_lateral"] == "likely"
+
+    def test_lateral_in_listing_makes_sewer_lateral_likely(self):
+        from agent.tools.renovation import build_scope_profile
+        profile = build_scope_profile(1985, _FIXER_SIGNALS, ["lateral inspection report available"])
+        assert profile["item_likelihood"]["sewer_lateral"] == "likely"
+
+    # --- Buyer keyword overrides ---
+
+    def test_new_slugs_in_buyer_item_keywords(self):
+        from agent.tools.renovation import _BUYER_ITEM_KEYWORDS
+        slugs = [slug for _, slug in _BUYER_ITEM_KEYWORDS]
+        for slug in _CENTURY_NEW_SLUGS:
+            assert slug in slugs, f"{slug} missing from _BUYER_ITEM_KEYWORDS"
+
+    def test_buyer_notes_sewer_mention_makes_sewer_lateral_likely(self):
+        from agent.tools.renovation import build_scope_profile
+        profile = build_scope_profile(
+            1985, _FIXER_SIGNALS, ["fixer-upper"],
+            buyer_notes="new sewer is a priority"
+        )
+        assert profile["item_likelihood"]["sewer_lateral"] == "likely"
+
+    def test_buyer_notes_termite_mention_makes_termite_dryrot_likely(self):
+        from agent.tools.renovation import build_scope_profile
+        profile = build_scope_profile(
+            1985, _FIXER_SIGNALS, ["fixer-upper"],
+            buyer_notes="termite is a priority to address"
+        )
+        assert profile["item_likelihood"]["termite_dryrot"] == "likely"
+
+    # --- LLM prompt integration ---
+
+    async def test_sewer_lateral_appears_in_llm_prompt_for_full_scope_pre_1940(self):
+        from agent.tools.renovation import estimate_renovation_cost
+        full_signals = [
+            {"label": "Fixer / Contractor Special", "category": "condition_negative",
+             "direction": "negative", "weight_pct": -2.0, "matched_phrases": ["deferred maintenance"]},
+        ]
+        prop = _make_property(year_built=1920, detected_signals=full_signals)
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}), \
+             patch("agent.tools.renovation.anthropic.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_cls.return_value = mock_client
+            mock_client.messages.create.return_value = _make_llm_response(_GOOD_LLM_JSON)
+            await estimate_renovation_cost(prop, _make_offer())
+        prompt_text = mock_client.messages.create.call_args[1]["messages"][0]["content"]
+        assert "sewer" in prompt_text.lower()
+
+    async def test_insulation_appears_in_llm_prompt_for_full_scope_pre_1940(self):
+        from agent.tools.renovation import estimate_renovation_cost
+        full_signals = [
+            {"label": "Fixer / Contractor Special", "category": "condition_negative",
+             "direction": "negative", "weight_pct": -2.0, "matched_phrases": ["deferred maintenance"]},
+        ]
+        prop = _make_property(year_built=1920, detected_signals=full_signals)
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}), \
+             patch("agent.tools.renovation.anthropic.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_cls.return_value = mock_client
+            mock_client.messages.create.return_value = _make_llm_response(_GOOD_LLM_JSON)
+            await estimate_renovation_cost(prop, _make_offer())
+        prompt_text = mock_client.messages.create.call_args[1]["messages"][0]["content"]
+        assert "insulation" in prompt_text.lower()
+
+    async def test_termite_dryrot_appears_in_llm_prompt_for_full_scope_pre_1940(self):
+        from agent.tools.renovation import estimate_renovation_cost
+        full_signals = [
+            {"label": "Fixer / Contractor Special", "category": "condition_negative",
+             "direction": "negative", "weight_pct": -2.0, "matched_phrases": ["deferred maintenance"]},
+        ]
+        prop = _make_property(year_built=1920, detected_signals=full_signals)
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}), \
+             patch("agent.tools.renovation.anthropic.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_cls.return_value = mock_client
+            mock_client.messages.create.return_value = _make_llm_response(_GOOD_LLM_JSON)
+            await estimate_renovation_cost(prop, _make_offer())
+        prompt_text = mock_client.messages.create.call_args[1]["messages"][0]["content"]
+        assert "termite" in prompt_text.lower() or "dry rot" in prompt_text.lower()

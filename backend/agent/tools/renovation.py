@@ -35,6 +35,12 @@ RENOVATION_BENCHMARKS: dict[str, dict] = {
     "hazmat_encap":   {"low": 2_000,   "high": 5_000,   "unit": "flat",     "label": "Lead paint encapsulation"},
     "hazmat_partial": {"low": 5_000,   "high": 12_000,  "unit": "flat",     "label": "Hazmat partial remediation"},
     "hazmat_full":    {"low": 8_000,   "high": 25_000,  "unit": "flat",     "label": "Hazmat full abatement"},
+    # Century-old SFH items (common in pre-1940 Bay Area homes)
+    "sewer_lateral":  {"low": 10_000,  "high": 35_000,  "unit": "flat",     "label": "Sewer lateral replacement"},
+    "insulation":     {"low": 8_000,   "high": 20_000,  "unit": "flat",     "label": "Insulation (attic + walls)"},
+    "termite_dryrot": {"low": 5_000,   "high": 40_000,  "unit": "flat",     "label": "Termite/dry rot structural repair"},
+    "deck_porch":     {"low": 10_000,  "high": 35_000,  "unit": "flat",     "label": "Deck/porch replacement"},
+    "chimney":        {"low": 3_000,   "high": 15_000,  "unit": "flat",     "label": "Chimney repair/rebuild"},
 }
 
 # ---------------------------------------------------------------------------
@@ -67,6 +73,8 @@ _SCOPE_DEFAULTS: dict[str, dict[str, str]] = {
         "plumbing": "unlikely","hvac": "unlikely",
         "foundation": "unlikely", "seismic": "unlikely", "windows": "unlikely",
         "siding": "unlikely",
+        "sewer_lateral": "unlikely", "insulation": "unlikely",
+        "termite_dryrot": "unlikely", "deck_porch": "unlikely", "chimney": "unlikely",
     },
     "mid": {
         "kitchen": "likely",   "bathroom": "likely",
@@ -75,6 +83,8 @@ _SCOPE_DEFAULTS: dict[str, dict[str, str]] = {
         "plumbing": "possible","hvac": "possible",
         "foundation": "unlikely", "seismic": "unlikely", "windows": "possible",
         "siding": "possible",
+        "sewer_lateral": "possible", "insulation": "possible",
+        "termite_dryrot": "possible", "deck_porch": "unlikely", "chimney": "unlikely",
     },
     "full": {
         "kitchen": "likely",   "bathroom": "likely",
@@ -83,6 +93,8 @@ _SCOPE_DEFAULTS: dict[str, dict[str, str]] = {
         "plumbing": "likely",  "hvac": "likely",
         "foundation": "possible", "seismic": "possible", "windows": "likely",
         "siding": "possible",
+        "sewer_lateral": "likely", "insulation": "likely",
+        "termite_dryrot": "likely", "deck_porch": "possible", "chimney": "possible",
     },
 }
 
@@ -101,6 +113,15 @@ _BUYER_ITEM_KEYWORDS: list[tuple[str, str]] = [
     ("floor", "flooring"),
     ("paint", "paint"),
     ("siding", "siding"),
+    ("sewer", "sewer_lateral"),
+    ("lateral", "sewer_lateral"),
+    ("insulation", "insulation"),
+    ("termite", "termite_dryrot"),
+    ("dry rot", "termite_dryrot"),
+    ("pest", "termite_dryrot"),
+    ("deck", "deck_porch"),
+    ("porch", "deck_porch"),
+    ("chimney", "chimney"),
 ]
 
 
@@ -113,7 +134,9 @@ def _classify_era(year_built: int | None) -> tuple[str, list[str]]:
     if year_built is None:
         return ("unknown", ["electrical", "plumbing", "hvac"])
     if year_built < 1940:
-        return ("pre_1940", ["electrical", "plumbing", "foundation", "seismic", "windows"])
+        return ("pre_1940", ["electrical", "plumbing", "foundation", "seismic", "windows",
+                             "sewer_lateral", "insulation", "termite_dryrot", "chimney", "deck_porch",
+                             "siding"])
     if year_built < 1960:
         return ("1940s_1960s", ["electrical", "plumbing", "hvac", "seismic"])
     if year_built < 1978:
@@ -237,6 +260,12 @@ def build_scope_profile(
     if any(kw in combined_phrases for kw in ("siding", "new siding", "replace siding")):
         item_likelihood["siding"] = "likely"
         reasoning.append("listing mentions siding → siding=likely")
+    if any(kw in combined_phrases for kw in ("termite", "dry rot", "dryrot", "structural pest", "wood damage")):
+        item_likelihood["termite_dryrot"] = "likely"
+        reasoning.append("listing mentions termite/dry rot → termite_dryrot=likely")
+    if any(kw in combined_phrases for kw in ("sewer", "lateral", "drain line")):
+        item_likelihood["sewer_lateral"] = "likely"
+        reasoning.append("listing mentions sewer/lateral → sewer_lateral=likely")
 
     # Buyer notes item overrides
     if buyer_lower:
@@ -392,7 +421,8 @@ async def estimate_renovation_cost(
     likely_lines: list[str] = []
     possible_lines: list[str] = []
     core_slugs = ["kitchen", "bathroom", "flooring", "paint", "roof",
-                  "electrical", "plumbing", "hvac", "foundation", "seismic", "windows", "siding"]
+                  "electrical", "plumbing", "hvac", "foundation", "seismic", "windows", "siding",
+                  "sewer_lateral", "insulation", "termite_dryrot", "deck_porch", "chimney"]
 
     for slug in core_slugs:
         likelihood = item_likelihood.get(slug, "unlikely")
