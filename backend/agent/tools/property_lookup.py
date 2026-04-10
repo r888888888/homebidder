@@ -450,7 +450,11 @@ def _select_best_homeharvest_row(df: Any, query_address: str):
                 if row_unit == target_unit or url_unit == target_unit:
                     score += 8
                 elif row_unit is None and url_unit is None:
-                    score -= 1
+                    # Row has no unit info at all — when the query specifies a
+                    # unit, a bare building-level record is not a valid match.
+                    # Use a penalty large enough to push the score below 0 so the
+                    # best_score <= 0 guard rejects it (base match is +4).
+                    score -= 5
                 else:
                     score -= 4
         elif row_unit is not None or url_unit is not None:

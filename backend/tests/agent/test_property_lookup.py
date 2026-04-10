@@ -994,6 +994,27 @@ class TestSelectBestHomeharvest:
 
         assert result == {}
 
+    def test_does_not_match_building_level_row_when_target_has_unit(self):
+        """
+        When the query specifies a unit (e.g. '#2') but the only available row
+        has NO unit info at all (bare building-level listing), it must NOT be
+        selected — showing a building-level record as unit #2's data is wrong.
+
+        This manifested as: nearby radius search for "1250 Ellis St #2" returned
+        the building-level "1250 Ellis St" row (score +4 base -1 no-unit = +3),
+        which passed the best_score <= 0 guard and populated the summary card
+        with unrelated info.
+        """
+        from agent.tools.property_lookup import _select_best_homeharvest_row
+
+        rows = [
+            # Correct building, but NO unit info anywhere
+            {**HOMEHARVEST_ROW, "street": "1250 Ellis St", "list_price": 800_000.0, "unit_number": None, "property_url": ""},
+        ]
+        df = _make_homeharvest_df(rows)
+        result = _select_best_homeharvest_row(df, "1250 Ellis St #2, San Francisco, CA 94109")
+        assert result is None
+
     def test_does_not_match_different_building_same_unit_number(self):
         """
         A row at a DIFFERENT building that happens to share the same unit number
