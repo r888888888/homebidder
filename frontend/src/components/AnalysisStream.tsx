@@ -259,8 +259,8 @@ export function AnalysisStream({ events, isRunning }: Props) {
       >
         {activeTab === "analysis" && (
           <div className="space-y-4">
-            {/* Agent step progress */}
-            {toolCalls.length > 0 && (
+            {/* Agent step progress — hidden once analysis completes */}
+            {toolCalls.length > 0 && isRunning && (
               <div className="card p-5">
                 <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-[var(--ink-muted)]">
                   Agent steps

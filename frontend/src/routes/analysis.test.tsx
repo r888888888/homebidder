@@ -39,6 +39,21 @@ function mockSseStream(chunks: string[]) {
   return new Response(stream, { status: 200 });
 }
 
+/** Like mockSseStream but never closes — keeps isRunning=true after events are sent. */
+function mockOpenSseStream(chunks: string[]) {
+  const encoder = new TextEncoder();
+  let index = 0;
+  const stream = new ReadableStream({
+    pull(controller) {
+      if (index < chunks.length) {
+        controller.enqueue(encoder.encode(chunks[index++]));
+      }
+      // intentionally never closes
+    },
+  });
+  return new Response(stream, { status: 200 });
+}
+
 describe("AnalysisPage", () => {
   beforeEach(() => {
     vi.spyOn(global, "fetch");
@@ -66,12 +81,12 @@ describe("AnalysisPage", () => {
     expect(body.buyer_context).toBe("fast close");
   });
 
-  it("renders tool call steps as they arrive", async () => {
+  it("renders tool call steps as they arrive (while running)", async () => {
     const user = userEvent.setup();
+    // Open stream (never closes) — keeps isRunning=true so the agent steps card stays visible
     vi.mocked(fetch).mockResolvedValue(
-      mockSseStream([
+      mockOpenSseStream([
         `data: ${JSON.stringify({ type: "tool_call", tool: "fetch_comps" })}\n\n`,
-        `data: ${JSON.stringify({ type: "done" })}\n\n`,
       ])
     );
     renderAnalysisPage("450 Sanchez St, San Francisco, CA 94114");
@@ -82,6 +97,24 @@ describe("AnalysisPage", () => {
     await user.click(screen.getByRole("tab", { name: /analysis/i }));
     await waitFor(() =>
       expect(screen.getByText("Fetching comparable sales")).toBeInTheDocument()
+    );
+  });
+
+  it("hides agent steps card once analysis completes", async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetch).mockResolvedValue(
+      mockSseStream([
+        `data: ${JSON.stringify({ type: "tool_call", tool: "fetch_comps" })}\n\n`,
+        `data: ${JSON.stringify({ type: "done" })}\n\n`,
+      ])
+    );
+    renderAnalysisPage("450 Sanchez St, San Francisco, CA 94114");
+    await waitFor(() =>
+      expect(screen.getByRole("tab", { name: /analysis/i })).toBeInTheDocument()
+    );
+    await user.click(screen.getByRole("tab", { name: /analysis/i }));
+    await waitFor(() =>
+      expect(screen.queryByText(/agent steps/i)).not.toBeInTheDocument()
     );
   });
 

@@ -31,6 +31,7 @@ export interface PermitsData {
   complaints_recent_3y?: number;
   flags: string[];
   permits: PermitRecord[];
+  llm_overall_summary?: string | null;
   complaints?: Array<{
     complaint_number: string;
     date_filed: string | null;
@@ -118,6 +119,14 @@ export function PermitsCard({ permits }: Props) {
         <p className="text-xs text-[var(--ink-soft)]">
           San Francisco property history from {sourceLabel(permits.source)}
         </p>
+        {permits.llm_overall_summary && (
+          <p
+            data-testid="permits-overall-summary"
+            className="mt-2 text-sm text-[var(--ink)]"
+          >
+            {permits.llm_overall_summary}
+          </p>
+        )}
       </div>
 
       <div className="px-6 py-5">

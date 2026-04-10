@@ -609,7 +609,19 @@ describe("AnalysisStream — tab layout", () => {
 
   // ── Analysis tab content ───────────────────────────────────────────
 
-  it("renders agent steps and final markdown on Analysis tab", async () => {
+  it("renders agent steps and final markdown on Analysis tab while running", async () => {
+    const user = userEvent.setup();
+    const events = [
+      { type: "tool_call" as const, tool: "fetch_comps" },
+      { type: "text" as const, text: "# Summary\n\nReady to bid." },
+    ];
+    render(<AnalysisStream events={events} isRunning={true} />);
+    await user.click(screen.getByRole("tab", { name: /analysis/i }));
+    expect(screen.getByText(/agent steps/i)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: /summary/i })).toBeInTheDocument();
+  });
+
+  it("hides agent steps card on Analysis tab once analysis is complete", async () => {
     const user = userEvent.setup();
     const events = [
       { type: "tool_call" as const, tool: "fetch_comps" },
@@ -617,7 +629,7 @@ describe("AnalysisStream — tab layout", () => {
     ];
     render(<AnalysisStream events={events} isRunning={false} />);
     await user.click(screen.getByRole("tab", { name: /analysis/i }));
-    expect(screen.getByText(/agent steps/i)).toBeInTheDocument();
+    expect(screen.queryByText(/agent steps/i)).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: /summary/i })).toBeInTheDocument();
   });
 

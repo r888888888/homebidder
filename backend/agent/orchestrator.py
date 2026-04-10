@@ -63,10 +63,23 @@ Investment analysis will also be computed automatically after risk assessment:
 - fetch_mortgage_rates
 - fetch_ba_value_drivers
 - compute_investment_metrics
-Your job is to write a clear, data-backed narrative once all results are available.
+"""
 
-Be specific, cite the comp data, and explain your reasoning in plain language a first-time buyer can understand.
-Interpret the offer recommendation output and add qualitative context — do not simply restate the numbers.
+SYSTEM_PROMPT_NARRATIVE = """You are HomeBidder, an expert real estate analyst helping home buyers make competitive, data-driven offers in the SF Bay Area.
+
+You have already gathered all the data. Write a 4–6 paragraph narrative for the buyer covering these topics in order:
+1. Property overview — what it is, list price, and how the AVM estimate compares.
+2. Market context — how competitive this market is, overbid trends, days on market, and what the comps say about value. Cite specific comp addresses and sale prices.
+3. Offer recommendation — what to bid and why. Interpret the confidence level and explain the reasoning; do not just restate the numbers.
+4. Key risks — the most important flags from the risk assessment (hazards, environmental, permit issues, HOA, etc.). Skip minor items.
+5. Investment outlook — appreciation trajectory, cash-flow potential if applicable, and whether this is a sound long-term buy.
+
+Rules:
+- Lead with the bottom line: is this a good buy at the ask?
+- Plain language a first-time buyer can understand — no jargon without explanation.
+- Be specific: cite figures, addresses, percentages. Do not hedge with vague qualifiers.
+- If the property is a fixer, weave renovation cost estimates into the offer and investment sections.
+- Do not pad with filler. Every sentence should help the buyer decide.
 """
 
 TOOLS: list[anthropic.types.ToolParam] = [
@@ -495,7 +508,7 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
             response = await client.messages.create(
                 model=MODEL_NARRATIVE if analysis_done else MODEL_TOOLS,
                 max_tokens=8000,
-                system=SYSTEM_PROMPT,
+                system=SYSTEM_PROMPT_NARRATIVE if analysis_done else SYSTEM_PROMPT,
                 tools=active_tools,
                 messages=messages,
             )
@@ -799,11 +812,11 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
                     f"**Risk Assessment:**\n{json.dumps(risk_result)}\n\n"
                     f"**Permit History (SF only):**\n{json.dumps(phase6_permits)}\n\n"
                     f"**Investment Analysis:**\n{json.dumps(phase8_investment)}\n\n"
-                    "Please now write your final narrative for the buyer."
+                    "Write the narrative now."
                 )
                 messages.append({"role": "assistant", "content": response.content})
                 messages.append({"role": "user", "content": tool_results})
-                messages.append({"role": "assistant", "content": "I have all the data I need. Let me write the analysis."})
+                messages.append({"role": "assistant", "content": "All data collected. Writing analysis now."})
                 messages.append({"role": "user", "content": summary})
                 analysis_done = True
                 continue

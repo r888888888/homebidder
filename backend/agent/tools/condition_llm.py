@@ -13,7 +13,7 @@ import anthropic
 MIN_CONFIDENCE = 0.60
 MAX_ABS_ADJUSTMENT_PCT = 3.0
 LLM_CONTRIBUTION_CAP_PCT = 1.0
-DEFAULT_MODEL = "claude-4-6-haiku-latest"
+DEFAULT_MODEL = "claude-sonnet-4-6"
 
 
 def _clamp(value: float, low: float, high: float) -> float:

@@ -193,6 +193,115 @@ class TestFetchSfPermits:
         assert permit["llm_summary"] == "Main panel upgrade and new branch circuits."
         assert permit["llm_impact"] == "positive"
 
+    async def test_overall_summary_prompt_includes_permit_work_descriptions(self):
+        from agent.tools.sf_permits import _summarize_permits_overall_with_llm
+
+        mock_client = AsyncMock()
+        mock_response = MagicMock()
+        mock_response.content = [MagicMock(type="text", text='{"summary":"Recent kitchen remodel and electrical upgrade; no open issues."}')]
+        mock_client.messages.create.return_value = mock_response
+
+        result = {
+            "open_permits_count": 0,
+            "recent_permits_5y": 2,
+            "complaints_open_count": 0,
+            "complaints_recent_3y": 0,
+            "flags": [],
+            "permits": [
+                {
+                    "permit_number": "202401011234",
+                    "permit_type": "building",
+                    "status": "COMPLETE",
+                    "filed_date": "2024-01-10",
+                    "work_description": "Kitchen and bath remodel",
+                    "llm_summary": "Building permit 202401011234 is complete.",
+                    "estimated_cost": 120000,
+                },
+                {
+                    "permit_number": "E200304106449",
+                    "permit_type": "electrical",
+                    "status": "COMPLETE",
+                    "filed_date": "2023-06-15",
+                    "work_description": "Upgrade main service panel to 200A",
+                    "llm_summary": None,
+                    "estimated_cost": None,
+                },
+            ],
+        }
+
+        summary = await _summarize_permits_overall_with_llm(mock_client, result)
+
+        call_kwargs = mock_client.messages.create.call_args.kwargs
+        prompt_text = call_kwargs["messages"][0]["content"]
+        # Work descriptions must appear in the prompt so the LLM can reference them
+        assert "kitchen and bath remodel" in prompt_text.lower()
+        assert "upgrade main service panel" in prompt_text.lower()
+        # Estimated cost should be visible for major work context
+        assert "120,000" in prompt_text or "120000" in prompt_text
+        # Filed year gives temporal context
+        assert "2024" in prompt_text
+        assert summary == "Recent kitchen remodel and electrical upgrade; no open issues."
+
+    async def test_result_includes_llm_overall_summary_from_llm_when_enabled(self):
+        from agent.tools.sf_permits import fetch_sf_permits
+
+        permit_response = MagicMock()
+        permit_response.content = [MagicMock(type="text", text='{"summary":"Panel upgrade completed.","impact":"positive"}')]
+        overall_response = MagicMock()
+        overall_response.content = [MagicMock(type="text", text='{"summary":"Clean permit history with one completed electrical upgrade."}')]
+
+        with patch.dict(os.environ, {"ENABLE_PERMIT_LLM": "1", "ANTHROPIC_API_KEY": "test-key"}, clear=True), \
+             patch("agent.tools.sf_permits.httpx.AsyncClient") as mock_http_cls, \
+             patch("agent.tools.sf_permits.anthropic.AsyncAnthropic") as mock_anthropic_cls:
+            mock_client = AsyncMock()
+            mock_http_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_http_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.side_effect = [
+                _http_html_mock(_ADDRESS_LIST_HTML),
+                _http_html_mock(_SELECTED_ADDRESS_HTML),
+                _http_html_mock(_EID_PANEL_HTML),
+                _http_html_mock(_PID_PANEL_HTML),
+                _http_html_mock(_BID_PANEL_HTML),
+                _http_html_mock(_CTS_PANEL_HTML),
+                _http_html_mock(_EID_DETAIL_HTML),
+            ]
+
+            mock_anthropic_client = AsyncMock()
+            mock_anthropic_cls.return_value = mock_anthropic_client
+            mock_anthropic_client.messages.create.side_effect = [permit_response, overall_response]
+
+            result = await fetch_sf_permits(
+                address_matched="319 PLYMOUTH AVE, SAN FRANCISCO, CA, 94112",
+                unit=None,
+            )
+
+        assert result["llm_overall_summary"] == "Clean permit history with one completed electrical upgrade."
+
+    async def test_result_includes_fallback_overall_summary_when_llm_disabled(self):
+        from agent.tools.sf_permits import fetch_sf_permits
+
+        with patch("agent.tools.sf_permits.httpx.AsyncClient") as mock_cls:
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.side_effect = [
+                _http_html_mock(_ADDRESS_LIST_HTML),
+                _http_html_mock(_SELECTED_ADDRESS_HTML),
+                _http_html_mock(_EID_PANEL_HTML),
+                _http_html_mock(_PID_PANEL_HTML),
+                _http_html_mock(_BID_PANEL_HTML),
+                _http_html_mock(_CTS_PANEL_HTML),
+                _http_html_mock(_EID_DETAIL_HTML),
+            ]
+
+            result = await fetch_sf_permits(
+                address_matched="319 PLYMOUTH AVE, SAN FRANCISCO, CA, 94112",
+                unit=None,
+            )
+
+        assert isinstance(result["llm_overall_summary"], str)
+        assert len(result["llm_overall_summary"]) > 0
+
     async def test_logs_warning_when_permit_llm_call_throws(self):
         from agent.tools.sf_permits import fetch_sf_permits
 

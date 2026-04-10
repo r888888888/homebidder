@@ -48,7 +48,7 @@ _PANEL_MAP = {
     "BID": "building",
 }
 
-_PERMIT_LLM_MODEL = "claude-3-5-haiku-latest"
+_PERMIT_LLM_MODEL = "claude-sonnet-4-6"
 _PERMIT_LLM_MAX_CHARS = 3000
 
 
@@ -71,6 +71,7 @@ def _empty_result(address: str | None = None, source_detail: str | None = None) 
         "flags": [],
         "permits": [],
         "complaints": [],
+        "llm_overall_summary": None,
     }
 
 
@@ -207,6 +208,96 @@ def _fallback_permit_summary_and_impact(permit: dict[str, Any]) -> tuple[str | N
         impact = "negative"
 
     return summary, impact
+
+
+def _fallback_overall_summary(result: dict[str, Any]) -> str:
+    flags = result.get("flags", [])
+    if "no_recent_permit_history" in flags:
+        return "No permit or complaint activity found for this address."
+
+    open_count = result.get("open_permits_count", 0)
+    recent_5y = result.get("recent_permits_5y", 0)
+    complaints_open = result.get("complaints_open_count", 0)
+
+    parts = []
+    if recent_5y:
+        parts.append(f"{recent_5y} permit{'s' if recent_5y != 1 else ''} filed in the last 5 years")
+    if open_count:
+        parts.append(f"{open_count} currently open")
+    if complaints_open:
+        parts.append(f"{complaints_open} open complaint{'s' if complaints_open != 1 else ''}")
+
+    activity = "Permit history: " + (", ".join(parts) + "." if parts else "no recent activity.")
+
+    flag_notes = []
+    if "open_over_365_days" in flags:
+        flag_notes.append("at least one permit open more than 1 year")
+    if "recent_complaints" in flags:
+        flag_notes.append("recent complaint activity")
+
+    if flag_notes:
+        activity += " Flags: " + "; ".join(flag_notes) + "."
+
+    return activity
+
+
+async def _summarize_permits_overall_with_llm(
+    client: anthropic.AsyncAnthropic,
+    result: dict[str, Any],
+) -> str | None:
+    open_count = result.get("open_permits_count", 0)
+    recent_5y = result.get("recent_permits_5y", 0)
+    complaints_open = result.get("complaints_open_count", 0)
+    complaints_3y = result.get("complaints_recent_3y", 0)
+    flags = result.get("flags", [])
+    permits = result.get("permits", [])
+
+    permit_lines = []
+    for p in permits[:10]:
+        ptype = p.get("permit_type", "")
+        status = p.get("status", "")
+        filed = (p.get("filed_date") or "")[:4]  # year only
+        # Use work_description first — it's the actual scope; llm_summary is a fallback sentence
+        desc = (p.get("work_description") or p.get("llm_summary") or "no description")[:200]
+        cost = p.get("estimated_cost")
+        cost_str = f", est. ${cost:,.0f}" if cost else ""
+        permit_lines.append(f"- {ptype} ({status}, {filed}{cost_str}): {desc}")
+
+    prompt = (
+        "You are reviewing San Francisco building permit records for a home buyer.\n"
+        f"Open permits: {open_count}\n"
+        f"Permits filed in last 5 years: {recent_5y}\n"
+        f"Open complaints: {complaints_open}\n"
+        f"Complaints in last 3 years: {complaints_3y}\n"
+        f"Flags: {', '.join(flags) or 'none'}\n"
+        "Recent permits:\n" + ("\n".join(permit_lines) or "none") + "\n\n"
+        "Return JSON only with key: summary\n"
+        "summary: 1-2 plain-English sentences a buyer would want to know. "
+        "Reference specific work done (e.g. roof replacement, kitchen remodel, electrical upgrade) "
+        "and call out major improvements or risks. Be direct and buyer-focused.\n"
+    )
+
+    try:
+        resp = await client.messages.create(
+            model=os.getenv("PERMIT_LLM_MODEL", _PERMIT_LLM_MODEL),
+            max_tokens=300,
+            temperature=0,
+            messages=[{"role": "user", "content": prompt}],
+        )
+    except Exception as exc:
+        log.warning("Permit overall LLM summary failed: %s", exc, exc_info=True)
+        return None
+
+    text_parts: list[str] = []
+    for block in resp.content:
+        if getattr(block, "type", None) == "text":
+            text_parts.append(getattr(block, "text", ""))
+
+    payload = _extract_json_object("\n".join(text_parts))
+    if not payload:
+        return None
+
+    return str(payload.get("summary") or "").strip() or None
 
 
 def _extract_hidden(html_text: str, name: str) -> str | None:
@@ -478,6 +569,8 @@ async def fetch_sf_permits(
         base["source_detail"] = "invalid_address"
         return base
 
+    permit_llm_client: anthropic.AsyncAnthropic | None = None
+
     try:
         async with httpx.AsyncClient(timeout=20, follow_redirects=True) as client:
             # Step 1: load address list from direct URL (or form fallback).
@@ -513,7 +606,6 @@ async def fetch_sf_permits(
             complaints = _parse_complaints(complaints_resp.text)
 
             # Always provide summary/impact with deterministic fallback.
-            permit_llm_client: anthropic.AsyncAnthropic | None = None
             if permits and _permit_llm_enabled():
                 permit_llm_client = anthropic.AsyncAnthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
@@ -628,4 +720,11 @@ async def fetch_sf_permits(
         "permits": permits,
         "complaints": complaints,
     })
+
+    overall_summary = _fallback_overall_summary(result)
+    if permit_llm_client is not None:
+        llm_overall = await _summarize_permits_overall_with_llm(permit_llm_client, result)
+        overall_summary = llm_overall or overall_summary
+    result["llm_overall_summary"] = overall_summary
+
     return result

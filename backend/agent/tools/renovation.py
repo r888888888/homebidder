@@ -10,7 +10,7 @@ from typing import Any, Literal
 
 import anthropic
 
-DEFAULT_MODEL = "claude-haiku-4-5-20251001"
+DEFAULT_MODEL = "claude-sonnet-4-6"
 log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------

@@ -81,6 +81,23 @@ describe("PermitsCard", () => {
     );
   });
 
+  it("renders llm_overall_summary when provided", () => {
+    const withOverallSummary = {
+      ...PERMITS_RESULT,
+      llm_overall_summary: "One completed electrical upgrade; no open complaints or red flags.",
+    } as unknown as PermitsData;
+
+    render(<PermitsCard permits={withOverallSummary} />);
+
+    expect(screen.getByText(/one completed electrical upgrade; no open complaints or red flags/i)).toBeInTheDocument();
+  });
+
+  it("does not render overall summary section when llm_overall_summary is absent", () => {
+    render(<PermitsCard permits={PERMITS_RESULT} />);
+
+    expect(screen.queryByTestId("permits-overall-summary")).not.toBeInTheDocument();
+  });
+
   it("renders llm permit summary and impact label when available", () => {
     const withLlm = {
       ...PERMITS_RESULT,
