@@ -32,7 +32,8 @@ from .tools.ba_value_drivers import fetch_ba_value_drivers
 from .tools.investment import compute_investment_metrics
 from .tools.renovation import estimate_renovation_cost, _is_fixer_property
 
-MODEL = "claude-sonnet-4-6"
+MODEL_TOOLS = "claude-sonnet-4-6"
+MODEL_NARRATIVE = "claude-opus-4-6"
 
 
 def _insert_unit_into_address(address_matched: str, unit: str) -> str:
@@ -492,7 +493,7 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
 
         try:
             response = await client.messages.create(
-                model=MODEL,
+                model=MODEL_NARRATIVE if analysis_done else MODEL_TOOLS,
                 max_tokens=8000,
                 system=SYSTEM_PROMPT,
                 tools=active_tools,

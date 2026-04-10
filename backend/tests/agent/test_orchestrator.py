@@ -5,7 +5,7 @@ All Anthropic API calls are mocked — no real network requests.
 
 import json
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import anthropic
@@ -217,3 +217,84 @@ class TestBadRequestHandling:
         types = [e.get("type") for e in events]
         assert "done" in types, f"No 'done' event in: {types}"
         assert types.index("done") > types.index("error")
+
+
+class TestModelSelection:
+    """Tool-calling phase uses MODEL_TOOLS (Sonnet); final narrative uses MODEL_NARRATIVE (Opus)."""
+
+    async def _run_full_analysis(self):
+        """Simulate a complete run: fetch_comps tool call → auto-compute → final narrative."""
+        comps_block = MagicMock()
+        comps_block.type = "tool_use"
+        comps_block.name = "fetch_comps"
+        comps_block.id = "tu_comps_model"
+        comps_block.input = {
+            "address": "450 Sanchez St, San Francisco, CA 94114",
+            "city": "San Francisco",
+            "state": "CA",
+            "zip_code": "94114",
+        }
+
+        tool_use_response = MagicMock()
+        tool_use_response.stop_reason = "tool_use"
+        tool_use_response.content = [comps_block]
+
+        end_turn_response = MagicMock()
+        end_turn_response.stop_reason = "end_turn"
+        text_block = MagicMock()
+        text_block.type = "text"
+        text_block.text = "Here is the narrative analysis."
+        end_turn_response.content = [text_block]
+
+        fake_comps = {
+            "comps": [{"sold_price": 1_000_000, "price_per_sqft": 700.0, "sqft": 1400, "list_price": 980_000}],
+            "subject_sale": None,
+        }
+
+        from agent.orchestrator import run_agent
+
+        with patch("agent.orchestrator.anthropic.AsyncAnthropic") as mock_cls, \
+             patch("agent.orchestrator.fetch_comps", new_callable=AsyncMock, return_value=fake_comps), \
+             patch("agent.orchestrator.get_current_mortgage_rate_pct", new_callable=AsyncMock, return_value=6.5), \
+             patch("agent.orchestrator.recommend_offer", return_value={"offer_recommended": 1_000_000, "posture": "at-market", "fair_value_estimate": 1_000_000}), \
+             patch("agent.orchestrator.assess_risk", return_value={"overall_risk": "Low", "score": 2.0, "factors": []}), \
+             patch("agent.orchestrator.fetch_mortgage_rates", new_callable=AsyncMock, return_value={}), \
+             patch("agent.orchestrator.fetch_ba_value_drivers", new_callable=AsyncMock, return_value={}), \
+             patch("agent.orchestrator.compute_investment_metrics", return_value={}), \
+             patch("agent.orchestrator.estimate_renovation_cost", new_callable=AsyncMock, return_value=None):
+
+            mock_client = AsyncMock()
+            mock_cls.return_value = mock_client
+            mock_client.messages.create.side_effect = [tool_use_response, end_turn_response]
+
+            async for _ in run_agent("450 Sanchez St, San Francisco, CA 94114"):
+                pass
+
+            return mock_client.messages.create.call_args_list
+
+    async def test_tool_phase_uses_model_tools(self):
+        """The first (tool-use) API call must use MODEL_TOOLS."""
+        from agent.orchestrator import MODEL_TOOLS
+
+        calls = await self._run_full_analysis()
+        first_call_model = calls[0].kwargs["model"]
+        assert first_call_model == MODEL_TOOLS, (
+            f"Tool-use phase used {first_call_model!r}, expected MODEL_TOOLS={MODEL_TOOLS!r}"
+        )
+
+    async def test_narrative_phase_uses_model_narrative(self):
+        """The final (narrative) API call must use MODEL_NARRATIVE, not MODEL_TOOLS."""
+        from agent.orchestrator import MODEL_NARRATIVE, MODEL_TOOLS
+
+        calls = await self._run_full_analysis()
+        final_call_model = calls[-1].kwargs["model"]
+        assert final_call_model == MODEL_NARRATIVE, (
+            f"Narrative phase used {final_call_model!r}, expected MODEL_NARRATIVE={MODEL_NARRATIVE!r}"
+        )
+        assert final_call_model != MODEL_TOOLS, "Narrative phase must not reuse MODEL_TOOLS"
+
+    def test_model_constants_are_different(self):
+        """MODEL_TOOLS and MODEL_NARRATIVE must refer to distinct model IDs."""
+        from agent.orchestrator import MODEL_TOOLS, MODEL_NARRATIVE
+
+        assert MODEL_TOOLS != MODEL_NARRATIVE
