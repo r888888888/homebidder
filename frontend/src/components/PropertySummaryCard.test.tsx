@@ -287,6 +287,28 @@ describe("PropertySummaryCard", () => {
     expect(screen.queryByText(/^ai:/i)).not.toBeInTheDocument();
   });
 
+  describe("sold listing fallback source display", () => {
+    it("shows 'List Price' label for active for-sale listings", () => {
+      render(<PropertySummaryCard property={BASE_PROPERTY} />);
+      expect(screen.getByText("List Price")).toBeInTheDocument();
+    });
+
+    it("shows 'Last Sold Price' label when source is homeharvest_sold", () => {
+      render(
+        <PropertySummaryCard property={{ ...BASE_PROPERTY, source: "homeharvest_sold" }} />
+      );
+      expect(screen.getByText("Last Sold Price")).toBeInTheDocument();
+      expect(screen.queryByText("List Price")).not.toBeInTheDocument();
+    });
+
+    it("shows 'Recent Sale' source indicator when source is homeharvest_sold", () => {
+      render(
+        <PropertySummaryCard property={{ ...BASE_PROPERTY, source: "homeharvest_sold" }} />
+      );
+      expect(screen.getByText(/Recent Sale/)).toBeInTheDocument();
+    });
+  });
+
   describe("external listing links", () => {
     it("renders Zillow link with address slug in href", () => {
       render(<PropertySummaryCard property={BASE_PROPERTY} />);

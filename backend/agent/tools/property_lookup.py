@@ -150,10 +150,76 @@ async def _geocode(address: str) -> dict[str, Any]:
 async def _homeharvest_listing(matched_address: str) -> dict[str, Any]:
     """
     Fetch active/recent listing data via homeharvest.
+    Falls back to recently sold data when no active listing is found.
+    Returns an empty dict if nothing is found or if homeharvest raises.
+    """
+    # Try active for-sale listing first
+    try:
+        df = await asyncio.to_thread(_scrape_homeharvest, matched_address)
+    except Exception:
+        df = None
+
+    if df is not None and not df.empty:
+        row = _select_best_homeharvest_row(df, matched_address)
+        if row is not None:
+            # If the row has no meaningful listing data (e.g. a building-level APARTMENT
+            # record returned by the search), treat it as no listing found.
+            has_data = any([
+                _safe(row, "list_price") is not None,
+                _safe(row, "beds") is not None,
+                _safe(row, "sqft") is not None,
+                _safe(row, "year_built") is not None,
+            ])
+            if has_data:
+                full_baths = _safe(row, "full_baths") or 0
+                half_baths = _safe(row, "half_baths") or 0
+                list_date_raw = _safe(row, "list_date")
+                neighborhoods_raw = _safe(row, "neighborhoods")
+                # Unit: prefer structured field from homeharvest, fall back to street parse
+                unit_raw = (
+                    _safe(row, "unit_number")
+                    or _safe(row, "unit")
+                    or _safe(row, "apartment")
+                    or _extract_unit_token(_safe(row, "street", ""))
+                )
+                return {
+                    "price": _safe(row, "list_price"),
+                    "bedrooms": _safe(row, "beds"),
+                    "bathrooms": full_baths + half_baths * 0.5 if (full_baths or half_baths) else None,
+                    "sqft": _safe(row, "sqft"),
+                    "year_built": _safe(row, "year_built"),
+                    "lot_size": _safe(row, "lot_sqft"),
+                    "property_type": _safe(row, "style", ""),
+                    "hoa_fee": _safe(row, "hoa_fee"),
+                    "days_on_market": _safe(row, "days_on_mls"),
+                    "list_date": str(list_date_raw) if list_date_raw is not None else None,
+                    "city": _safe(row, "city"),
+                    "county": _safe(row, "county"),
+                    "neighborhoods": str(neighborhoods_raw) if neighborhoods_raw is not None else None,
+                    "listing_description": _first_nonempty_text(
+                        _safe(row, "text"),
+                        _safe(row, "description"),
+                        _safe(row, "remarks"),
+                        _safe(row, "listing_remarks"),
+                        _safe(row, "public_remarks"),
+                    ),
+                    "price_history": _safe(row, "price_history", []) or [],
+                    "unit": str(unit_raw).strip() if unit_raw else None,
+                    "property_url": str(_safe(row, "property_url", "") or ""),
+                    "source": "homeharvest",
+                }
+
+    # Fallback: recently sold listing provides property characteristics for off-market homes
+    return await _homeharvest_sold_listing(matched_address)
+
+
+async def _homeharvest_sold_listing(matched_address: str) -> dict[str, Any]:
+    """
+    Fallback: look up recently sold data when no active for-sale listing is found.
     Returns an empty dict if nothing is found or if homeharvest raises.
     """
     try:
-        df = await asyncio.to_thread(_scrape_homeharvest, matched_address)
+        df = await asyncio.to_thread(_scrape_homeharvest_sold, matched_address)
     except Exception:
         return {}
 
@@ -164,9 +230,8 @@ async def _homeharvest_listing(matched_address: str) -> dict[str, Any]:
     if row is None:
         return {}
 
-    # If the row has no meaningful listing data (e.g. a building-level APARTMENT
-    # record returned by the search), treat it as no listing found.
     has_data = any([
+        _safe(row, "sold_price") is not None,
         _safe(row, "list_price") is not None,
         _safe(row, "beds") is not None,
         _safe(row, "sqft") is not None,
@@ -179,15 +244,15 @@ async def _homeharvest_listing(matched_address: str) -> dict[str, Any]:
     half_baths = _safe(row, "half_baths") or 0
     list_date_raw = _safe(row, "list_date")
     neighborhoods_raw = _safe(row, "neighborhoods")
-    # Unit: prefer structured field from homeharvest, fall back to street parse
     unit_raw = (
         _safe(row, "unit_number")
         or _safe(row, "unit")
         or _safe(row, "apartment")
         or _extract_unit_token(_safe(row, "street", ""))
     )
+    sold_price = _safe(row, "sold_price")
     return {
-        "price": _safe(row, "list_price"),
+        "price": sold_price if sold_price is not None else _safe(row, "list_price"),
         "bedrooms": _safe(row, "beds"),
         "bathrooms": full_baths + half_baths * 0.5 if (full_baths or half_baths) else None,
         "sqft": _safe(row, "sqft"),
@@ -210,7 +275,7 @@ async def _homeharvest_listing(matched_address: str) -> dict[str, Any]:
         "price_history": _safe(row, "price_history", []) or [],
         "unit": str(unit_raw).strip() if unit_raw else None,
         "property_url": str(_safe(row, "property_url", "") or ""),
-        "source": "homeharvest",
+        "source": "homeharvest_sold",
     }
 
 
@@ -298,6 +363,18 @@ def _scrape_homeharvest_nearby(location: str):
         location=location,
         radius=0.05,
         limit=500,
+    )
+
+
+def _scrape_homeharvest_sold(location: str):
+    """Synchronous recently-sold listing search. Called via asyncio.to_thread."""
+    from homeharvest import scrape_property
+
+    return scrape_property(
+        listing_type="sold",
+        location=location,
+        past_days=180,
+        limit=20,
     )
 
 

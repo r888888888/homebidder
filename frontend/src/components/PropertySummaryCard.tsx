@@ -206,7 +206,7 @@ export function PropertySummaryCard({ property }: Props) {
       : null;
 
   const coreFields: Field[] = [
-    { label: "List Price", value: priceDisplay },
+    { label: property.source === "homeharvest_sold" ? "Last Sold Price" : "List Price", value: priceDisplay },
     { label: "HOA / mo", value: fmtUsd(property.hoa_fee) },
     { label: "Beds", value: fmt(property.bedrooms) },
     { label: "Baths", value: fmt(property.bathrooms) },
@@ -248,7 +248,9 @@ export function PropertySummaryCard({ property }: Props) {
         <p className="mt-0.5 text-xs text-[var(--ink-soft)]">
           {property.county} County &middot; {property.state} {property.zip_code}
           {" \u00b7 "}
-          <span className="capitalize">{property.source}</span>
+          <span className="capitalize">
+            {property.source === "homeharvest_sold" ? "Recent Sale" : property.source}
+          </span>
         </p>
         <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
           {[

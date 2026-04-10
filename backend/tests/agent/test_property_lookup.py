@@ -1034,3 +1034,109 @@ class TestSelectBestHomeharvest:
         df = _make_homeharvest_df(rows)
         result = _select_best_homeharvest_row(df, "1250 Ellis St #2, San Francisco, CA 94109")
         assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Sold-listing fallback — when no active for-sale listing is found
+# ---------------------------------------------------------------------------
+
+class TestSoldListingFallback:
+    async def test_falls_back_to_sold_listing_when_for_sale_returns_empty(self):
+        """
+        When no active for-sale listing is found, fall back to recently sold data
+        so property characteristics are still shown on the summary card.
+        Source is 'homeharvest_sold' to distinguish from active listings.
+        """
+        import pandas as pd
+        from agent.tools.property_lookup import _homeharvest_listing
+
+        df_sold = _make_homeharvest_df([{
+            **HOMEHARVEST_ROW,
+            "street": "84 Caroline Way",
+            "sold_price": 850_000.0,
+        }])
+
+        with patch("agent.tools.property_lookup.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.side_effect = [pd.DataFrame(), df_sold]
+            result = await _homeharvest_listing("84 Caroline Way, Daly City, CA 94014")
+
+        assert result != {}
+        assert result["source"] == "homeharvest_sold"
+        assert result["bedrooms"] == 3
+        assert result["sqft"] == 1800
+
+    async def test_sold_fallback_uses_sold_price_as_price(self):
+        """Sold listing fallback maps sold_price to the price field."""
+        import pandas as pd
+        from agent.tools.property_lookup import _homeharvest_listing
+
+        df_sold = _make_homeharvest_df([{
+            **HOMEHARVEST_ROW,
+            "street": "84 Caroline Way",
+            "list_price": None,
+            "sold_price": 850_000.0,
+        }])
+
+        with patch("agent.tools.property_lookup.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.side_effect = [pd.DataFrame(), df_sold]
+            result = await _homeharvest_listing("84 Caroline Way, Daly City, CA 94014")
+
+        assert result["price"] == 850_000.0
+
+    async def test_for_sale_takes_priority_over_sold_fallback(self):
+        """Active for-sale listing is always preferred — sold fallback is never called."""
+        from agent.tools.property_lookup import _homeharvest_listing
+
+        df_for_sale = _make_homeharvest_df([{**HOMEHARVEST_ROW, "street": "84 Caroline Way"}])
+
+        with patch("agent.tools.property_lookup.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df_for_sale
+            result = await _homeharvest_listing("84 Caroline Way, Daly City, CA 94014")
+
+        assert result["source"] == "homeharvest"
+        assert mock_thread.call_count == 1  # sold fallback never called
+
+    async def test_sold_fallback_rejects_wrong_property(self):
+        """
+        Sold fallback must still respect the address guard: a row from a
+        different street number must not populate the summary card.
+        """
+        import pandas as pd
+        from agent.tools.property_lookup import _homeharvest_listing
+
+        df_wrong = _make_homeharvest_df([{
+            **HOMEHARVEST_ROW,
+            "street": "184 Caroline Way",  # different street number
+            "sold_price": 900_000.0,
+        }])
+
+        with patch("agent.tools.property_lookup.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.side_effect = [pd.DataFrame(), df_wrong]
+            result = await _homeharvest_listing("84 Caroline Way, Daly City, CA 94014")
+
+        assert result == {}
+
+    async def test_sold_fallback_also_triggered_when_for_sale_row_rejected(self):
+        """
+        When for-sale returns rows but _select_best_homeharvest_row rejects them
+        all (wrong address), the sold fallback is still tried.
+        """
+        import pandas as pd
+        from agent.tools.property_lookup import _homeharvest_listing
+
+        df_wrong_for_sale = _make_homeharvest_df([{
+            **HOMEHARVEST_ROW,
+            "street": "184 Caroline Way",  # rejected by guard
+        }])
+        df_sold = _make_homeharvest_df([{
+            **HOMEHARVEST_ROW,
+            "street": "84 Caroline Way",
+            "sold_price": 850_000.0,
+        }])
+
+        with patch("agent.tools.property_lookup.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.side_effect = [df_wrong_for_sale, df_sold]
+            result = await _homeharvest_listing("84 Caroline Way, Daly City, CA 94014")
+
+        assert result["source"] == "homeharvest_sold"
+        assert result["price"] == 850_000.0

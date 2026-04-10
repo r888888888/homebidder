@@ -2,6 +2,7 @@
 
 - Code review of backend
 - Code review of frontend
+- Review major renovation items typical for a century old SFH in the SF Bay Area. Update the fixer analysis to incorporate these items.
 - Persist which renovation options were toggled in teh database
 - Move feature flags into database, add admin portal
 - Support inspection reports
