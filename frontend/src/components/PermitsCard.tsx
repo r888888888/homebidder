@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 export interface PermitRecord {
   permit_number: string;
   filed_date: string | null;
@@ -102,6 +104,63 @@ function badgeBaseClass(tone: string): string {
   return `inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold tracking-wide ${tone}`;
 }
 
+function PermitRow({ permit }: { permit: PermitRecord }) {
+  const [showDescription, setShowDescription] = useState(false);
+
+  return (
+    <li className="rounded-lg border border-[var(--line)] bg-[var(--bg)] p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-semibold text-[var(--ink)]">
+          {permit.permit_number}
+          <span className="ml-2 text-xs font-normal text-[var(--ink-soft)]">
+            {`Filed ${permit.filed_date ?? "—"}`}
+          </span>
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          {permit.llm_impact && (
+            <span className={badgeBaseClass(badgeToneForImpact(permit.llm_impact))}>
+              {`Impact: ${permit.llm_impact}`}
+            </span>
+          )}
+          <span className={badgeBaseClass(badgeToneForStatus(permit.status))}>
+            {`Status: ${String(permit.status ?? "unknown").toLowerCase()}`}
+          </span>
+        </div>
+      </div>
+      <p className="mt-1 text-xs text-[var(--ink-soft)]">
+        {permit.llm_summary ??
+          `${titleCase(permit.permit_type)} permit ${permit.permit_number} is ${(permit.status ?? "status unknown").toLowerCase()}.`}
+      </p>
+      {permit.work_description && (
+        <>
+          {showDescription ? (
+            <p className="mt-1 text-xs text-[var(--ink-soft)]">
+              {permit.work_description}
+            </p>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setShowDescription((v) => !v)}
+            className="mt-1 text-xs font-semibold text-[var(--navy)] underline"
+          >
+            {showDescription ? "Hide original description" : "Show original description"}
+          </button>
+        </>
+      )}
+      {permit.source_url && (
+        <a
+          href={permit.source_url}
+          target="_blank"
+          rel="noreferrer"
+          className="ml-4 mt-2 inline-flex text-xs font-semibold text-[var(--navy)] underline"
+        >
+          View permit
+        </a>
+      )}
+    </li>
+  );
+}
+
 interface Props {
   permits: PermitsData;
 }
@@ -196,56 +255,7 @@ export function PermitsCard({ permits }: Props) {
           </p>
           <ul className="space-y-3">
             {topPermits.map((permit) => (
-              <li
-                key={permit.permit_number}
-                className="rounded-lg border border-[var(--line)] bg-[var(--bg)] p-3"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm font-semibold text-[var(--ink)]">
-                    {permit.permit_number}
-                    <span className="ml-2 text-xs font-normal text-[var(--ink-soft)]">
-                      {`Filed ${permit.filed_date ?? "—"}`}
-                    </span>
-                  </p>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {permit.llm_impact && (
-                      <span
-                        className={badgeBaseClass(
-                          badgeToneForImpact(permit.llm_impact),
-                        )}
-                      >
-                        {`Impact: ${permit.llm_impact}`}
-                      </span>
-                    )}
-                    <span
-                      className={badgeBaseClass(
-                        badgeToneForStatus(permit.status),
-                      )}
-                    >
-                      {`Status: ${String(permit.status ?? "unknown").toLowerCase()}`}
-                    </span>
-                  </div>
-                </div>
-                {permit.work_description && (
-                  <p className="mt-1 text-xs text-[var(--ink-soft)]">
-                    {permit.work_description}
-                  </p>
-                )}
-                <p className="mt-1 text-xs text-[var(--ink-soft)]">
-                  {permit.llm_summary ??
-                    `${titleCase(permit.permit_type)} permit ${permit.permit_number} is ${(permit.status ?? "status unknown").toLowerCase()}.`}
-                </p>
-                {permit.source_url && (
-                  <a
-                    href={permit.source_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-2 inline-flex text-xs font-semibold text-[var(--navy)] underline"
-                  >
-                    View permit
-                  </a>
-                )}
-              </li>
+              <PermitRow key={permit.permit_number} permit={permit} />
             ))}
           </ul>
         </div>

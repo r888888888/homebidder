@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, it, expect } from "vitest";
 import { PermitsCard, type PermitsData } from "./PermitsCard";
 
@@ -56,11 +57,14 @@ describe("PermitsCard", () => {
     expect(screen.getByText(/open permit older than 1 year/i)).toBeInTheDocument();
   });
 
-  it("renders a permit row with key details", () => {
+  it("renders a permit row with key details", async () => {
+    const user = userEvent.setup();
     render(<PermitsCard permits={PERMITS_RESULT} />);
 
-    expect(screen.getByText(/kitchen and bath remodel/i)).toBeInTheDocument();
     expect(screen.getByText(/status: issued/i)).toBeInTheDocument();
+    // Work description is hidden until the toggle is clicked
+    await user.click(screen.getByRole("button", { name: /show original description/i }));
+    expect(screen.getByText(/kitchen and bath remodel/i)).toBeInTheDocument();
     expect(screen.getByText(/alteration permit 202401011234 is issued/i)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /view permit/i })).toHaveAttribute(
       "href",
@@ -96,6 +100,21 @@ describe("PermitsCard", () => {
     render(<PermitsCard permits={PERMITS_RESULT} />);
 
     expect(screen.queryByTestId("permits-overall-summary")).not.toBeInTheDocument();
+  });
+
+  it("hides work_description by default and shows it after clicking the toggle link", async () => {
+    const user = userEvent.setup();
+    render(<PermitsCard permits={PERMITS_RESULT} />);
+
+    // Description hidden by default
+    expect(screen.queryByText(/kitchen and bath remodel/i)).not.toBeInTheDocument();
+
+    // Toggle link is present
+    const toggle = screen.getByRole("button", { name: /show original description/i });
+    await user.click(toggle);
+
+    // Description now visible
+    expect(screen.getByText(/kitchen and bath remodel/i)).toBeInTheDocument();
   });
 
   it("renders llm permit summary and impact label when available", () => {
