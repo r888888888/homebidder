@@ -287,6 +287,41 @@ describe("PropertySummaryCard", () => {
     expect(screen.queryByText(/^ai:/i)).not.toBeInTheDocument();
   });
 
+  describe("photo gallery", () => {
+    it("renders images when photos array is provided", () => {
+      render(
+        <PropertySummaryCard
+          property={{
+            ...BASE_PROPERTY,
+            photos: [
+              "https://ap.rdcpix.com/abc/img1.jpg",
+              "https://ap.rdcpix.com/abc/img2.jpg",
+            ],
+          }}
+        />
+      );
+      const images = screen.getAllByRole("img");
+      expect(images.length).toBeGreaterThanOrEqual(2);
+      expect(images[0]).toHaveAttribute("src", "https://ap.rdcpix.com/abc/img1.jpg");
+      expect(images[1]).toHaveAttribute("src", "https://ap.rdcpix.com/abc/img2.jpg");
+    });
+
+    it("does not render gallery section when photos is null", () => {
+      render(<PropertySummaryCard property={{ ...BASE_PROPERTY, photos: null }} />);
+      expect(screen.queryByRole("img")).not.toBeInTheDocument();
+    });
+
+    it("does not render gallery section when photos is empty array", () => {
+      render(<PropertySummaryCard property={{ ...BASE_PROPERTY, photos: [] }} />);
+      expect(screen.queryByRole("img")).not.toBeInTheDocument();
+    });
+
+    it("does not render gallery section when photos is omitted", () => {
+      render(<PropertySummaryCard property={BASE_PROPERTY} />);
+      expect(screen.queryByRole("img")).not.toBeInTheDocument();
+    });
+  });
+
   describe("sold listing fallback source display", () => {
     it("shows 'List Price' label for active for-sale listings", () => {
       render(<PropertySummaryCard property={BASE_PROPERTY} />);

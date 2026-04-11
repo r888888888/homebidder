@@ -1140,3 +1140,81 @@ class TestSoldListingFallback:
 
         assert result["source"] == "homeharvest_sold"
         assert result["price"] == 850_000.0
+
+
+# ---------------------------------------------------------------------------
+# Photos extraction
+# ---------------------------------------------------------------------------
+
+class TestPhotosExtraction:
+    async def test_photos_urls_extracted_from_homeharvest_row(self):
+        """photos field is returned as a list of URL strings from homeharvest rows."""
+        from agent.tools.property_lookup import _homeharvest_listing
+
+        row = {
+            **HOMEHARVEST_ROW,
+            "photos": [
+                {"href": "https://ap.rdcpix.com/abc123/img1.jpg", "title": None, "tags": []},
+                {"href": "https://ap.rdcpix.com/abc123/img2.jpg", "title": None, "tags": []},
+            ],
+        }
+        df = _make_homeharvest_df([row])
+
+        with patch("agent.tools.property_lookup.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+            result = await _homeharvest_listing("450 SANCHEZ ST, SAN FRANCISCO, CA, 94114")
+
+        assert result["photos"] == [
+            "https://ap.rdcpix.com/abc123/img1.jpg",
+            "https://ap.rdcpix.com/abc123/img2.jpg",
+        ]
+
+    async def test_photos_empty_list_when_column_absent(self):
+        """photos is an empty list when the homeharvest row has no photos column."""
+        from agent.tools.property_lookup import _homeharvest_listing
+
+        df = _make_homeharvest_df([HOMEHARVEST_ROW])
+
+        with patch("agent.tools.property_lookup.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+            result = await _homeharvest_listing("450 SANCHEZ ST, SAN FRANCISCO, CA, 94114")
+
+        assert result["photos"] == []
+
+    async def test_photos_propagated_to_lookup_result(self):
+        """lookup_property_by_address includes photos in the returned dict."""
+        from agent.tools.property_lookup import lookup_property_by_address
+
+        with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
+             patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh:
+
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.return_value = _make_census_mock()
+            mock_hh.return_value = {
+                "price": 1_250_000.0,
+                "source": "homeharvest",
+                "photos": ["https://ap.rdcpix.com/abc123/img1.jpg"],
+            }
+
+            result = await lookup_property_by_address("450 Sanchez St, San Francisco, CA 94114")
+
+        assert result["photos"] == ["https://ap.rdcpix.com/abc123/img1.jpg"]
+
+    async def test_photos_empty_list_when_no_listing_found(self):
+        """photos is an empty list when no listing is found."""
+        from agent.tools.property_lookup import lookup_property_by_address
+
+        with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
+             patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh:
+
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.return_value = _make_census_mock()
+            mock_hh.return_value = {}
+
+            result = await lookup_property_by_address("450 Sanchez St, San Francisco, CA 94114")
+
+        assert result["photos"] == []

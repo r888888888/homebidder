@@ -43,6 +43,7 @@ export interface PropertyData {
   price_history: unknown[];
   avm_estimate: number | null;
   listing_url?: string | null;
+  photos?: string[] | null;
   source: string;
 }
 
@@ -183,6 +184,7 @@ interface Props {
 
 export function PropertySummaryCard({ property }: Props) {
   const [descExpanded, setDescExpanded] = useState(false);
+  const [galleryExpanded, setGalleryExpanded] = useState(false);
   const displayAddress = property.address_input?.trim() || property.address_matched;
   const matchedAddressDisplay = normalizeMatchedAddressWithUnit(
     property.address_input,
@@ -270,6 +272,36 @@ export function PropertySummaryCard({ property }: Props) {
             </a>
           ))}
         </div>
+        {property.photos && property.photos.length > 0 && (() => {
+          const visiblePhotos = galleryExpanded ? property.photos! : property.photos!.slice(0, 6);
+          const hasMore = property.photos!.length > 6;
+          return (
+            <div className="mt-3">
+              <div className="grid grid-cols-3 gap-1 sm:grid-cols-4">
+                {visiblePhotos.map((url, i) => (
+                  <img
+                    key={i}
+                    src={url}
+                    alt={`Property photo ${i + 1}`}
+                    className="h-20 w-full rounded object-cover"
+                    loading="lazy"
+                  />
+                ))}
+              </div>
+              {hasMore && (
+                <button
+                  type="button"
+                  onClick={() => setGalleryExpanded((v) => !v)}
+                  className="mt-1 text-[11px] text-[var(--navy)] hover:underline"
+                >
+                  {galleryExpanded
+                    ? "Show fewer photos"
+                    : `Show all ${property.photos!.length} photos`}
+                </button>
+              )}
+            </div>
+          );
+        })()}
         {property.listing_description && (() => {
           const isLong = property.listing_description.length > 180;
           return (

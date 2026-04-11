@@ -96,6 +96,7 @@ async def lookup_property_by_address(address: str) -> dict[str, Any]:
         "price_history": listing.get("price_history", []),
         "avm_estimate": None,
         "listing_url": listing.get("property_url") or None,
+        "photos": listing.get("photos", []),
         "source": source,
     }
 
@@ -206,6 +207,7 @@ async def _homeharvest_listing(matched_address: str) -> dict[str, Any]:
                     "price_history": _safe(row, "price_history", []) or [],
                     "unit": str(unit_raw).strip() if unit_raw else None,
                     "property_url": str(_safe(row, "property_url", "") or ""),
+                    "photos": _extract_photo_urls(row),
                     "source": "homeharvest",
                 }
 
@@ -275,6 +277,7 @@ async def _homeharvest_sold_listing(matched_address: str) -> dict[str, Any]:
         "price_history": _safe(row, "price_history", []) or [],
         "unit": str(unit_raw).strip() if unit_raw else None,
         "property_url": str(_safe(row, "property_url", "") or ""),
+        "photos": _extract_photo_urls(row),
         "source": "homeharvest_sold",
     }
 
@@ -339,6 +342,7 @@ async def _homeharvest_nearby_unit_listing(base_address: str, query_address: str
         "price_history": _safe(row, "price_history", []) or [],
         "unit": str(unit_raw).strip() if unit_raw else None,
         "property_url": str(_safe(row, "property_url", "") or ""),
+        "photos": _extract_photo_urls(row),
         "source": "homeharvest",
     }
 
@@ -400,6 +404,18 @@ def _safe(row: Any, key: str, default: Any = None) -> Any:
     if isinstance(val, np.floating):
         return float(val)
     return val
+
+
+def _extract_photo_urls(row: Any) -> list[str]:
+    """Extract photo URLs from a homeharvest row's photos field."""
+    photos_raw = _safe(row, "photos", []) or []
+    if not isinstance(photos_raw, list):
+        return []
+    return [
+        str(p["href"])
+        for p in photos_raw
+        if isinstance(p, dict) and p.get("href")
+    ]
 
 
 def _first_nonempty_text(*values: Any) -> str | None:
