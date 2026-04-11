@@ -1,9 +1,8 @@
 # TODO
 
-- Create a plan for ways of showing crime rates. Present me with a list of possible implementations. Try to distinguish between violent crimes and property crimes.
 - Create a plan for investigating other data points from calenviroscreen that are worth surfacing
 - Persist which renovation options were toggled in teh database
-- Move feature flags into database, add admin portal
+- Move feature flags into database. Add admin portal for managing the feature flags.
 - Support inspection reports
 - Support pest inspection reports
 - Support disclosures
@@ -13,6 +12,7 @@
 
 # DONE
 
+- Show crime rates near the property. Hybrid approach: DataSF Socrata API (SFPD data, free) for San Francisco properties; SpotCrime API (requires SPOTCRIME_API_KEY) for other Bay Area cities. Incidents within 0.5-mile radius over 90 days; distinguishes violent (assault, robbery, homicide, rape) from property (theft, burglary, auto theft, arson). Displayed in Risk tab as CrimeCard with color-coded counts (green/amber/red) and top crime types. Persisted in crime_data_json column and replayed from cache.
 - Show quality of nearby schools using CAASPP proficiency rates. Nearest elementary/middle/high within 2 miles displayed in InvestmentCard with Math/ELA % meeting/exceeding CA standards, color-coded green/yellow/red. Built-in Bay Area school dataset (31 schools); `prefetch_schools` writes to `data/schools.json`.
 - Support showing nearby MUNI stops. Saved 30 MUNI Metro stops to backend/data/muni_stops.json; added to transit search pool alongside BART/Caltrain; displays in InvestmentCard as a separate "Nearest MUNI" panel.
 - Add a direct google maps link to the property.

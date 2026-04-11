@@ -31,6 +31,7 @@ from .tools.risk import assess_risk
 from .tools.ba_value_drivers import fetch_ba_value_drivers
 from .tools.investment import compute_investment_metrics
 from .tools.renovation import estimate_renovation_cost, _is_fixer_property
+from .tools.crime import fetch_crime_data
 
 MODEL_TOOLS = "claude-sonnet-4-6"
 MODEL_NARRATIVE = "claude-opus-4-6"
@@ -267,6 +268,7 @@ async def _persist_analysis(
     final_text: str,
     permits_result: dict | None = None,
     renovation_result: dict | None = None,
+    crime_result: dict | None = None,
     buyer_context: str = "",
 ) -> int:
     """Write Listing, Analysis, and Comp records to DB and return analysis id."""
@@ -337,6 +339,7 @@ async def _persist_analysis(
         investment_data_json=json.dumps(investment_result) if investment_result else None,
         permits_data_json=json.dumps(permits_result) if permits_result else None,
         renovation_data_json=json.dumps(renovation_result) if renovation_result else None,
+        crime_data_json=json.dumps(crime_result) if crime_result else None,
         buyer_context=buyer_context or None,
     )
     db.add(analysis)
@@ -429,6 +432,11 @@ async def _stream_cached_analysis(analysis) -> AsyncIterator[str]:
         yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'estimate_renovation_cost', 'input': {}})}\n\n"
         yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'estimate_renovation_cost', 'result': data})}\n\n"
 
+    if analysis.crime_data_json:
+        data = json.loads(analysis.crime_data_json)
+        yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'fetch_crime_data', 'input': {}})}\n\n"
+        yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'fetch_crime_data', 'result': data})}\n\n"
+
     if analysis.rationale:
         yield f"data: {json.dumps({'type': 'text', 'text': analysis.rationale})}\n\n"
 
@@ -458,6 +466,12 @@ async def _run_phase6(property_result: dict, state: dict) -> AsyncIterator[str]:
         phase6_tools.append(("fetch_fhfa_hpi", fetch_fhfa_hpi(zip_code), {}))
     if lat and lon:
         phase6_tools.append(("fetch_ca_hazard_zones", fetch_ca_hazard_zones(lat, lon), {}))
+        county_raw = str(property_result.get("county") or "")
+        phase6_tools.append((
+            "fetch_crime_data",
+            fetch_crime_data(lat, lon, county_raw),
+            {"latitude": lat, "longitude": lon, "county": county_raw},
+        ))
     if county == "san francisco" and address_matched:
         permit_inputs: dict = {"address_matched": address_matched}
         if unit:
@@ -488,6 +502,8 @@ async def _run_phase6(property_result: dict, state: dict) -> AsyncIterator[str]:
                 state["hazards"] = result
             elif tool_name == "fetch_sf_permits":
                 state["permits"] = result
+            elif tool_name == "fetch_crime_data":
+                state["crime"] = result
             yield f"data: {json.dumps({'type': 'tool_call', 'tool': tool_name, 'input': tool_input})}\n\n"
             yield f"data: {json.dumps({'type': 'tool_result', 'tool': tool_name, 'result': result})}\n\n"
             log.info("Phase 6 auto-computed %s", tool_name)
@@ -676,6 +692,7 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
     phase6_ejscreen: dict | None = None
     phase6_permits: dict | None = None
     phase8_investment: dict | None = None
+    phase6_crime: dict | None = None
     analysis_done = False
     # Persistence state
     comps_result: list | None = None
@@ -753,6 +770,7 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
                         final_text="".join(final_text_parts),
                         permits_result=phase6_permits,
                         renovation_result=renovation_result_persist,
+                        crime_result=phase6_crime,
                         buyer_context=buyer_context,
                     )
                     log.info("Analysis persisted: id=%d", analysis_id)
@@ -824,6 +842,7 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
                 phase6_hazards = phase6_state.get("hazards")
                 phase6_ejscreen = phase6_state.get("ejscreen")
                 phase6_permits = phase6_state.get("permits")
+                phase6_crime = phase6_state.get("crime")
 
             # Phase 2: auto-compute market analysis + offer recommendation after comps arrive
             if "fetch_comps" in dispatched and not analysis_done:

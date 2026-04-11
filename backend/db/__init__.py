@@ -26,6 +26,7 @@ _ANALYSES_MIGRATIONS: list[tuple[str, str]] = [
     ("investment_data_json",  "TEXT"),
     ("permits_data_json",     "TEXT"),
     ("renovation_data_json",  "TEXT"),
+    ("crime_data_json",       "TEXT"),
     ("buyer_context",         "TEXT"),
 ]
 

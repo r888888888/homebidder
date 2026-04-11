@@ -84,6 +84,7 @@ async def test_init_db_adds_missing_columns_to_existing_analyses_table(tmp_path)
         "investment_data_json",
         "permits_data_json",
         "renovation_data_json",
+        "crime_data_json",
         "buyer_context",
     }
     missing = expected_new_cols - col_names

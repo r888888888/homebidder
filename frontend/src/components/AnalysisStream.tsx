@@ -12,6 +12,7 @@ import { InvestmentCard, type InvestmentData } from "./InvestmentCard";
 import { PermitsCard, type PermitsData } from "./PermitsCard";
 import { FixerAnalysisCard, type FixerAnalysisData } from "./FixerAnalysisCard";
 import { ValidationBanner, type ValidationResult } from "./ValidationBanner";
+import { CrimeCard, type CrimeData } from "./CrimeCard";
 
 interface Props {
   events: AnalysisEvent[];
@@ -30,6 +31,7 @@ const TOOL_LABELS: Record<string, string> = {
   compute_investment_metrics: "Computing investment metrics",
   fetch_sf_permits: "Fetching SF permit history",
   estimate_renovation_cost: "Estimating renovation costs",
+  fetch_crime_data: "Fetching crime statistics",
 };
 
 type TabId = "decision" | "property" | "market" | "risk" | "analysis";
@@ -145,6 +147,11 @@ export function AnalysisStream({ events, isRunning }: Props) {
   );
   const renovationData = renovationEvent?.result as FixerAnalysisData | undefined;
 
+  const crimeEvent = events.find(
+    (e) => e.type === "tool_result" && e.tool === "fetch_crime_data"
+  );
+  const crimeData = crimeEvent?.result as CrimeData | undefined;
+
   const validationEvent = events.find((e) => e.type === "validation_result");
   const validationData = validationEvent?.result as ValidationResult | undefined;
 
@@ -246,6 +253,7 @@ export function AnalysisStream({ events, isRunning }: Props) {
               isRunning && <PanelSkeleton label="Assessing risk factors…" />
             )}
             {permitsData && <PermitsCard permits={permitsData} />}
+            {crimeData && <CrimeCard crime={crimeData} />}
           </div>
         )}
       </div>

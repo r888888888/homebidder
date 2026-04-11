@@ -50,6 +50,10 @@ class _Settings:
     def bart_api_key(self) -> str:
         return os.getenv("BART_API_KEY", "")
 
+    @property
+    def spotcrime_api_key(self) -> str | None:
+        return os.getenv("SPOTCRIME_API_KEY") or None
+
     # ------------------------------------------------------------------ #
     # Feature flags                                                        #
     # ------------------------------------------------------------------ #

@@ -68,6 +68,7 @@ class Analysis(Base):
     investment_data_json: Mapped[str | None] = mapped_column(Text)
     permits_data_json: Mapped[str | None] = mapped_column(Text)
     renovation_data_json: Mapped[str | None] = mapped_column(Text)
+    crime_data_json: Mapped[str | None] = mapped_column(Text)
     buyer_context: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     listing: Mapped["Listing"] = relationship("Listing", back_populates="analyses")
