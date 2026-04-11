@@ -22,9 +22,9 @@ MUNI_CACHE_PATH = str(Path(__file__).parent.parent.parent / "data" / "muni_stops
 SCHOOLS_CACHE_PATH = str(Path(__file__).parent.parent.parent / "data" / "schools.json")
 
 # Key MUNI Metro (light rail) stops. These are the underground Market St subway
-# stations plus major surface stops on J/K/L/M/N/T lines. Coordinates are
-# approximate; a full GTFS import would cover bus stops too, but MUNI Metro
-# stops are the primary transit-premium driver. With ~35 stops a linear scan
+# stations plus surface stops on J/K/L/M/N/T lines and the 2022 Central Subway.
+# Coordinates are approximate; a full GTFS import would cover bus stops too, but
+# MUNI Metro stops are the primary transit-premium driver. ~75 stops, linear scan
 # with haversine is fast enough — no spatial index required.
 _MUNI_METRO_STOPS = [
     # Market St underground subway (shared by J/K/L/M/N/T)
@@ -37,31 +37,78 @@ _MUNI_METRO_STOPS = [
     {"name": "Castro Station", "lat": 37.7626, "lon": -122.4350, "system": "MUNI"},
     {"name": "Forest Hill Station", "lat": 37.7571, "lon": -122.4545, "system": "MUNI"},
     {"name": "West Portal Station", "lat": 37.7397, "lon": -122.4659, "system": "MUNI"},
-    # N Judah surface stops
+    # T Third Central Subway extension (underground, opened 2022)
+    {"name": "Chinatown-Rose Pak (T Third)", "lat": 37.7953, "lon": -122.4079, "system": "MUNI"},
+    {"name": "Union Square/Market St (T Third)", "lat": 37.7875, "lon": -122.4082, "system": "MUNI"},
+    {"name": "Yerba Buena/Moscone (T Third)", "lat": 37.7813, "lon": -122.4038, "system": "MUNI"},
+    # N Judah surface stops (Cole Valley → Inner Sunset → Outer Sunset → Ocean Beach)
     {"name": "Carl & Cole (N Judah)", "lat": 37.7662, "lon": -122.4498, "system": "MUNI"},
+    {"name": "Judah & Arguello (N Judah)", "lat": 37.7631, "lon": -122.4580, "system": "MUNI"},
+    {"name": "Judah & 4th Ave (N Judah)", "lat": 37.7631, "lon": -122.4606, "system": "MUNI"},
+    {"name": "Judah & 7th Ave (N Judah)", "lat": 37.7631, "lon": -122.4645, "system": "MUNI"},
     {"name": "9th Ave & Irving (N Judah)", "lat": 37.7636, "lon": -122.4671, "system": "MUNI"},
+    {"name": "Judah & 11th Ave (N Judah)", "lat": 37.7632, "lon": -122.4697, "system": "MUNI"},
+    {"name": "Judah & 14th Ave (N Judah)", "lat": 37.7632, "lon": -122.4736, "system": "MUNI"},
+    {"name": "Judah & 16th Ave (N Judah)", "lat": 37.7632, "lon": -122.4762, "system": "MUNI"},
     {"name": "19th Ave & Irving (N Judah)", "lat": 37.7636, "lon": -122.4803, "system": "MUNI"},
+    {"name": "Judah & 21st Ave (N Judah)", "lat": 37.7630, "lon": -122.4829, "system": "MUNI"},
+    {"name": "Judah & 25th Ave (N Judah)", "lat": 37.7630, "lon": -122.4881, "system": "MUNI"},
     {"name": "28th Ave & Judah (N Judah)", "lat": 37.7630, "lon": -122.4912, "system": "MUNI"},
+    {"name": "Judah & 31st Ave (N Judah)", "lat": 37.7629, "lon": -122.4951, "system": "MUNI"},
+    {"name": "Judah & 33rd Ave (N Judah)", "lat": 37.7629, "lon": -122.4977, "system": "MUNI"},
     {"name": "37th Ave & Judah (N Judah)", "lat": 37.7629, "lon": -122.5038, "system": "MUNI"},
+    {"name": "Judah & 40th Ave (N Judah)", "lat": 37.7629, "lon": -122.5080, "system": "MUNI"},
+    {"name": "Judah & 43rd Ave (N Judah)", "lat": 37.7629, "lon": -122.5119, "system": "MUNI"},
     {"name": "La Playa & Judah (N Judah)", "lat": 37.7629, "lon": -122.5094, "system": "MUNI"},
-    # J Church surface stops
+    # J Church surface stops (Noe Valley → Glen Park)
+    {"name": "Church & 17th St (J Church)", "lat": 37.7644, "lon": -122.4281, "system": "MUNI"},
+    {"name": "Church & 18th St (J Church)", "lat": 37.7627, "lon": -122.4280, "system": "MUNI"},
+    {"name": "Church & 20th St (J Church)", "lat": 37.7593, "lon": -122.4281, "system": "MUNI"},
     {"name": "22nd St & Church (J Church)", "lat": 37.7552, "lon": -122.4282, "system": "MUNI"},
     {"name": "24th St & Church (J Church)", "lat": 37.7522, "lon": -122.4282, "system": "MUNI"},
+    {"name": "Church & 26th St (J Church)", "lat": 37.7502, "lon": -122.4283, "system": "MUNI"},
     {"name": "30th St & Church (J Church)", "lat": 37.7465, "lon": -122.4295, "system": "MUNI"},
-    # T Third Street
+    {"name": "Church & Cesar Chavez (J Church)", "lat": 37.7432, "lon": -122.4254, "system": "MUNI"},
+    # T Third Street surface stops (Mission Bay → Potrero → Bayview → Visitacion Valley)
+    {"name": "2nd & Berry (T Third)", "lat": 37.7762, "lon": -122.3912, "system": "MUNI"},
     {"name": "4th & King (T Third)", "lat": 37.7770, "lon": -122.3942, "system": "MUNI"},
+    {"name": "16th & 3rd (T Third)", "lat": 37.7643, "lon": -122.3880, "system": "MUNI"},
+    {"name": "18th & 3rd (T Third)", "lat": 37.7609, "lon": -122.3879, "system": "MUNI"},
+    {"name": "20th & 3rd (T Third)", "lat": 37.7579, "lon": -122.3878, "system": "MUNI"},
     {"name": "22nd St (T Third)", "lat": 37.7573, "lon": -122.3878, "system": "MUNI"},
+    {"name": "23rd & 3rd (T Third)", "lat": 37.7539, "lon": -122.3878, "system": "MUNI"},
     {"name": "Cesar Chavez (T Third)", "lat": 37.7501, "lon": -122.3878, "system": "MUNI"},
+    {"name": "Oakdale & 3rd (T Third)", "lat": 37.7437, "lon": -122.3873, "system": "MUNI"},
+    {"name": "Palou & 3rd (T Third)", "lat": 37.7411, "lon": -122.3872, "system": "MUNI"},
+    {"name": "Gilman & 3rd (T Third)", "lat": 37.7385, "lon": -122.3870, "system": "MUNI"},
     {"name": "Bayview–Hunter's Point (T Third)", "lat": 37.7347, "lon": -122.3873, "system": "MUNI"},
     {"name": "Visitacion Valley (T Third)", "lat": 37.7211, "lon": -122.4097, "system": "MUNI"},
-    # K/L/M west of West Portal
+    # K/M Ocean Ave and Balboa Park area
+    {"name": "Balboa Park Station (K/M)", "lat": 37.7218, "lon": -122.4474, "system": "MUNI"},
+    {"name": "Ocean & Lee (K Ingleside)", "lat": 37.7261, "lon": -122.4558, "system": "MUNI"},
+    {"name": "Ocean & Miramar (K Ingleside)", "lat": 37.7283, "lon": -122.4593, "system": "MUNI"},
     {"name": "St Francis Circle (K/L/M)", "lat": 37.7364, "lon": -122.4538, "system": "MUNI"},
     {"name": "Ocean & Aptos (K/M)", "lat": 37.7289, "lon": -122.4600, "system": "MUNI"},
     {"name": "19th Ave & Holloway (K/M)", "lat": 37.7234, "lon": -122.4800, "system": "MUNI"},
+    {"name": "Geneva & Naples (M Ocean View)", "lat": 37.7170, "lon": -122.4483, "system": "MUNI"},
+    {"name": "Broad & Plymouth (M Ocean View)", "lat": 37.7155, "lon": -122.4437, "system": "MUNI"},
+    # L Taraval surface stops (West Portal → Outer Sunset → Ocean Beach)
+    {"name": "Taraval & 10th Ave (L Taraval)", "lat": 37.7408, "lon": -122.4689, "system": "MUNI"},
+    {"name": "Taraval & 14th Ave (L Taraval)", "lat": 37.7402, "lon": -122.4740, "system": "MUNI"},
+    {"name": "Taraval & 17th Ave (L Taraval)", "lat": 37.7399, "lon": -122.4778, "system": "MUNI"},
     {"name": "19th Ave & Ulloa (L Taraval)", "lat": 37.7399, "lon": -122.4804, "system": "MUNI"},
+    {"name": "Taraval & 21st Ave (L Taraval)", "lat": 37.7399, "lon": -122.4830, "system": "MUNI"},
     {"name": "22nd Ave & Ulloa (L Taraval)", "lat": 37.7399, "lon": -122.4841, "system": "MUNI"},
+    {"name": "Taraval & 23rd Ave (L Taraval)", "lat": 37.7399, "lon": -122.4856, "system": "MUNI"},
+    {"name": "Taraval & 25th Ave (L Taraval)", "lat": 37.7399, "lon": -122.4882, "system": "MUNI"},
+    {"name": "Taraval & 27th Ave (L Taraval)", "lat": 37.7399, "lon": -122.4908, "system": "MUNI"},
+    {"name": "Taraval & 30th Ave (L Taraval)", "lat": 37.7399, "lon": -122.4947, "system": "MUNI"},
     {"name": "32nd Ave & Taraval (L Taraval)", "lat": 37.7399, "lon": -122.4973, "system": "MUNI"},
+    {"name": "Taraval & 36th Ave (L Taraval)", "lat": 37.7399, "lon": -122.5024, "system": "MUNI"},
+    {"name": "Taraval & 40th Ave (L Taraval)", "lat": 37.7399, "lon": -122.5075, "system": "MUNI"},
+    {"name": "Taraval & 44th Ave (L Taraval)", "lat": 37.7399, "lon": -122.5119, "system": "MUNI"},
     {"name": "46th Ave & Taraval (L Taraval)", "lat": 37.7399, "lon": -122.5143, "system": "MUNI"},
+    {"name": "Taraval & Sunset Blvd (L Taraval)", "lat": 37.7399, "lon": -122.5169, "system": "MUNI"},
 ]
 
 _CALTRAIN_STATIONS = [
