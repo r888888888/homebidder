@@ -1,21 +1,27 @@
 # TODO
 
-- Code review of backend
-- Code review of frontend
-- Include photo gallery
+- Update CLAUDE.md to instruct that a list of feature can be found in @feature-list.md. When instructed to implement the next feature, work off this list. Assume it is prioritized. When complete, move the item to the DONE section and commit your changes.
+- I want to include images from the MLS listing. If possible embed directly, but if that isn't possible then just link to a gallery.
+- I want to add a direct google maps link to the property.
+- Investigate ways of showing the quality of nearby schools. Aim for metrics that are objective.
+- Investigate ways of showing crime rates. Try to distinguish between violent crimes and property crimes.
+- Investigate other data points from calenviroscreen that are worth surfacing
+- Support showing nearby MUNI stops
 - Persist which renovation options were toggled in teh database
 - Move feature flags into database, add admin portal
 - Support inspection reports
 - Support pest inspection reports
 - Support disclosures
-- Support education locality
 - Review other potential factors for affecting retail price
-- Support school quality
 - Factor in seasonality of sales
 - Read rent estimation tools
 
 # DONE
 
+- Verify that fire hazard zone and liquefaction zone actually work. Test with real locations.
+- Review the existing test coverage and remove tests that test scenarios that will likely never happen, or are based on assumptions that are no longer relevant. Look for opportunities to consolidate and refactor test coverage.
+- Code review of frontend
+- Code review of backend
 - Review major renovation items typical for a century old SFH in the SF Bay Area. Update the fixer analysis to incorporate these items.
 - Show LLM summary of permits in the card
 - Hide the agent steps card once analysis is completed
