@@ -93,7 +93,8 @@ class TestCheckLiquefaction:
 
 class TestCheckFireHazard:
     @pytest.mark.parametrize("haz_class,expected", [
-        ("VHFHSZ", "Very High"),
+        ("VHFHSZ", "Very High"),   # legacy CalFire code
+        ("VERY HIGH", "Very High"),  # actual value in CalFire GeoJSON download
         ("HIGH", "High"),
         ("MODERATE", "Moderate"),
     ])

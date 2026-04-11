@@ -265,19 +265,9 @@ class TestPhysicalHazardFactors:
         fire_factor = next(f for f in result["factors"] if f["name"] == "fire_hazard_zone")
         assert fire_factor["level"] == "n/a"
 
-    def test_high_liquefaction_is_high(self):
-        from agent.tools.risk import assess_risk
-
-        result = assess_risk(
-            listing=make_listing(),
-            market_stats=make_market_stats(),
-            offer_result=make_offer_result(),
-            hazard_zones=make_hazards(liquefaction_risk="High"),
-        )
-        liq_factor = next(f for f in result["factors"] if f["name"] == "liquefaction_risk")
-        assert liq_factor["level"] == "high"
-
-    def test_moderate_liquefaction_is_moderate(self):
+    def test_in_liquefaction_zone_is_moderate(self):
+        # CGS data is binary: either in-zone (Moderate) or not (None).
+        # No "High" level is available from this source.
         from agent.tools.risk import assess_risk
 
         result = assess_risk(
@@ -288,6 +278,8 @@ class TestPhysicalHazardFactors:
         )
         liq_factor = next(f for f in result["factors"] if f["name"] == "liquefaction_risk")
         assert liq_factor["level"] == "moderate"
+        assert "CGS Seismic Hazard Zone" in liq_factor["description"]
+        assert "site" in liq_factor["description"].lower()
 
     def test_no_liquefaction_is_na(self):
         from agent.tools.risk import assess_risk

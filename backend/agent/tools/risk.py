@@ -99,21 +99,13 @@ def _assess_liquefaction(hazard_zones: dict | None) -> dict:
     risk = hazard_zones.get("liquefaction_risk")
     if risk is None:
         return _factor("liquefaction_risk", "n/a", "Property is not within a mapped CGS liquefaction hazard zone.")
-    if risk == "High":
-        return _factor(
-            "liquefaction_risk", "high",
-            "Property is in a High liquefaction susceptibility zone (CGS). "
-            "During a major earthquake, saturated soils can lose strength and behave like a liquid, "
-            "causing foundation settlement and structural damage."
-        )
-    if risk == "Moderate":
-        return _factor(
-            "liquefaction_risk", "moderate",
-            "Property is in a Moderate liquefaction susceptibility zone (CGS)."
-        )
+    # The CGS Seismic Hazard Zone dataset is binary: in-zone or not. All mapped
+    # zones carry "Moderate" — no High/Low distinction is available from this source.
     return _factor(
-        "liquefaction_risk", "low",
-        "Property is in a Low liquefaction susceptibility zone (CGS)."
+        "liquefaction_risk", "moderate",
+        "Property is within a CGS Seismic Hazard Zone for liquefaction — soils here may "
+        "liquefy during a strong earthquake. A site-specific geotechnical investigation "
+        "is typically required before development or major renovation."
     )
 
 
