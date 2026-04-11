@@ -4,9 +4,10 @@ LLM-based renovation cost estimator for fixer properties.
 
 import json
 import logging
-import os
 import re
 from typing import Any, Literal
+
+from config import settings
 
 import anthropic
 
@@ -373,8 +374,9 @@ async def estimate_renovation_cost(
     offer_result: dict[str, Any],
     buyer_context: str = "",
 ) -> dict[str, Any] | None:
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
+    try:
+        api_key = settings.anthropic_api_key
+    except RuntimeError:
         log.warning("estimate_renovation_cost: ANTHROPIC_API_KEY not set — skipping")
         return None
 
@@ -395,7 +397,7 @@ async def estimate_renovation_cost(
         if s.get("category") == "condition_negative":
             fixer_phrases.extend(s.get("matched_phrases") or [])
 
-    model = os.getenv("RENOVATION_LLM_MODEL", DEFAULT_MODEL)
+    model = settings.renovation_llm_model
     client = anthropic.AsyncAnthropic(api_key=api_key)
 
     sqft = property_data.get("sqft")

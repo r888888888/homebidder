@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+from shapely import STRtree
 from shapely.geometry import Point, shape
 
 log = logging.getLogger(__name__)
@@ -69,8 +70,11 @@ ARCGIS_PAGE_SIZE = 2000
 # ---------------------------------------------------------------------------
 
 _fault_cache: list | None = None
+_fault_tree: STRtree | None = None
 _liq_cache: list | None = None
+_liq_tree: STRtree | None = None
 _fire_cache: list | None = None
+_fire_tree: STRtree | None = None
 
 
 def _load_geojson_features(filename: str) -> list[dict]:
@@ -83,13 +87,15 @@ def _load_geojson_features(filename: str) -> list[dict]:
     return data.get("features", [])
 
 
-def _load_fault_zones() -> list:
-    """Return list of shapely Polygon/MultiPolygon objects for AP fault zones."""
-    global _fault_cache
+def _load_fault_zones() -> tuple[list, STRtree]:
+    """Return (polygons, STRtree) for AP fault zones, built once."""
+    global _fault_cache, _fault_tree
     if _fault_cache is None:
         features = _load_geojson_features("ap_fault_zones.geojson")
         _fault_cache = [shape(f["geometry"]) for f in features if f.get("geometry")]
-    return _fault_cache
+        _fault_tree = STRtree(_fault_cache)
+        log.info("Loaded %d AP fault zone polygons (STRtree built)", len(_fault_cache))
+    return _fault_cache, _fault_tree
 
 
 def _normalize_liquefaction_geojson(data: dict) -> dict:
@@ -108,11 +114,14 @@ def _normalize_liquefaction_geojson(data: dict) -> dict:
     return {"type": "FeatureCollection", "features": out_features}
 
 
-def _load_liquefaction_zones() -> list[dict]:
-    global _liq_cache
+def _load_liquefaction_zones() -> tuple[list[dict], STRtree]:
+    global _liq_cache, _liq_tree
     if _liq_cache is None:
         _liq_cache = _load_geojson_features("liquefaction_zones.geojson")
-    return _liq_cache
+        geoms = [shape(f["geometry"]) for f in _liq_cache if f.get("geometry")]
+        _liq_tree = STRtree(geoms)
+        log.info("Loaded %d liquefaction zone features (STRtree built)", len(_liq_cache))
+    return _liq_cache, _liq_tree
 
 
 def _normalize_myhazards_geojson(data: dict) -> dict:
@@ -132,11 +141,14 @@ def _normalize_myhazards_geojson(data: dict) -> dict:
     return {"type": "FeatureCollection", "features": out_features}
 
 
-def _load_fire_hazard_zones() -> list[dict]:
-    global _fire_cache
+def _load_fire_hazard_zones() -> tuple[list[dict], STRtree]:
+    global _fire_cache, _fire_tree
     if _fire_cache is None:
         _fire_cache = _load_geojson_features("fire_hazard_zones.geojson")
-    return _fire_cache
+        geoms = [shape(f["geometry"]) for f in _fire_cache if f.get("geometry")]
+        _fire_tree = STRtree(geoms)
+        log.info("Loaded %d fire hazard zone features (STRtree built)", len(_fire_cache))
+    return _fire_cache, _fire_tree
 
 
 async def prefetch_ca_hazard_geojson(force: bool = False) -> dict[str, bool]:
@@ -275,10 +287,13 @@ async def prefetch_ca_hazard_geojson(force: bool = False) -> dict[str, bool]:
         else:
             log.info("Skipping fire hazard prefetch; file already exists at %s", fire_path)
 
-    global _fault_cache, _liq_cache, _fire_cache
+    global _fault_cache, _fault_tree, _liq_cache, _liq_tree, _fire_cache, _fire_tree
     _fault_cache = None
+    _fault_tree = None
     _liq_cache = None
+    _liq_tree = None
     _fire_cache = None
+    _fire_tree = None
     log.info("Completed CA hazard prefetch: %s", results)
     return results
 
@@ -287,10 +302,10 @@ async def prefetch_ca_hazard_geojson(force: bool = False) -> dict[str, bool]:
 # Point-in-polygon checks
 # ---------------------------------------------------------------------------
 
-def _check_fault_zone(lat: float, lon: float, polygons: list) -> bool:
+def _check_fault_zone(lat: float, lon: float, polygons: list, tree: STRtree) -> bool:
     """Return True if the point falls within any Alquist-Priolo fault zone polygon."""
     pt = Point(lon, lat)
-    return any(pt.within(poly) for poly in polygons)
+    return len(tree.query(pt, predicate="within")) > 0
 
 
 _LIQUEFACTION_MAP = {
@@ -303,17 +318,13 @@ _LIQUEFACTION_MAP = {
 }
 
 
-def _check_liquefaction(lat: float, lon: float, features: list[dict]) -> str | None:
+def _check_liquefaction(lat: float, lon: float, features: list[dict], tree: STRtree) -> str | None:
     """Return 'High', 'Moderate', 'Low', or None based on CGS liquefaction zones."""
     pt = Point(lon, lat)
-    for f in features:
-        geom = f.get("geometry")
-        props = f.get("properties", {})
-        if not geom:
-            continue
-        if pt.within(shape(geom)):
-            raw = (props.get("LIQSUSCEP") or "").upper().strip()
-            return _LIQUEFACTION_MAP.get(raw, "Low")
+    for idx in tree.query(pt, predicate="within"):
+        props = features[idx].get("properties", {})
+        raw = (props.get("LIQSUSCEP") or "").upper().strip()
+        return _LIQUEFACTION_MAP.get(raw, "Low")
     return None
 
 
@@ -326,17 +337,13 @@ _FIRE_MAP = {
 }
 
 
-def _check_fire_hazard(lat: float, lon: float, features: list[dict]) -> str | None:
+def _check_fire_hazard(lat: float, lon: float, features: list[dict], tree: STRtree) -> str | None:
     """Return 'Very High', 'High', 'Moderate', or None based on CalFire FHSZ."""
     pt = Point(lon, lat)
-    for f in features:
-        geom = f.get("geometry")
-        props = f.get("properties", {})
-        if not geom:
-            continue
-        if pt.within(shape(geom)):
-            raw = (props.get("HAZ_CLASS") or "").upper().strip()
-            return _FIRE_MAP.get(raw, "Moderate")
+    for idx in tree.query(pt, predicate="within"):
+        props = features[idx].get("properties", {})
+        raw = (props.get("HAZ_CLASS") or "").upper().strip()
+        return _FIRE_MAP.get(raw, "Moderate")
     return None
 
 
@@ -433,13 +440,13 @@ async def fetch_ca_hazard_zones(lat: float, lon: float) -> dict[str, Any]:
       flood_zone        — FEMA FLD_ZONE code (e.g. 'AE', 'X') or None
       flood_zone_sfha   — bool: Special Flood Hazard Area (mandatory insurance)
     """
-    fault_zones = _load_fault_zones()
-    liq_features = _load_liquefaction_zones()
-    fire_features = _load_fire_hazard_zones()
+    fault_zones, fault_tree = _load_fault_zones()
+    liq_features, liq_tree = _load_liquefaction_zones()
+    fire_features, fire_tree = _load_fire_hazard_zones()
 
-    alquist_priolo = _check_fault_zone(lat, lon, fault_zones)
-    liquefaction_risk = _check_liquefaction(lat, lon, liq_features)
-    fire_hazard_zone = _check_fire_hazard(lat, lon, fire_features)
+    alquist_priolo = _check_fault_zone(lat, lon, fault_zones, fault_tree)
+    liquefaction_risk = _check_liquefaction(lat, lon, liq_features, liq_tree)
+    fire_hazard_zone = _check_fire_hazard(lat, lon, fire_features, fire_tree)
 
     flood_zone: str | None = None
     flood_zone_sfha: bool = False

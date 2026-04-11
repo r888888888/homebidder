@@ -12,9 +12,20 @@ from api.routes import router
 
 load_dotenv()
 
+
+def _validate_env_vars() -> None:
+    """Raise RuntimeError for any required environment variable that is absent."""
+    required = ["ANTHROPIC_API_KEY"]
+    missing = [var for var in required if not os.getenv(var)]
+    if missing:
+        raise RuntimeError(
+            f"Missing required environment variable(s): {', '.join(missing)}. "
+            "Set them before starting the server."
+        )
+
 _fmt = logging.Formatter("%(asctime)s %(levelname)-8s %(name)s  %(message)s")
 _file_handler = RotatingFileHandler(
-    os.getenv("LOG_FILE", "homebidder.log"),
+    os.getenv("LOG_FILE", "homebidder.log"),  # read before settings is importable
     maxBytes=5 * 1024 * 1024,  # 5 MB per file
     backupCount=3,
 )
@@ -27,15 +38,18 @@ logging.basicConfig(level=logging.DEBUG, handlers=[_console_handler, _file_handl
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    _validate_env_vars()
     await init_db()
     yield
 
 
 app = FastAPI(title="HomeBidder API", version="0.1.0", lifespan=lifespan)
 
+from config import settings
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(","),
+    allow_origins=settings.allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

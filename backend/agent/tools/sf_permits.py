@@ -9,10 +9,11 @@ from datetime import datetime, timezone
 import json
 import html
 import logging
-import os
 import re
 from typing import Any
 from urllib.parse import urlencode
+
+from config import settings
 
 import anthropic
 import httpx
@@ -105,10 +106,13 @@ def _extract_json_object(text: str) -> dict[str, Any] | None:
 
 
 def _permit_llm_enabled() -> bool:
-    toggle = os.getenv("ENABLE_PERMIT_LLM", "").strip().lower()
-    if toggle in {"0", "false", "off"}:
+    if not settings.enable_permit_llm:
         return False
-    return bool(os.getenv("ANTHROPIC_API_KEY"))
+    try:
+        settings.anthropic_api_key
+        return True
+    except RuntimeError:
+        return False
 
 
 def _permit_detail_text_from_html(html_text: str) -> str:
@@ -150,7 +154,7 @@ async def _summarize_permit_with_llm(
 
     try:
         resp = await client.messages.create(
-            model=os.getenv("PERMIT_LLM_MODEL", _PERMIT_LLM_MODEL),
+            model=settings.permit_llm_model,
             max_tokens=220,
             temperature=0,
             messages=[{"role": "user", "content": prompt}],
@@ -279,7 +283,7 @@ async def _summarize_permits_overall_with_llm(
 
     try:
         resp = await client.messages.create(
-            model=os.getenv("PERMIT_LLM_MODEL", _PERMIT_LLM_MODEL),
+            model=settings.permit_llm_model,
             max_tokens=300,
             temperature=0,
             messages=[{"role": "user", "content": prompt}],
@@ -607,7 +611,7 @@ async def fetch_sf_permits(
 
             # Always provide summary/impact with deterministic fallback.
             if permits and _permit_llm_enabled():
-                permit_llm_client = anthropic.AsyncAnthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+                permit_llm_client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
             for permit in permits:
                 detail_text = ""

@@ -1,15 +1,16 @@
 """Bay Area investment value drivers: ADU, rent control, and transit proximity."""
 
 import json
+import os
 import time
 from math import atan2, cos, radians, sin, sqrt
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote as _url_quote
 
 import httpx
 
-import os
-from urllib.parse import quote as _url_quote
+from config import settings
 
 BART_CACHE_PATH = str(Path(__file__).parent.parent.parent / "data" / "bart_stations.json")
 BART_CACHE_TTL = 30 * 86_400  # 30 days
@@ -53,7 +54,7 @@ def _bedroom_acs_var(beds: int | None) -> str | None:
 
 
 async def _fetch_zip_median_rent(zip_code: str, beds: int | None = None) -> float | None:
-    api_key = os.environ.get("CENSUS_API_KEY")
+    api_key = settings.census_api_key
     if not api_key or not zip_code:
         return None
 
@@ -152,7 +153,7 @@ def _bart_cache_valid() -> bool:
 
 
 async def _download_bart_stations() -> list[dict[str, Any]]:
-    bart_stations_url = f"https://api.bart.gov/api/stn.aspx?key={_url_quote(os.environ.get('BART_API_KEY', ''))}&cmd=stns&json=y"
+    bart_stations_url = f"https://api.bart.gov/api/stn.aspx?key={_url_quote(settings.bart_api_key)}&cmd=stns&json=y"
 
     async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
         response = await client.get(bart_stations_url)

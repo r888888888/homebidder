@@ -5,6 +5,7 @@ A cache hit should skip Claude entirely and stream stored events from the DB.
 
 import json
 import pytest
+from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 # ---------------------------------------------------------------------------
@@ -476,4 +477,120 @@ class TestUnitAwareCache:
         # Should be a cache hit (non-unit address)
         mock_client.messages.create.assert_not_called()
         assert any(e["type"] == "done" for e in events)
+        await engine.dispose()
+
+
+# ---------------------------------------------------------------------------
+# Cache TTL: stale analyses must not be served from cache
+# ---------------------------------------------------------------------------
+
+async def _make_seeded_db_with_age(days_old: int):
+    """Seed a DB with an Analysis whose created_at is `days_old` days in the past."""
+    from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+    from db.models import Base, Listing, Analysis
+
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    Session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with Session() as db:
+        listing = Listing(
+            address_input=ADDRESS,
+            address_matched=ADDRESS_MATCHED,
+            latitude=FAKE_PROPERTY["latitude"],
+            longitude=FAKE_PROPERTY["longitude"],
+            county="San Francisco",
+            state="CA",
+            zip_code="94114",
+            price=FAKE_PROPERTY["price"],
+        )
+        db.add(listing)
+        await db.flush()
+
+        analysis = Analysis(
+            listing_id=listing.id,
+            offer_low=FAKE_OFFER["offer_low"],
+            offer_recommended=FAKE_OFFER["offer_recommended"],
+            offer_high=FAKE_OFFER["offer_high"],
+            risk_level="Moderate",
+            investment_rating="Hold",
+            property_data_json=json.dumps(FAKE_PROPERTY),
+            neighborhood_data_json=json.dumps({"median_home_value": 950_000}),
+            offer_data_json=json.dumps(FAKE_OFFER),
+            risk_data_json=json.dumps(FAKE_RISK),
+            investment_data_json=json.dumps(FAKE_INVESTMENT),
+            rationale="This is a solid property.",
+            created_at=datetime.utcnow() - timedelta(days=days_old),
+        )
+        db.add(analysis)
+        await db.commit()
+
+    return Session, engine
+
+
+class TestCacheTTL:
+    async def test_stale_analysis_bypasses_cache(self):
+        """Analysis older than CACHE_TTL_DAYS should not be served; Claude must be called."""
+        Session, engine = await _make_seeded_db_with_age(days_old=8)
+
+        end_turn_response = MagicMock()
+        end_turn_response.stop_reason = "end_turn"
+        text_block = MagicMock()
+        text_block.type = "text"
+        text_block.text = "Fresh analysis."
+        end_turn_response.content = [text_block]
+
+        async with Session() as db:
+            with patch("agent.orchestrator.anthropic.AsyncAnthropic") as mock_cls, \
+                 patch("agent.orchestrator._geocode", new_callable=AsyncMock, return_value=FAKE_GEO):
+                mock_client = AsyncMock()
+                mock_cls.return_value = mock_client
+                mock_client.messages.create.return_value = end_turn_response
+
+                events = await collect_events_with_db(db)
+
+        # Stale cache — Claude must have been called
+        mock_client.messages.create.assert_called()
+        await engine.dispose()
+
+    async def test_fresh_analysis_hits_cache(self):
+        """Analysis within CACHE_TTL_DAYS should be served from cache without calling Claude."""
+        Session, engine = await _make_seeded_db_with_age(days_old=3)
+
+        async with Session() as db:
+            with patch("agent.orchestrator.anthropic.AsyncAnthropic") as mock_cls, \
+                 patch("agent.orchestrator._geocode", new_callable=AsyncMock, return_value=FAKE_GEO):
+                mock_client = AsyncMock()
+                mock_cls.return_value = mock_client
+
+                events = await collect_events_with_db(db)
+
+        # Fresh cache — Claude must NOT have been called
+        mock_client.messages.create.assert_not_called()
+        assert any(e["type"] == "done" for e in events)
+        await engine.dispose()
+
+    async def test_cache_ttl_boundary_is_exclusive(self):
+        """Analysis exactly CACHE_TTL_DAYS old (today - TTL) is considered stale."""
+        from agent.orchestrator import CACHE_TTL_DAYS
+        Session, engine = await _make_seeded_db_with_age(days_old=CACHE_TTL_DAYS)
+
+        end_turn_response = MagicMock()
+        end_turn_response.stop_reason = "end_turn"
+        text_block = MagicMock()
+        text_block.type = "text"
+        text_block.text = "Fresh."
+        end_turn_response.content = [text_block]
+
+        async with Session() as db:
+            with patch("agent.orchestrator.anthropic.AsyncAnthropic") as mock_cls, \
+                 patch("agent.orchestrator._geocode", new_callable=AsyncMock, return_value=FAKE_GEO):
+                mock_client = AsyncMock()
+                mock_cls.return_value = mock_client
+                mock_client.messages.create.return_value = end_turn_response
+
+                events = await collect_events_with_db(db)
+
+        mock_client.messages.create.assert_called()
         await engine.dispose()

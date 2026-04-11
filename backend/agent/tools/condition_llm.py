@@ -3,11 +3,12 @@ Optional LLM-based condition signal evaluator for listing descriptions.
 """
 
 import json
-import os
 import re
 from typing import Any
 
 import anthropic
+
+from config import settings
 
 
 MIN_CONFIDENCE = 0.60
@@ -83,14 +84,15 @@ async def evaluate_condition_with_llm(description_text: str | None) -> dict[str,
     if not (description_text or "").strip():
         return None
 
-    if os.getenv("ENABLE_DESCRIPTION_LLM", "").strip() != "1":
+    if not settings.enable_description_llm:
         return None
 
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
+    try:
+        api_key = settings.anthropic_api_key
+    except RuntimeError:
         return None
 
-    model = os.getenv("DESCRIPTION_LLM_MODEL", DEFAULT_MODEL)
+    model = settings.description_llm_model
     client = anthropic.AsyncAnthropic(api_key=api_key)
 
     prompt = (

@@ -2,10 +2,13 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, Asyn
 from sqlalchemy import text
 from .models import Base
 import logging
+import sys
 import os
 
 log = logging.getLogger(__name__)
 
+# Allow DATABASE_URL override for tests (set before any import via conftest.py),
+# otherwise fall through to the centralised settings object.
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./homebidder.db")
 
 engine = create_async_engine(DATABASE_URL, echo=False)

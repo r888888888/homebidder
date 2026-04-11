@@ -8,7 +8,7 @@ and feed results back until Claude produces a final recommendation.
 import asyncio
 import json
 import logging
-import os
+from datetime import datetime, timedelta
 from typing import AsyncIterator
 
 import anthropic
@@ -34,6 +34,9 @@ from .tools.renovation import estimate_renovation_cost, _is_fixer_property
 
 MODEL_TOOLS = "claude-sonnet-4-6"
 MODEL_NARRATIVE = "claude-opus-4-6"
+
+# Cached analyses older than this are considered stale and re-run live.
+CACHE_TTL_DAYS = 7
 
 
 def _insert_unit_into_address(address_matched: str, unit: str) -> str:
@@ -359,16 +362,18 @@ async def _persist_analysis(
 
 
 async def _load_cached_analysis(db: AsyncSession, address_matched: str):
-    """Return the most recent Analysis for address_matched, or None."""
+    """Return the most recent Analysis for address_matched within CACHE_TTL_DAYS, or None."""
     from sqlalchemy import select
     from sqlalchemy.orm import selectinload
     from db.models import Analysis, Listing
 
+    cutoff = datetime.utcnow() - timedelta(days=CACHE_TTL_DAYS)
     stmt = (
         select(Analysis)
         .join(Listing)
         .options(selectinload(Analysis.comps), selectinload(Analysis.listing))
         .where(Listing.address_matched == address_matched)
+        .where(Analysis.created_at > cutoff)
         .order_by(Analysis.created_at.desc())
         .limit(1)
     )
@@ -431,6 +436,188 @@ async def _stream_cached_analysis(analysis) -> AsyncIterator[str]:
     yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
 
+async def _run_phase6(property_result: dict, state: dict) -> AsyncIterator[str]:
+    """
+    Phase 6 — parallel background fetches triggered immediately after property lookup.
+
+    Runs fetch_market_trends, fetch_fhfa_hpi, fetch_ca_hazard_zones, fetch_sf_permits
+    (SF only), and fetch_calenviroscreen_data concurrently. Populates `state` with:
+      state["trends"], state["fhfa"], state["hazards"], state["permits"], state["ejscreen"]
+    Any individual failure is logged and skipped; the others continue.
+    """
+    zip_code = property_result.get("zip_code")
+    lat = property_result.get("latitude")
+    lon = property_result.get("longitude")
+    county = str(property_result.get("county") or "").strip().lower()
+    address_matched = str(property_result.get("address_matched") or "")
+    unit = property_result.get("unit")
+
+    phase6_tools: list[tuple[str, object, dict]] = []
+    if zip_code:
+        phase6_tools.append(("fetch_market_trends", fetch_market_trends(zip_code), {}))
+        phase6_tools.append(("fetch_fhfa_hpi", fetch_fhfa_hpi(zip_code), {}))
+    if lat and lon:
+        phase6_tools.append(("fetch_ca_hazard_zones", fetch_ca_hazard_zones(lat, lon), {}))
+    if county == "san francisco" and address_matched:
+        permit_inputs: dict = {"address_matched": address_matched}
+        if unit:
+            permit_inputs["unit"] = unit
+        phase6_tools.append((
+            "fetch_sf_permits",
+            fetch_sf_permits(address_matched=address_matched, unit=unit),
+            permit_inputs,
+        ))
+
+    if phase6_tools:
+        real_tasks = [coro for _, coro, _ in phase6_tools]
+        try:
+            real_results = await asyncio.gather(*real_tasks, return_exceptions=True)
+        except Exception:
+            real_results = []
+
+        for (tool_name, _, tool_input), result in zip(phase6_tools, real_results):
+            if result is None or isinstance(result, Exception):
+                if isinstance(result, Exception):
+                    log.warning("Phase 6 tool %s failed: %s", tool_name, result)
+                continue
+            if tool_name == "fetch_market_trends":
+                state["trends"] = result
+            elif tool_name == "fetch_fhfa_hpi":
+                state["fhfa"] = result
+            elif tool_name == "fetch_ca_hazard_zones":
+                state["hazards"] = result
+            elif tool_name == "fetch_sf_permits":
+                state["permits"] = result
+            yield f"data: {json.dumps({'type': 'tool_call', 'tool': tool_name, 'input': tool_input})}\n\n"
+            yield f"data: {json.dumps({'type': 'tool_result', 'tool': tool_name, 'result': result})}\n\n"
+            log.info("Phase 6 auto-computed %s", tool_name)
+
+    # CalEnviroScreen is synchronous (in-memory Shapely lookup) — call after the gather.
+    if lat and lon:
+        try:
+            ces_result = fetch_calenviroscreen_data(lat, lon)
+            if ces_result is not None:
+                state["ejscreen"] = ces_result
+                yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'fetch_calenviroscreen_data', 'input': {}})}\n\n"
+                yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'fetch_calenviroscreen_data', 'result': ces_result})}\n\n"
+                log.info("Phase 6 auto-computed fetch_calenviroscreen_data")
+        except Exception as exc:
+            log.warning("Phase 6 fetch_calenviroscreen_data failed: %s", exc)
+
+
+async def _run_phase2_market_offer(
+    comps: list,
+    listing: dict,
+    buyer_context: str,
+    state: dict,
+) -> AsyncIterator[str]:
+    """
+    Phase 2 — auto-compute analyze_market + recommend_offer after comps arrive.
+
+    Populates `state` with state["market_stats"] and state["offer_result"].
+    Running this in the orchestrator (rather than asking Claude) avoids re-serialising
+    the full comps array over the API context window.
+    """
+    yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'analyze_market', 'input': {'comps': f'[{len(comps)} comps]'}})}\n\n"
+    market_stats = analyze_market(comps) if comps else {"error": "no comps"}
+    log.info("Auto-computed analyze_market: %s", list(market_stats.keys()))
+    yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'analyze_market', 'result': market_stats})}\n\n"
+    state["market_stats"] = market_stats
+
+    yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'recommend_offer', 'input': {'listing': '...', 'market_stats': '...'}})}\n\n"
+    mortgage_rate_pct = await get_current_mortgage_rate_pct()
+    offer_result = recommend_offer(listing, market_stats, buyer_context, mortgage_rate_pct=mortgage_rate_pct)
+    log.info("Auto-computed recommend_offer: posture=%s", offer_result.get("posture"))
+    yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'recommend_offer', 'result': offer_result})}\n\n"
+    state["offer_result"] = offer_result
+
+
+async def _run_phase8_investment(
+    listing: dict,
+    phase6_fhfa: dict | None,
+    offer_result: dict,
+    state: dict,
+) -> AsyncIterator[str]:
+    """
+    Phase 8 — fetch mortgage rates + BA value drivers in parallel, then compute
+    investment metrics.
+
+    Populates state["investment"].
+    """
+    listing_zip = str(listing.get("zip_code") or "")
+
+    yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'fetch_mortgage_rates', 'input': {}})}\n\n"
+    yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'fetch_ba_value_drivers', 'input': {'property': '...', 'zip_code': listing_zip}})}\n\n"
+
+    phase8_results = await asyncio.gather(
+        fetch_mortgage_rates(),
+        fetch_ba_value_drivers(listing, listing_zip),
+        return_exceptions=True,
+    )
+
+    mortgage_rates_result = (
+        phase8_results[0] if not isinstance(phase8_results[0], Exception)
+        else {"error": str(phase8_results[0])}
+    )
+    ba_drivers_result = (
+        phase8_results[1] if not isinstance(phase8_results[1], Exception)
+        else {"error": str(phase8_results[1])}
+    )
+
+    yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'fetch_mortgage_rates', 'result': mortgage_rates_result})}\n\n"
+    yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'fetch_ba_value_drivers', 'result': ba_drivers_result})}\n\n"
+
+    yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'compute_investment_metrics', 'input': {'property': '...', 'mortgage_rates': '...', 'hpi_trend': '...', 'ba_value_drivers': '...'}})}\n\n"
+    investment = compute_investment_metrics(
+        property=listing,
+        mortgage_rates=mortgage_rates_result if isinstance(mortgage_rates_result, dict) else {},
+        hpi_trend=phase6_fhfa if isinstance(phase6_fhfa, dict) else {},
+        ba_value_drivers=ba_drivers_result if isinstance(ba_drivers_result, dict) else {},
+        fair_value=offer_result.get("fair_value_estimate") if isinstance(offer_result, dict) else None,
+    )
+    yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'compute_investment_metrics', 'result': investment})}\n\n"
+    state["investment"] = investment
+
+
+async def _run_phase9_renovation(
+    listing: dict,
+    offer_result: dict,
+    buyer_context: str,
+    state: dict,
+) -> AsyncIterator[str]:
+    """
+    Phase 9 — LLM-based renovation cost estimation.
+
+    Only runs when a fair_value_estimate is present; guards against missing API key
+    and tool failures internally. Populates state["renovation"] on success.
+    """
+    fv_estimate = offer_result.get("fair_value_estimate")
+    log.info(
+        "Phase 9 guard: is_fixer=%s fair_value_estimate=%s",
+        _is_fixer_property(listing),
+        fv_estimate,
+    )
+    if not fv_estimate:
+        return
+
+    yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'estimate_renovation_cost', 'input': {}})}\n\n"
+    try:
+        renovation_result = await estimate_renovation_cost(listing, offer_result, buyer_context=buyer_context)
+    except Exception as exc:
+        log.warning("Phase 9 estimate_renovation_cost failed: %s", exc)
+        return
+
+    log.info("Phase 9 renovation_result=%s", "present" if renovation_result else "None")
+    if renovation_result is not None:
+        state["renovation"] = renovation_result
+        yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'estimate_renovation_cost', 'result': renovation_result})}\n\n"
+        log.info(
+            "Phase 9 renovation verdict=%s savings=%s",
+            renovation_result.get("verdict"),
+            renovation_result.get("savings_mid"),
+        )
+
+
 async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | None = None, force_refresh: bool = False) -> AsyncIterator[str]:
     """
     Run the full agent loop for a property address.
@@ -442,7 +629,8 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
                  re-serializing the full comps array, which hits max_tokens).
       Phase 3 — Final Claude call (no tools) writes the narrative.
     """
-    client = anthropic.AsyncAnthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+    from config import settings
+    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
     messages: list[anthropic.types.MessageParam] = [
         {
@@ -599,7 +787,11 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
                         log.info("Tool %s returned %d bytes parsed=%s", block.name, len(result_str), parsed is not None)
                     except Exception as exc:
                         log.error("Tool %r raised: %s", block.name, exc, exc_info=True)
-                        result_str = json.dumps({"error": f"Tool '{block.name}' failed: {exc}"})
+                        # Send a generic message to Claude — do not leak internal details
+                        # (file paths, exception types) that could pollute the narrative.
+                        result_str = json.dumps(
+                            {"error": f"The {block.name} tool encountered an issue and could not complete. Proceed without this data."}
+                        )
                         parsed = None
 
                     if block.name == "fetch_comps" and parsed is not None:
@@ -624,94 +816,27 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
             if "lookup_property_by_address" in dispatched:
                 property_result = dispatched["lookup_property_by_address"]
 
-                # Phase 6: auto-fetch market trends, FHFA HPI, and CA hazard zones
-                # in parallel as soon as we have lat/lon and zip_code.
-                # For San Francisco properties, also fetch permit history.
-                zip_code = property_result.get("zip_code")
-                lat = property_result.get("latitude")
-                lon = property_result.get("longitude")
-                county = str(property_result.get("county") or "").strip().lower()
-                address_matched = str(property_result.get("address_matched") or "")
-                unit = property_result.get("unit")
+                phase6_state: dict = {}
+                async for chunk in _run_phase6(property_result, phase6_state):
+                    yield chunk
+                phase6_trends = phase6_state.get("trends")
+                phase6_fhfa = phase6_state.get("fhfa")
+                phase6_hazards = phase6_state.get("hazards")
+                phase6_ejscreen = phase6_state.get("ejscreen")
+                phase6_permits = phase6_state.get("permits")
 
-                phase6_tools: list[tuple[str, object, dict]] = []
-                if zip_code:
-                    phase6_tools.append(("fetch_market_trends", fetch_market_trends(zip_code), {}))
-                    phase6_tools.append(("fetch_fhfa_hpi", fetch_fhfa_hpi(zip_code), {}))
-                if lat and lon:
-                    phase6_tools.append(("fetch_ca_hazard_zones", fetch_ca_hazard_zones(lat, lon), {}))
-                if county == "san francisco" and address_matched:
-                    permit_inputs = {"address_matched": address_matched}
-                    if unit:
-                        permit_inputs["unit"] = unit
-                    phase6_tools.append((
-                        "fetch_sf_permits",
-                        fetch_sf_permits(address_matched=address_matched, unit=unit),
-                        permit_inputs,
-                    ))
-
-                if phase6_tools:
-                    real_tasks = [coro for _, coro, _ in phase6_tools]
-                    try:
-                        real_results = await asyncio.gather(*real_tasks, return_exceptions=True)
-                    except Exception:
-                        real_results = []
-
-                    for (tool_name, _, tool_input), result in zip(phase6_tools, real_results):
-                        if result is None or isinstance(result, Exception):
-                            if isinstance(result, Exception):
-                                log.warning("Phase 6 tool %s failed: %s", tool_name, result)
-                            continue
-                        # Cache in state for downstream assess_risk
-                        if tool_name == "fetch_market_trends":
-                            phase6_trends = result
-                        elif tool_name == "fetch_fhfa_hpi":
-                            phase6_fhfa = result
-                        elif tool_name == "fetch_ca_hazard_zones":
-                            phase6_hazards = result
-                        elif tool_name == "fetch_sf_permits":
-                            phase6_permits = result
-                        yield f"data: {json.dumps({'type': 'tool_call', 'tool': tool_name, 'input': tool_input})}\n\n"
-                        yield f"data: {json.dumps({'type': 'tool_result', 'tool': tool_name, 'result': result})}\n\n"
-                        log.info("Phase 6 auto-computed %s", tool_name)
-
-                # fetch_calenviroscreen_data is synchronous (in-memory shapely lookup) —
-                # call it directly after the async gather to avoid crashing asyncio.gather.
-                if lat and lon:
-                    try:
-                        ces_result = fetch_calenviroscreen_data(lat, lon)
-                        if ces_result is not None:
-                            phase6_ejscreen = ces_result
-                            yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'fetch_calenviroscreen_data', 'input': {}})}\n\n"
-                            yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'fetch_calenviroscreen_data', 'result': ces_result})}\n\n"
-                            log.info("Phase 6 auto-computed fetch_calenviroscreen_data")
-                    except Exception as exc:
-                        log.warning("Phase 6 fetch_calenviroscreen_data failed: %s", exc)
-
-            # Phase 2: auto-compute analyze_market + recommend_offer after comps arrive
+            # Phase 2: auto-compute market analysis + offer recommendation after comps arrive
             if "fetch_comps" in dispatched and not analysis_done:
                 comps = dispatched["fetch_comps"]
-                comps_result = comps  # persist outer scope
+                comps_result = comps
                 listing = property_result or {}
 
-                # analyze_market
-                yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'analyze_market', 'input': {'comps': f'[{len(comps)} comps]'}})}\n\n"
-                market_stats = analyze_market(comps) if comps else {"error": "no comps"}
-                log.info("Auto-computed analyze_market: %s", list(market_stats.keys()))
-                yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'analyze_market', 'result': market_stats})}\n\n"
-
-                # recommend_offer
-                yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'recommend_offer', 'input': {'listing': '...', 'market_stats': '...'}})}\n\n"
-                mortgage_rate_pct = await get_current_mortgage_rate_pct()
-                offer_result = recommend_offer(
-                    listing,
-                    market_stats,
-                    buyer_context,
-                    mortgage_rate_pct=mortgage_rate_pct,
-                )
-                offer_result_persist = offer_result  # persist outer scope
-                log.info("Auto-computed recommend_offer: posture=%s", offer_result.get("posture"))
-                yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'recommend_offer', 'result': offer_result})}\n\n"
+                phase2_state: dict = {}
+                async for chunk in _run_phase2_market_offer(comps, listing, buyer_context, phase2_state):
+                    yield chunk
+                market_stats = phase2_state["market_stats"]
+                offer_result = phase2_state["offer_result"]
+                offer_result_persist = offer_result
 
                 # Validation mode: compare estimate against actual sale price when known.
                 if subject_sale_data is not None:
@@ -720,17 +845,12 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
                     ci = offer_result.get("fair_value_confidence_interval") or {}
                     ci_low, ci_high = ci.get("low"), ci.get("high")
                     if estimate is not None and actual > 0:
-                        error_dollars = round(estimate - actual)
-                        error_pct = round((error_dollars / actual) * 100, 1)
-                        within_ci = (
-                            ci_low is not None
-                            and ci_high is not None
-                            and ci_low <= actual <= ci_high
-                        )
+                        error_pct = round(((estimate - actual) / actual) * 100, 1)
+                        within_ci = ci_low is not None and ci_high is not None and ci_low <= actual <= ci_high
                         validation_payload = {
                             "actual_sold_price": actual,
                             "estimated_price": estimate,
-                            "error_dollars": error_dollars,
+                            "error_dollars": round(estimate - actual),
                             "error_pct": error_pct,
                             "within_ci": within_ci,
                             "sold_date": subject_sale_data.get("sold_date"),
@@ -742,7 +862,7 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
                         )
                         yield f"data: {json.dumps({'type': 'validation_result', 'result': validation_payload})}\n\n"
 
-                # Phase 7: auto-compute risk assessment
+                # Phase 7: risk assessment
                 yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'assess_risk', 'input': {}})}\n\n"
                 risk_result = assess_risk(
                     listing=listing,
@@ -754,57 +874,24 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
                     hazard_zones=phase6_hazards,
                     ejscreen=phase6_ejscreen,
                 )
-                risk_result_persist = risk_result  # persist outer scope
+                risk_result_persist = risk_result
                 log.info("Auto-computed assess_risk: overall=%s score=%s", risk_result.get("overall_risk"), risk_result.get("score"))
                 yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'assess_risk', 'result': risk_result})}\n\n"
 
-                # Phase 8: auto-compute investment analysis inputs in parallel,
-                # then compute investment metrics.
-                listing_zip = str(listing.get("zip_code") or "")
+                # Phase 8: investment analysis
+                phase8_state: dict = {}
+                async for chunk in _run_phase8_investment(listing, phase6_fhfa, offer_result, phase8_state):
+                    yield chunk
+                phase8_investment = phase8_state.get("investment")
 
-                yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'fetch_mortgage_rates', 'input': {}})}\n\n"
-                yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'fetch_ba_value_drivers', 'input': {'property': '...', 'zip_code': listing_zip}})}\n\n"
+                # Phase 9: renovation cost estimation
+                phase9_state: dict = {}
+                async for chunk in _run_phase9_renovation(listing, offer_result, buyer_context, phase9_state):
+                    yield chunk
+                renovation_result_persist = phase9_state.get("renovation")
 
-                phase8_results = await asyncio.gather(
-                    fetch_mortgage_rates(),
-                    fetch_ba_value_drivers(listing, listing_zip),
-                    return_exceptions=True,
-                )
-
-                mortgage_rates_result = phase8_results[0] if not isinstance(phase8_results[0], Exception) else {"error": str(phase8_results[0])}
-                ba_drivers_result = phase8_results[1] if not isinstance(phase8_results[1], Exception) else {"error": str(phase8_results[1])}
-
-                yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'fetch_mortgage_rates', 'result': mortgage_rates_result})}\n\n"
-                yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'fetch_ba_value_drivers', 'result': ba_drivers_result})}\n\n"
-
-                yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'compute_investment_metrics', 'input': {'property': '...', 'mortgage_rates': '...', 'hpi_trend': '...', 'ba_value_drivers': '...'}})}\n\n"
-                phase8_investment = compute_investment_metrics(
-                    property=listing,
-                    mortgage_rates=mortgage_rates_result if isinstance(mortgage_rates_result, dict) else {},
-                    hpi_trend=phase6_fhfa if isinstance(phase6_fhfa, dict) else {},
-                    ba_value_drivers=ba_drivers_result if isinstance(ba_drivers_result, dict) else {},
-                    fair_value=offer_result.get("fair_value_estimate") if isinstance(offer_result, dict) else None,
-                )
-                yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'compute_investment_metrics', 'result': phase8_investment})}\n\n"
-
-                # Phase 9: renovation cost estimation for all properties
-                is_fixer = _is_fixer_property(listing)
-                fv_estimate = offer_result.get("fair_value_estimate")
-                log.info("Phase 9 guard: is_fixer=%s fair_value_estimate=%s", is_fixer, fv_estimate)
-                if fv_estimate:
-                    yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'estimate_renovation_cost', 'input': {}})}\n\n"
-                    try:
-                        renovation_result = await estimate_renovation_cost(listing, offer_result, buyer_context=buyer_context)
-                    except Exception as exc:
-                        log.warning("Phase 9 estimate_renovation_cost failed: %s", exc)
-                        renovation_result = None
-                    log.info("Phase 9 renovation_result=%s", "present" if renovation_result else "None")
-                    if renovation_result is not None:
-                        renovation_result_persist = renovation_result
-                        yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'estimate_renovation_cost', 'result': renovation_result})}\n\n"
-                        log.info("Phase 9 renovation verdict=%s savings=%s", renovation_result.get("verdict"), renovation_result.get("savings_mid"))
-
-                # Inject results into conversation as a concise summary (avoids re-sending full comps)
+                # Inject a concise summary into the conversation and trigger narrative.
+                # (Avoids re-sending the full comps array, which would hit max_tokens.)
                 summary = (
                     "The following analysis has been automatically computed.\n\n"
                     f"**Market Analysis:**\n{json.dumps(market_stats)}\n\n"

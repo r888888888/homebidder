@@ -25,6 +25,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+from shapely import STRtree
 from shapely.geometry import Point, shape
 
 log = logging.getLogger(__name__)
@@ -32,27 +34,33 @@ log = logging.getLogger(__name__)
 DATA_DIR = Path(__file__).parent.parent.parent / "data"
 CES_FILE = DATA_DIR / "calenviroscreen.geojson"
 
-# Module-level cache: list of (shapely geometry, properties dict)
-_ces_cache: list[tuple[Any, dict]] | None = None
+# Module-level cache: list of shapely geometries + matching properties list + STRtree index.
+_ces_geoms: list[Any] | None = None
+_ces_props: list[dict] | None = None
+_ces_tree: STRtree | None = None
 
 
-def _load_ces_features() -> list[tuple[Any, dict]]:
-    global _ces_cache
-    if _ces_cache is not None:
-        return _ces_cache
+def _load_ces_index() -> tuple[list[Any], list[dict], STRtree] | None:
+    """Load CalEnviroScreen features and build an STRtree spatial index (once)."""
+    global _ces_geoms, _ces_props, _ces_tree
+    if _ces_tree is not None:
+        return _ces_geoms, _ces_props, _ces_tree
     if not CES_FILE.exists():
         log.warning("CalEnviroScreen data file not found: %s", CES_FILE)
-        _ces_cache = []
-        return _ces_cache
+        _ces_geoms, _ces_props, _ces_tree = [], [], STRtree([])
+        return _ces_geoms, _ces_props, _ces_tree
     with open(CES_FILE, "r", encoding="utf-8") as f:
         data = json.load(f)
-    _ces_cache = [
+    pairs = [
         (shape(feat["geometry"]), feat.get("properties", {}))
         for feat in data.get("features", [])
         if feat.get("geometry")
     ]
-    log.info("Loaded %d CalEnviroScreen census tracts", len(_ces_cache))
-    return _ces_cache
+    _ces_geoms = [g for g, _ in pairs]
+    _ces_props = [p for _, p in pairs]
+    _ces_tree = STRtree(_ces_geoms)
+    log.info("Loaded %d CalEnviroScreen census tracts (STRtree built)", len(_ces_geoms))
+    return _ces_geoms, _ces_props, _ces_tree
 
 
 def fetch_calenviroscreen_data(lat: float, lon: float) -> dict[str, Any] | None:
@@ -69,23 +77,29 @@ def fetch_calenviroscreen_data(lat: float, lon: float) -> dict[str, Any] | None:
         }
         or None if the data file is absent or the point matches no tract.
     """
-    features = _load_ces_features()
-    if not features:
+    loaded = _load_ces_index()
+    if loaded is None:
+        return None
+    geoms, props_list, tree = loaded
+    if not geoms:
         return None
 
     pt = Point(lon, lat)
-    for geom, props in features:
-        if geom.contains(pt):
-            try:
-                return {
-                    "traffic_proximity_pct": float(props["TrafficP"]),
-                    "diesel_pm_pct": float(props["DieselPM_P"]),
-                    "pm25_pct": float(props["PM2_5_P"]),
-                    "ces_score_pct": float(props["CIscoreP"]),
-                }
-            except (KeyError, TypeError, ValueError) as exc:
-                log.warning("CalEnviroScreen property parse error: %s | props=%s", exc, props)
-                return None
+    # STRtree.query with predicate='contains' returns indices of geometries that
+    # contain the query point — O(log n) instead of the previous O(n) scan.
+    candidate_indices = tree.query(pt, predicate="within")
+    for idx in candidate_indices:
+        props = props_list[idx]
+        try:
+            return {
+                "traffic_proximity_pct": float(props["TrafficP"]),
+                "diesel_pm_pct": float(props["DieselPM_P"]),
+                "pm25_pct": float(props["PM2_5_P"]),
+                "ces_score_pct": float(props["CIscoreP"]),
+            }
+        except (KeyError, TypeError, ValueError) as exc:
+            log.warning("CalEnviroScreen property parse error: %s | props=%s", exc, props)
+            return None
 
     log.debug("No CalEnviroScreen tract found for lat=%s lon=%s", lat, lon)
     return None

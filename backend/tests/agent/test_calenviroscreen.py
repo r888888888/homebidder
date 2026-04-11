@@ -49,7 +49,9 @@ class TestFetchCalenviroscreenData:
     def setup_method(self):
         # Reset the module-level cache before each test
         import agent.tools.calenviroscreen as mod
-        mod._ces_cache = None
+        mod._ces_geoms = None
+        mod._ces_props = None
+        mod._ces_tree = None
 
     def test_returns_dict_with_expected_keys(self):
         from agent.tools.calenviroscreen import fetch_calenviroscreen_data
@@ -102,6 +104,6 @@ class TestFetchCalenviroscreenData:
         with patch("pathlib.Path.exists", return_value=True), \
              _patch_data_file(SAMPLE_GEOJSON):
             fetch_calenviroscreen_data(37.725, -122.435)
-            assert mod._ces_cache is not None
-            # Second call should use cache (open not called again)
+            assert mod._ces_tree is not None
+            # Second call should use the in-memory index (open not called again)
             fetch_calenviroscreen_data(37.725, -122.435)

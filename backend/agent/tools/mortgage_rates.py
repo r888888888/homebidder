@@ -2,11 +2,12 @@
 
 import csv
 import io
-import os
 import time
 from typing import Any
 
 import httpx
+
+from config import settings
 
 FRED_URL = "https://api.stlouisfed.org/fred/series/observations"
 FRED_CSV_URL_TEMPLATE = "https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}"
@@ -79,7 +80,7 @@ async def fetch_mortgage_rates() -> dict[str, Any]:
     if cached_value and fetched_at and (now - float(fetched_at)) < CACHE_TTL_SECONDS:
         return cached_value
 
-    api_key = os.environ.get("FRED_API_KEY")
+    api_key = settings.fred_api_key
 
     if api_key:
         rate30, as_of_30 = await _fetch_latest_series_value("MORTGAGE30US", api_key)

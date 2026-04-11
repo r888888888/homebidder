@@ -6,10 +6,11 @@ Pulls Census ACS neighborhood statistics for any US address.
 Census ACS fallback requires CENSUS_API_KEY env var.
 """
 
-import os
 from typing import Any
 
 import httpx
+
+from config import settings
 
 
 # ---------------------------------------------------------------------------
@@ -52,7 +53,7 @@ _ACS_VARS = ",".join([
 
 
 async def _fetch_acs(zip_code: str) -> dict[str, Any]:
-    api_key = os.environ.get("CENSUS_API_KEY")
+    api_key = settings.census_api_key
     if not api_key or not zip_code:
         return _NULL_ACS
 
