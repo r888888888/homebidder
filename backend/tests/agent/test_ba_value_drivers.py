@@ -495,3 +495,177 @@ class TestMuniStops:
 
         assert result["nearest_muni_stop"] is None
         assert result["muni_distance_miles"] is None
+
+
+class TestSchools:
+    _SCHOOLS = [
+        {"name": "Castro Elementary", "lat": 37.763, "lon": -122.434, "type": "elementary", "grades": "K-5", "math_pct": 55.0, "ela_pct": 62.0},
+        {"name": "Mission Middle", "lat": 37.761, "lon": -122.420, "type": "middle", "grades": "6-8", "math_pct": 40.0, "ela_pct": 48.0},
+        {"name": "SF High", "lat": 37.762, "lon": -122.437, "type": "high", "grades": "9-12", "math_pct": 50.0, "ela_pct": 58.0},
+        {"name": "Distant Elementary", "lat": 37.820, "lon": -122.400, "type": "elementary", "grades": "K-5", "math_pct": 60.0, "ela_pct": 65.0},
+    ]
+
+    def test_load_schools_returns_builtin_when_file_missing(self, tmp_path):
+        from agent.tools.ba_value_drivers import _load_schools, _BAY_AREA_SCHOOLS
+
+        cache = str(tmp_path / "no_file.json")
+        with patch("agent.tools.ba_value_drivers.SCHOOLS_CACHE_PATH", cache):
+            schools = _load_schools()
+
+        assert schools == _BAY_AREA_SCHOOLS
+        assert len(schools) > 0
+
+    def test_load_schools_reads_from_disk_when_file_exists(self, tmp_path):
+        from agent.tools.ba_value_drivers import _load_schools
+
+        data = [{"name": "Test School", "lat": 37.76, "lon": -122.43, "type": "elementary", "grades": "K-5", "math_pct": 50.0, "ela_pct": 55.0}]
+        cache = str(tmp_path / "schools.json")
+        with open(cache, "w") as f:
+            json.dump(data, f)
+
+        with patch("agent.tools.ba_value_drivers.SCHOOLS_CACHE_PATH", cache):
+            schools = _load_schools()
+
+        assert schools == data
+
+    def test_find_nearby_schools_returns_nearest_of_each_type(self):
+        from agent.tools.ba_value_drivers import find_nearby_schools
+
+        # Property at Castro location — all three schools within 2 miles
+        result = find_nearby_schools(37.762, -122.435, self._SCHOOLS, max_miles=2.0)
+
+        types_returned = {s["type"] for s in result}
+        assert "elementary" in types_returned
+        assert "middle" in types_returned
+        assert "high" in types_returned
+
+    def test_find_nearby_schools_picks_closest_when_multiple_same_type(self):
+        from agent.tools.ba_value_drivers import find_nearby_schools
+
+        schools = [
+            {"name": "Close Elementary", "lat": 37.763, "lon": -122.435, "type": "elementary", "grades": "K-5", "math_pct": 50.0, "ela_pct": 55.0},
+            {"name": "Far Elementary", "lat": 37.750, "lon": -122.440, "type": "elementary", "grades": "K-5", "math_pct": 70.0, "ela_pct": 72.0},
+        ]
+        result = find_nearby_schools(37.762, -122.435, schools, max_miles=2.0)
+
+        assert len(result) == 1
+        assert result[0]["name"] == "Close Elementary"
+
+    def test_find_nearby_schools_result_includes_distance_and_scores(self):
+        from agent.tools.ba_value_drivers import find_nearby_schools
+
+        result = find_nearby_schools(37.762, -122.435, self._SCHOOLS[:1], max_miles=2.0)
+
+        assert len(result) == 1
+        s = result[0]
+        assert "distance_miles" in s
+        assert isinstance(s["distance_miles"], float)
+        assert s["distance_miles"] >= 0
+        assert s["math_pct"] == 55.0
+        assert s["ela_pct"] == 62.0
+        assert s["name"] == "Castro Elementary"
+        assert s["grades"] == "K-5"
+
+    def test_find_nearby_schools_excludes_schools_beyond_max_miles(self):
+        from agent.tools.ba_value_drivers import find_nearby_schools
+
+        # Distant Elementary is ~4 miles away — should be excluded at max_miles=2.0
+        result = find_nearby_schools(37.762, -122.435, self._SCHOOLS, max_miles=2.0)
+
+        names = [s["name"] for s in result]
+        assert "Distant Elementary" not in names
+
+    def test_find_nearby_schools_returns_empty_list_when_no_schools(self):
+        from agent.tools.ba_value_drivers import find_nearby_schools
+
+        result = find_nearby_schools(37.762, -122.435, [], max_miles=2.0)
+        assert result == []
+
+    async def test_prefetch_schools_writes_builtin_to_disk(self, tmp_path):
+        from agent.tools.ba_value_drivers import prefetch_schools, _BAY_AREA_SCHOOLS
+
+        cache = str(tmp_path / "schools.json")
+        with patch("agent.tools.ba_value_drivers.SCHOOLS_CACHE_PATH", cache):
+            written = await prefetch_schools(force=True)
+
+        assert written is True
+        assert os.path.exists(cache)
+        with open(cache) as f:
+            saved = json.load(f)
+        assert saved == _BAY_AREA_SCHOOLS
+        assert len(saved) > 0
+
+    async def test_prefetch_schools_skips_when_file_exists_not_forced(self, tmp_path):
+        from agent.tools.ba_value_drivers import prefetch_schools
+
+        cache = str(tmp_path / "schools.json")
+        with open(cache, "w") as f:
+            json.dump([], f)
+
+        with patch("agent.tools.ba_value_drivers.SCHOOLS_CACHE_PATH", cache):
+            written = await prefetch_schools(force=False)
+
+        assert written is False
+
+    async def test_prefetch_schools_force_overwrites_existing(self, tmp_path):
+        from agent.tools.ba_value_drivers import prefetch_schools, _BAY_AREA_SCHOOLS
+
+        cache = str(tmp_path / "schools.json")
+        with open(cache, "w") as f:
+            json.dump([], f)
+
+        with patch("agent.tools.ba_value_drivers.SCHOOLS_CACHE_PATH", cache):
+            written = await prefetch_schools(force=True)
+
+        assert written is True
+        with open(cache) as f:
+            saved = json.load(f)
+        assert saved == _BAY_AREA_SCHOOLS
+
+    async def test_fetch_ba_value_drivers_includes_nearby_schools(self):
+        from agent.tools.ba_value_drivers import fetch_ba_value_drivers
+
+        fake_schools = [
+            {"name": "Test Elementary", "lat": 37.764, "lon": -122.419, "type": "elementary", "grades": "K-5", "math_pct": 45.0, "ela_pct": 52.0},
+        ]
+        property_data = {
+            "property_type": "SINGLE_FAMILY",
+            "lot_size": 3000,
+            "city": "San Francisco",
+            "year_built": 1960,
+            "latitude": 37.764,
+            "longitude": -122.419,
+        }
+
+        with patch("agent.tools.ba_value_drivers._load_caltrain_stations", return_value=[]), \
+             patch("agent.tools.ba_value_drivers._load_muni_stops", return_value=[]), \
+             patch("agent.tools.ba_value_drivers._load_schools", return_value=fake_schools), \
+             patch("agent.tools.ba_value_drivers._fetch_zip_median_rent", new=AsyncMock(return_value=None)), \
+             patch("agent.tools.ba_value_drivers._fetch_bart_stations", new=AsyncMock(return_value=[])):
+            result = await fetch_ba_value_drivers(property_data, "94110")
+
+        assert "nearby_schools" in result
+        assert isinstance(result["nearby_schools"], list)
+        assert len(result["nearby_schools"]) == 1
+        assert result["nearby_schools"][0]["name"] == "Test Elementary"
+
+    async def test_nearby_schools_empty_when_no_lat_lon(self):
+        from agent.tools.ba_value_drivers import fetch_ba_value_drivers
+
+        property_data = {
+            "property_type": "CONDO",
+            "lot_size": 0,
+            "city": "San Francisco",
+            "year_built": 2000,
+            "latitude": None,
+            "longitude": None,
+        }
+
+        with patch("agent.tools.ba_value_drivers._load_caltrain_stations", return_value=[]), \
+             patch("agent.tools.ba_value_drivers._load_muni_stops", return_value=[]), \
+             patch("agent.tools.ba_value_drivers._load_schools", return_value=[{"name": "Test Elementary", "lat": 37.764, "lon": -122.419, "type": "elementary", "grades": "K-5", "math_pct": 45.0, "ela_pct": 52.0}]), \
+             patch("agent.tools.ba_value_drivers._fetch_zip_median_rent", new=AsyncMock(return_value=None)), \
+             patch("agent.tools.ba_value_drivers._fetch_bart_stations", new=AsyncMock(return_value=[])):
+            result = await fetch_ba_value_drivers(property_data, "94110")
+
+        assert result["nearby_schools"] == []

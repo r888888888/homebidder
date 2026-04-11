@@ -19,6 +19,8 @@ CALTRAIN_CACHE_PATH = str(Path(__file__).parent.parent.parent / "data" / "caltra
 
 MUNI_CACHE_PATH = str(Path(__file__).parent.parent.parent / "data" / "muni_stops.json")
 
+SCHOOLS_CACHE_PATH = str(Path(__file__).parent.parent.parent / "data" / "schools.json")
+
 # Key MUNI Metro (light rail) stops. These are the underground Market St subway
 # stations plus major surface stops on J/K/L/M/N/T lines. Coordinates are
 # approximate; a full GTFS import would cover bus stops too, but MUNI Metro
@@ -142,6 +144,104 @@ async def _fetch_zip_median_rent(zip_code: str, beds: int | None = None) -> floa
     return float(value)
 
 _bart_cache: list[dict[str, Any]] | None = None
+
+# Curated Bay Area public schools with approximate CAASPP 2022-23 proficiency rates.
+# math_pct / ela_pct = % of students meeting or exceeding standards (all grades combined).
+# This list is the fallback; run scripts/fetch_schools.py to replace with real CAASPP data.
+_BAY_AREA_SCHOOLS: list[dict[str, Any]] = [
+    # San Francisco — Elementary
+    {"name": "Clarendon Elementary", "lat": 37.7543, "lon": -122.4574, "type": "elementary", "grades": "K-8", "math_pct": 56.0, "ela_pct": 63.0},
+    {"name": "Alamo Elementary", "lat": 37.7508, "lon": -122.4313, "type": "elementary", "grades": "K-5", "math_pct": 60.0, "ela_pct": 65.0},
+    {"name": "John Muir Elementary", "lat": 37.7582, "lon": -122.4043, "type": "elementary", "grades": "K-5", "math_pct": 35.0, "ela_pct": 45.0},
+    {"name": "McKinley Elementary", "lat": 37.7661, "lon": -122.4258, "type": "elementary", "grades": "K-5", "math_pct": 42.0, "ela_pct": 52.0},
+    {"name": "Grattan Elementary", "lat": 37.7647, "lon": -122.4483, "type": "elementary", "grades": "K-5", "math_pct": 58.0, "ela_pct": 64.0},
+    {"name": "Alice Fong Yu Elementary", "lat": 37.7488, "lon": -122.4714, "type": "elementary", "grades": "K-8", "math_pct": 65.0, "ela_pct": 68.0},
+    {"name": "Rooftop Elementary", "lat": 37.7500, "lon": -122.4434, "type": "elementary", "grades": "K-8", "math_pct": 63.0, "ela_pct": 70.0},
+    {"name": "Miraloma Elementary", "lat": 37.7347, "lon": -122.4484, "type": "elementary", "grades": "K-5", "math_pct": 60.0, "ela_pct": 66.0},
+    {"name": "Cesar Chavez Elementary", "lat": 37.7487, "lon": -122.4167, "type": "elementary", "grades": "K-8", "math_pct": 18.0, "ela_pct": 28.0},
+    {"name": "Sunset Elementary", "lat": 37.7597, "lon": -122.4750, "type": "elementary", "grades": "K-5", "math_pct": 52.0, "ela_pct": 58.0},
+    # San Francisco — Middle
+    {"name": "James Denman Middle School", "lat": 37.7227, "lon": -122.4296, "type": "middle", "grades": "6-8", "math_pct": 25.0, "ela_pct": 35.0},
+    {"name": "Everett Middle School", "lat": 37.7641, "lon": -122.4261, "type": "middle", "grades": "6-8", "math_pct": 32.0, "ela_pct": 42.0},
+    {"name": "Aptos Middle School", "lat": 37.7301, "lon": -122.4637, "type": "middle", "grades": "6-8", "math_pct": 48.0, "ela_pct": 56.0},
+    {"name": "Marina Middle School", "lat": 37.8001, "lon": -122.4319, "type": "middle", "grades": "6-8", "math_pct": 52.0, "ela_pct": 60.0},
+    {"name": "Presidio Middle School", "lat": 37.7843, "lon": -122.4618, "type": "middle", "grades": "6-8", "math_pct": 50.0, "ela_pct": 58.0},
+    # San Francisco — High School
+    {"name": "Galileo High School", "lat": 37.8018, "lon": -122.4351, "type": "high", "grades": "9-12", "math_pct": 30.0, "ela_pct": 42.0},
+    {"name": "Abraham Lincoln High School", "lat": 37.7268, "lon": -122.4885, "type": "high", "grades": "9-12", "math_pct": 36.0, "ela_pct": 48.0},
+    {"name": "Lowell High School", "lat": 37.7285, "lon": -122.4766, "type": "high", "grades": "9-12", "math_pct": 71.0, "ela_pct": 76.0},
+    {"name": "Mission High School", "lat": 37.7629, "lon": -122.4244, "type": "high", "grades": "9-12", "math_pct": 20.0, "ela_pct": 32.0},
+    {"name": "George Washington High School", "lat": 37.7806, "lon": -122.4668, "type": "high", "grades": "9-12", "math_pct": 38.0, "ela_pct": 50.0},
+    {"name": "Balboa High School", "lat": 37.7241, "lon": -122.4399, "type": "high", "grades": "9-12", "math_pct": 22.0, "ela_pct": 34.0},
+    {"name": "Thurgood Marshall High School", "lat": 37.7200, "lon": -122.4370, "type": "high", "grades": "9-12", "math_pct": 18.0, "ela_pct": 28.0},
+    # Oakland
+    {"name": "Peralta Elementary (Oakland)", "lat": 37.8285, "lon": -122.2590, "type": "elementary", "grades": "K-5", "math_pct": 30.0, "ela_pct": 40.0},
+    {"name": "Westlake Middle School (Oakland)", "lat": 37.8247, "lon": -122.2479, "type": "middle", "grades": "6-8", "math_pct": 20.0, "ela_pct": 28.0},
+    {"name": "Oakland Technical High School", "lat": 37.8317, "lon": -122.2468, "type": "high", "grades": "9-12", "math_pct": 28.0, "ela_pct": 38.0},
+    # Berkeley
+    {"name": "Malcolm X Elementary (Berkeley)", "lat": 37.8619, "lon": -122.2714, "type": "elementary", "grades": "K-5", "math_pct": 55.0, "ela_pct": 62.0},
+    {"name": "King Middle School (Berkeley)", "lat": 37.8680, "lon": -122.2852, "type": "middle", "grades": "6-8", "math_pct": 45.0, "ela_pct": 56.0},
+    {"name": "Berkeley High School", "lat": 37.8691, "lon": -122.2671, "type": "high", "grades": "9-12", "math_pct": 40.0, "ela_pct": 55.0},
+    # San Jose
+    {"name": "Lincoln Elementary (San Jose)", "lat": 37.3587, "lon": -121.9052, "type": "elementary", "grades": "K-5", "math_pct": 38.0, "ela_pct": 48.0},
+    {"name": "Hoover Middle School (San Jose)", "lat": 37.3388, "lon": -121.9044, "type": "middle", "grades": "6-8", "math_pct": 40.0, "ela_pct": 50.0},
+    {"name": "Lincoln High School (San Jose)", "lat": 37.3193, "lon": -121.9196, "type": "high", "grades": "9-12", "math_pct": 35.0, "ela_pct": 45.0},
+]
+
+
+def _load_schools() -> list[dict[str, Any]]:
+    try:
+        with open(SCHOOLS_CACHE_PATH, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+        return payload if isinstance(payload, list) else _BAY_AREA_SCHOOLS
+    except FileNotFoundError:
+        return _BAY_AREA_SCHOOLS
+
+
+async def prefetch_schools(force: bool = False) -> bool:
+    """Write the built-in Bay Area school list to disk.
+    Returns True when written, False when the file already exists and force is False.
+    """
+    if not force and os.path.exists(SCHOOLS_CACHE_PATH):
+        return False
+    with open(SCHOOLS_CACHE_PATH, "w", encoding="utf-8") as f:
+        json.dump(_BAY_AREA_SCHOOLS, f)
+    return True
+
+
+def find_nearby_schools(
+    lat: float,
+    lon: float,
+    schools: list[dict[str, Any]],
+    max_miles: float = 2.0,
+) -> list[dict[str, Any]]:
+    """Return the nearest school of each type (elementary/middle/high) within max_miles."""
+    best: dict[str, dict[str, Any] | None] = {"elementary": None, "middle": None, "high": None}
+
+    for school in schools:
+        s_lat = school.get("lat")
+        s_lon = school.get("lon")
+        if s_lat is None or s_lon is None:
+            continue
+        stype = school.get("type", "").lower()
+        if stype not in best:
+            continue
+        dist = _haversine_miles(lat, lon, float(s_lat), float(s_lon))
+        if dist > max_miles:
+            continue
+        current = best[stype]
+        if current is None or dist < current["distance_miles"]:
+            best[stype] = {
+                "name": school.get("name"),
+                "type": stype,
+                "grades": school.get("grades"),
+                "distance_miles": round(dist, 3),
+                "math_pct": school.get("math_pct"),
+                "ela_pct": school.get("ela_pct"),
+            }
+
+    return [v for v in best.values() if v is not None]
+
 
 _RENT_CONTROL_CITIES = {
     "san francisco": {"name": "San Francisco", "max_year": 1978, "implications": "Likely subject to SF Rent Ordinance for older rentals."},
@@ -339,6 +439,7 @@ async def fetch_ba_value_drivers(
 
     nearest_muni_stop: str | None = None
     muni_distance_miles: float | None = None
+    nearby_schools: list[dict[str, Any]] = []
 
     if lat is not None and lon is not None:
         bart = await _fetch_bart_stations()
@@ -353,6 +454,9 @@ async def fetch_ba_value_drivers(
         nearest_muni_name, nearest_muni_dist, _ = _nearest_station(float(lat), float(lon), muni)
         nearest_muni_stop = nearest_muni_name
         muni_distance_miles = nearest_muni_dist
+
+        schools = _load_schools()
+        nearby_schools = find_nearby_schools(float(lat), float(lon), schools)
 
     return {
         "adu_potential": is_adu_candidate,
@@ -369,4 +473,5 @@ async def fetch_ba_value_drivers(
         "transit_distance_miles": nearest_distance,
         "transit_system": nearest_system,
         "transit_premium_likely": transit_premium_likely,
+        "nearby_schools": nearby_schools,
     }

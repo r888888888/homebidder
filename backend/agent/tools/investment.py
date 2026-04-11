@@ -126,6 +126,7 @@ def compute_investment_metrics(
         "nearest_muni_stop": ba_value_drivers.get("nearest_muni_stop"),
         "muni_distance_miles": ba_value_drivers.get("muni_distance_miles"),
         "transit_premium_likely": bool(ba_value_drivers.get("transit_premium_likely")),
+        "nearby_schools": ba_value_drivers.get("nearby_schools", []),
         "source": {
             "rates": mortgage_rates.get("source"),
             "hpi": hpi_trend.get("source"),

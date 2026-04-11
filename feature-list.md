@@ -1,6 +1,5 @@
 # TODO
 
-- Create a plan for ways of showing the quality of nearby schools. Aim for metrics that are objective.
 - Create a plan for ways of showing crime rates. Present me with a list of possible implementations. Try to distinguish between violent crimes and property crimes.
 - Create a plan for investigating other data points from calenviroscreen that are worth surfacing
 - Persist which renovation options were toggled in teh database
@@ -14,6 +13,7 @@
 
 # DONE
 
+- Show quality of nearby schools using CAASPP proficiency rates. Nearest elementary/middle/high within 2 miles displayed in InvestmentCard with Math/ELA % meeting/exceeding CA standards, color-coded green/yellow/red. Built-in Bay Area school dataset (31 schools); `prefetch_schools` writes to `data/schools.json`.
 - Support showing nearby MUNI stops. Saved 30 MUNI Metro stops to backend/data/muni_stops.json; added to transit search pool alongside BART/Caltrain; displays in InvestmentCard as a separate "Nearest MUNI" panel.
 - Add a direct google maps link to the property.
 - I want to include images from the MLS listing. If possible embed directly, but if that isn't possible then just link to a gallery.

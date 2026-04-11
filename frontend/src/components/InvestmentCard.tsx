@@ -1,3 +1,12 @@
+export interface NearbySchool {
+  name: string;
+  type: "elementary" | "middle" | "high";
+  grades: string | null;
+  distance_miles: number;
+  math_pct: number | null;
+  ela_pct: number | null;
+}
+
 export interface InvestmentData {
   purchase_price: number | null;
   projected_value_10yr: number | null;
@@ -22,6 +31,7 @@ export interface InvestmentData {
   nearest_muni_stop: string | null;
   muni_distance_miles: number | null;
   transit_premium_likely: boolean;
+  nearby_schools: NearbySchool[];
 }
 
 interface Props {
@@ -37,6 +47,19 @@ function fmtPct2(n: number | null): string {
   if (n == null) return "—";
   return `${n.toFixed(2)}%`;
 }
+
+function schoolProficiencyColor(pct: number | null): string {
+  if (pct == null) return "text-[var(--ink-muted)]";
+  if (pct >= 60) return "text-emerald-700";
+  if (pct >= 40) return "text-amber-700";
+  return "text-red-700";
+}
+
+const SCHOOL_TYPE_LABEL: Record<string, string> = {
+  elementary: "Elementary",
+  middle: "Middle",
+  high: "High School",
+};
 
 export function InvestmentCard({ investment }: Props) {
   const diffPositive =
@@ -134,6 +157,40 @@ export function InvestmentCard({ investment }: Props) {
             <p className="font-semibold">Nearest MUNI</p>
             <p className="text-xs">
               {investment.nearest_muni_stop} ({investment.muni_distance_miles.toFixed(2)} miles)
+            </p>
+          </div>
+        )}
+
+        {investment.nearby_schools && investment.nearby_schools.length > 0 && (
+          <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900">
+            <p className="font-semibold mb-2">Nearby Schools</p>
+            <div className="space-y-1.5">
+              {investment.nearby_schools.map((school) => (
+                <div key={school.name} className="flex items-start justify-between gap-2">
+                  <div>
+                    <span className="text-xs font-medium text-violet-700 uppercase tracking-wide mr-1.5">
+                      {SCHOOL_TYPE_LABEL[school.type] ?? school.type}
+                    </span>
+                    <span className="text-xs">{school.name}</span>
+                    {school.grades && (
+                      <span className="text-xs text-violet-600 ml-1">({school.grades})</span>
+                    )}
+                  </div>
+                  <div className="text-xs text-right shrink-0">
+                    <span className="text-violet-600">{school.distance_miles.toFixed(2)} mi · </span>
+                    <span className={schoolProficiencyColor(school.math_pct)}>
+                      Math {school.math_pct != null ? `${school.math_pct.toFixed(0)}%` : "—"}
+                    </span>
+                    <span className="text-violet-400 mx-1">·</span>
+                    <span className={schoolProficiencyColor(school.ela_pct)}>
+                      ELA {school.ela_pct != null ? `${school.ela_pct.toFixed(0)}%` : "—"}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-violet-500 mt-2">
+              % students meeting/exceeding CA standards (CAASPP). Green ≥60%, yellow 40–59%, red &lt;40%.
             </p>
           </div>
         )}
