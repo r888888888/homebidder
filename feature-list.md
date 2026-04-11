@@ -1,6 +1,5 @@
 # TODO
 
-- Update CLAUDE.md to instruct that a list of feature can be found in @feature-list.md. When instructed to implement the next feature, work off this list. Assume it is prioritized. When complete, move the item to the DONE section and commit your changes.
 - I want to include images from the MLS listing. If possible embed directly, but if that isn't possible then just link to a gallery.
 - I want to add a direct google maps link to the property.
 - Investigate ways of showing the quality of nearby schools. Aim for metrics that are objective.
@@ -18,6 +17,7 @@
 
 # DONE
 
+- Update CLAUDE.md to instruct that a list of feature can be found in @feature-list.md. When instructed to implement the next feature, work off this list. Assume it is prioritized. When complete, move the item to the DONE section and commit your changes.
 - Verify that fire hazard zone and liquefaction zone actually work. Test with real locations.
 - Review the existing test coverage and remove tests that test scenarios that will likely never happen, or are based on assumptions that are no longer relevant. Look for opportunities to consolidate and refactor test coverage.
 - Code review of frontend

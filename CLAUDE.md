@@ -1,5 +1,11 @@
 # Development Rules
 
+## Feature List
+
+A prioritized list of features to implement lives in `feature-list.md`. When asked to implement the next feature, work from the top of the TODO section (treat it as a priority-ordered queue). When a feature is complete, move it to the DONE section and commit the changes.
+
+
+
 ## Test-Driven Development
 
 All new code must follow a strict red-green-refactor cycle:
