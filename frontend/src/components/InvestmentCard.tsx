@@ -142,22 +142,24 @@ export function InvestmentCard({ investment }: Props) {
           </div>
         )}
 
-        {investment.nearest_bart_station && investment.bart_distance_miles != null && (
+        {(investment.nearest_bart_station || investment.nearest_muni_stop) && (
           <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
-            <p className="font-semibold">Nearest Transit</p>
-            <p className="text-xs">
-              {investment.nearest_bart_station} ({investment.bart_distance_miles.toFixed(2)} miles)
-            </p>
-            {investment.transit_premium_likely && <p className="text-xs">Transit premium likely</p>}
-          </div>
-        )}
-
-        {investment.nearest_muni_stop && investment.muni_distance_miles != null && (
-          <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-900">
-            <p className="font-semibold">Nearest MUNI</p>
-            <p className="text-xs">
-              {investment.nearest_muni_stop} ({investment.muni_distance_miles.toFixed(2)} miles)
-            </p>
+            <p className="font-semibold mb-1">Nearest Transit</p>
+            {investment.nearest_bart_station && investment.bart_distance_miles != null && (
+              <p className="text-xs">
+                <span className="font-medium text-sky-700 uppercase tracking-wide mr-1.5">BART</span>
+                {investment.nearest_bart_station} ({investment.bart_distance_miles.toFixed(2)} mi)
+              </p>
+            )}
+            {investment.nearest_muni_stop && investment.muni_distance_miles != null && (
+              <p className="text-xs">
+                <span className="font-medium text-sky-700 uppercase tracking-wide mr-1.5">MUNI</span>
+                {investment.nearest_muni_stop} ({investment.muni_distance_miles.toFixed(2)} mi)
+              </p>
+            )}
+            {investment.transit_premium_likely && (
+              <p className="text-xs mt-1">Transit premium likely</p>
+            )}
           </div>
         )}
 

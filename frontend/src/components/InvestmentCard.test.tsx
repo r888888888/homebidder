@@ -76,22 +76,45 @@ describe("InvestmentCard", () => {
     expect(screen.getByText(/transit premium likely/i)).toBeInTheDocument();
   });
 
-  it("renders nearest MUNI stop when present", () => {
+  it("renders both BART and MUNI in a single Nearest Transit card", () => {
     render(<InvestmentCard investment={BASE} />);
 
-    expect(screen.getByText(/nearest muni/i)).toBeInTheDocument();
+    expect(screen.getByText(/nearest transit/i)).toBeInTheDocument();
     expect(screen.getByText(/Castro St/)).toBeInTheDocument();
-    expect(screen.getByText(/0\.15 miles/i)).toBeInTheDocument();
+    expect(screen.getByText(/0\.15 mi/i)).toBeInTheDocument();
+    expect(screen.getByText(/16TH ST MISSION/)).toBeInTheDocument();
+    expect(screen.getByText(/0\.31 mi/i)).toBeInTheDocument();
+    // Only one "Nearest Transit" heading — not two separate cards
+    expect(screen.getAllByText(/nearest transit/i)).toHaveLength(1);
   });
 
-  it("hides MUNI panel when nearest_muni_stop is null", () => {
+  it("shows transit card with only MUNI when BART is null", () => {
+    render(
+      <InvestmentCard
+        investment={{
+          ...BASE,
+          nearest_bart_station: null,
+          bart_distance_miles: null,
+          transit_premium_likely: false,
+        }}
+      />
+    );
+
+    expect(screen.getByText(/nearest transit/i)).toBeInTheDocument();
+    expect(screen.getByText(/Castro St/)).toBeInTheDocument();
+    expect(screen.queryByText(/BART/)).not.toBeInTheDocument();
+  });
+
+  it("shows transit card with only BART when MUNI is null", () => {
     render(
       <InvestmentCard
         investment={{ ...BASE, nearest_muni_stop: null, muni_distance_miles: null }}
       />
     );
 
-    expect(screen.queryByText(/nearest muni/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/nearest transit/i)).toBeInTheDocument();
+    expect(screen.getByText(/16TH ST MISSION/)).toBeInTheDocument();
+    expect(screen.queryByText(/MUNI/)).not.toBeInTheDocument();
   });
 
   it("hides optional panels when data is absent", () => {
@@ -122,6 +145,5 @@ describe("InvestmentCard", () => {
     expect(screen.queryByText(/adu potential/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/rent control/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/nearest transit/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/nearest muni/i)).not.toBeInTheDocument();
   });
 });
