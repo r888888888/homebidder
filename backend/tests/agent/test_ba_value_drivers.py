@@ -359,3 +359,139 @@ class TestFetchBaValueDrivers:
 
         assert result["adu_potential"] is False
         assert result["adu_rent_estimate"] is None
+
+
+class TestMuniStops:
+    def test_load_muni_stops_returns_builtin_when_file_missing(self, tmp_path):
+        from agent.tools.ba_value_drivers import _load_muni_stops, _MUNI_METRO_STOPS
+
+        cache = str(tmp_path / "no_file.json")
+        with patch("agent.tools.ba_value_drivers.MUNI_CACHE_PATH", cache):
+            stops = _load_muni_stops()
+
+        assert stops == _MUNI_METRO_STOPS
+        assert len(stops) > 0
+
+    def test_load_muni_stops_reads_from_disk_when_file_exists(self, tmp_path):
+        from agent.tools.ba_value_drivers import _load_muni_stops
+
+        stops_data = [{"name": "Embarcadero", "lat": 37.7930, "lon": -122.3968, "system": "MUNI"}]
+        cache = str(tmp_path / "muni_stops.json")
+        with open(cache, "w") as f:
+            json.dump(stops_data, f)
+
+        with patch("agent.tools.ba_value_drivers.MUNI_CACHE_PATH", cache):
+            stops = _load_muni_stops()
+
+        assert stops == stops_data
+
+    async def test_prefetch_muni_stops_writes_file(self, tmp_path):
+        from agent.tools.ba_value_drivers import prefetch_muni_stops
+
+        cache = str(tmp_path / "muni_stops.json")
+        with patch("agent.tools.ba_value_drivers.MUNI_CACHE_PATH", cache):
+            written = await prefetch_muni_stops(force=True)
+
+        assert written is True
+        assert os.path.exists(cache)
+        with open(cache) as f:
+            saved = json.load(f)
+        assert len(saved) > 0
+        assert all("name" in s and "lat" in s and "lon" in s and "system" in s for s in saved)
+
+    async def test_prefetch_muni_stops_skips_when_file_exists_not_forced(self, tmp_path):
+        from agent.tools.ba_value_drivers import prefetch_muni_stops
+
+        cache = str(tmp_path / "muni_stops.json")
+        with open(cache, "w") as f:
+            json.dump([], f)
+
+        with patch("agent.tools.ba_value_drivers.MUNI_CACHE_PATH", cache):
+            written = await prefetch_muni_stops(force=False)
+
+        assert written is False
+
+    async def test_prefetch_muni_stops_force_overwrites_existing(self, tmp_path):
+        from agent.tools.ba_value_drivers import prefetch_muni_stops, _MUNI_METRO_STOPS
+
+        cache = str(tmp_path / "muni_stops.json")
+        with open(cache, "w") as f:
+            json.dump([], f)
+
+        with patch("agent.tools.ba_value_drivers.MUNI_CACHE_PATH", cache):
+            written = await prefetch_muni_stops(force=True)
+
+        assert written is True
+        with open(cache) as f:
+            saved = json.load(f)
+        assert saved == _MUNI_METRO_STOPS
+
+    async def test_nearest_muni_stop_returned_when_close(self):
+        from agent.tools.ba_value_drivers import fetch_ba_value_drivers
+
+        fake_muni = [{"name": "Castro St", "lat": 37.7626, "lon": -122.4350, "system": "MUNI"}]
+        property_data = {
+            "property_type": "SINGLE_FAMILY",
+            "lot_size": 2000,
+            "city": "San Francisco",
+            "year_built": 1960,
+            "latitude": 37.763,
+            "longitude": -122.435,
+        }
+
+        with patch("agent.tools.ba_value_drivers._load_caltrain_stations", return_value=[]), \
+             patch("agent.tools.ba_value_drivers._load_muni_stops", return_value=fake_muni), \
+             patch("agent.tools.ba_value_drivers._fetch_zip_median_rent", new=AsyncMock(return_value=None)), \
+             patch("agent.tools.ba_value_drivers._fetch_bart_stations", new=AsyncMock(return_value=[])):
+            result = await fetch_ba_value_drivers(property_data, "94114")
+
+        assert result["nearest_muni_stop"] == "Castro St"
+        assert result["muni_distance_miles"] is not None
+        assert result["muni_distance_miles"] < 0.1
+
+    async def test_muni_stop_included_in_overall_transit_search(self):
+        from agent.tools.ba_value_drivers import fetch_ba_value_drivers
+
+        # Property near MUNI Castro but farther from BART Civic Center
+        fake_muni = [{"name": "Castro St", "lat": 37.7626, "lon": -122.4350, "system": "MUNI"}]
+        fake_bart = [{"name": "Civic Center", "lat": 37.7799, "lon": -122.4139, "system": "BART"}]
+        property_data = {
+            "property_type": "CONDO",
+            "lot_size": 0,
+            "city": "San Francisco",
+            "year_built": 2000,
+            "latitude": 37.763,
+            "longitude": -122.435,
+        }
+
+        with patch("agent.tools.ba_value_drivers._load_caltrain_stations", return_value=[]), \
+             patch("agent.tools.ba_value_drivers._load_muni_stops", return_value=fake_muni), \
+             patch("agent.tools.ba_value_drivers._fetch_zip_median_rent", new=AsyncMock(return_value=None)), \
+             patch("agent.tools.ba_value_drivers._fetch_bart_stations", new=AsyncMock(return_value=fake_bart)):
+            result = await fetch_ba_value_drivers(property_data, "94114")
+
+        # Castro (MUNI) is ~0.04mi away; Civic Center (BART) is ~1.5mi away
+        assert result["nearest_transit_station"] == "Castro St"
+        assert result["transit_system"] == "MUNI"
+        assert result["transit_premium_likely"] is True
+
+    async def test_nearest_muni_stop_is_none_when_no_coords(self):
+        from agent.tools.ba_value_drivers import fetch_ba_value_drivers
+
+        property_data = {
+            "property_type": "CONDO",
+            "lot_size": 0,
+            "city": "San Francisco",
+            "year_built": 2000,
+            "latitude": None,
+            "longitude": None,
+        }
+
+        with patch("agent.tools.ba_value_drivers._load_caltrain_stations", return_value=[]), \
+             patch("agent.tools.ba_value_drivers._load_muni_stops", return_value=[{"name": "Castro St", "lat": 37.7626, "lon": -122.4350, "system": "MUNI"}]), \
+             patch("agent.tools.ba_value_drivers._fetch_zip_median_rent", new=AsyncMock(return_value=None)), \
+             patch("agent.tools.ba_value_drivers._fetch_bart_stations", new=AsyncMock(return_value=[])):
+            result = await fetch_ba_value_drivers(property_data, "94114")
+
+        assert result["nearest_muni_stop"] is None
+        assert result["muni_distance_miles"] is None

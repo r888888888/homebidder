@@ -19,7 +19,8 @@ async def test_prefetch_script_runs_all_prefetchers():
              "fire_hazard_zones.geojson": True,
          })) as hazard_mock, \
          patch("scripts.prefetch_backend_data.prefetch_bart_stations", AsyncMock(return_value=False)) as bart_mock, \
-         patch("scripts.prefetch_backend_data.prefetch_caltrain_stations", AsyncMock(return_value=True)) as caltrain_mock:
+         patch("scripts.prefetch_backend_data.prefetch_caltrain_stations", AsyncMock(return_value=True)) as caltrain_mock, \
+         patch("scripts.prefetch_backend_data.prefetch_muni_stops", AsyncMock(return_value=True)) as muni_mock:
         result = await run_prefetch(force=True)
 
     assert result["market_trends"] is True
@@ -28,12 +29,14 @@ async def test_prefetch_script_runs_all_prefetchers():
     assert result["ca_hazards"]["ap_fault_zones.geojson"] is True
     assert result["bart_stations"] is False
     assert result["caltrain_stations"] is True
+    assert result["muni_stops"] is True
     market_mock.assert_awaited_once_with(force=True)
     fhfa_mock.assert_awaited_once_with(force=True)
     zillow_mock.assert_awaited_once_with(force=True)
     hazard_mock.assert_awaited_once_with(force=True)
     bart_mock.assert_awaited_once_with(force=True)
     caltrain_mock.assert_awaited_once_with(force=True)
+    muni_mock.assert_awaited_once_with(force=True)
 
 
 def test_prefetch_script_is_importable_when_run_by_path_from_repo_root():

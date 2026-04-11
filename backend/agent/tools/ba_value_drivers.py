@@ -17,6 +17,51 @@ BART_CACHE_TTL = 30 * 86_400  # 30 days
 
 CALTRAIN_CACHE_PATH = str(Path(__file__).parent.parent.parent / "data" / "caltrain_stations.json")
 
+MUNI_CACHE_PATH = str(Path(__file__).parent.parent.parent / "data" / "muni_stops.json")
+
+# Key MUNI Metro (light rail) stops. These are the underground Market St subway
+# stations plus major surface stops on J/K/L/M/N/T lines. Coordinates are
+# approximate; a full GTFS import would cover bus stops too, but MUNI Metro
+# stops are the primary transit-premium driver. With ~35 stops a linear scan
+# with haversine is fast enough — no spatial index required.
+_MUNI_METRO_STOPS = [
+    # Market St underground subway (shared by J/K/L/M/N/T)
+    {"name": "Embarcadero Station", "lat": 37.7929, "lon": -122.3971, "system": "MUNI"},
+    {"name": "Montgomery St Station", "lat": 37.7894, "lon": -122.4012, "system": "MUNI"},
+    {"name": "Powell St Station", "lat": 37.7844, "lon": -122.4078, "system": "MUNI"},
+    {"name": "Civic Center Station", "lat": 37.7799, "lon": -122.4139, "system": "MUNI"},
+    {"name": "Van Ness Station", "lat": 37.7748, "lon": -122.4195, "system": "MUNI"},
+    {"name": "Church St Station", "lat": 37.7672, "lon": -122.4285, "system": "MUNI"},
+    {"name": "Castro Station", "lat": 37.7626, "lon": -122.4350, "system": "MUNI"},
+    {"name": "Forest Hill Station", "lat": 37.7571, "lon": -122.4545, "system": "MUNI"},
+    {"name": "West Portal Station", "lat": 37.7397, "lon": -122.4659, "system": "MUNI"},
+    # N Judah surface stops
+    {"name": "Carl & Cole (N Judah)", "lat": 37.7662, "lon": -122.4498, "system": "MUNI"},
+    {"name": "9th Ave & Irving (N Judah)", "lat": 37.7636, "lon": -122.4671, "system": "MUNI"},
+    {"name": "19th Ave & Irving (N Judah)", "lat": 37.7636, "lon": -122.4803, "system": "MUNI"},
+    {"name": "28th Ave & Judah (N Judah)", "lat": 37.7630, "lon": -122.4912, "system": "MUNI"},
+    {"name": "37th Ave & Judah (N Judah)", "lat": 37.7629, "lon": -122.5038, "system": "MUNI"},
+    {"name": "La Playa & Judah (N Judah)", "lat": 37.7629, "lon": -122.5094, "system": "MUNI"},
+    # J Church surface stops
+    {"name": "22nd St & Church (J Church)", "lat": 37.7552, "lon": -122.4282, "system": "MUNI"},
+    {"name": "24th St & Church (J Church)", "lat": 37.7522, "lon": -122.4282, "system": "MUNI"},
+    {"name": "30th St & Church (J Church)", "lat": 37.7465, "lon": -122.4295, "system": "MUNI"},
+    # T Third Street
+    {"name": "4th & King (T Third)", "lat": 37.7770, "lon": -122.3942, "system": "MUNI"},
+    {"name": "22nd St (T Third)", "lat": 37.7573, "lon": -122.3878, "system": "MUNI"},
+    {"name": "Cesar Chavez (T Third)", "lat": 37.7501, "lon": -122.3878, "system": "MUNI"},
+    {"name": "Bayview–Hunter's Point (T Third)", "lat": 37.7347, "lon": -122.3873, "system": "MUNI"},
+    {"name": "Visitacion Valley (T Third)", "lat": 37.7211, "lon": -122.4097, "system": "MUNI"},
+    # K/L/M west of West Portal
+    {"name": "St Francis Circle (K/L/M)", "lat": 37.7364, "lon": -122.4538, "system": "MUNI"},
+    {"name": "Ocean & Aptos (K/M)", "lat": 37.7289, "lon": -122.4600, "system": "MUNI"},
+    {"name": "19th Ave & Holloway (K/M)", "lat": 37.7234, "lon": -122.4800, "system": "MUNI"},
+    {"name": "19th Ave & Ulloa (L Taraval)", "lat": 37.7399, "lon": -122.4804, "system": "MUNI"},
+    {"name": "22nd Ave & Ulloa (L Taraval)", "lat": 37.7399, "lon": -122.4841, "system": "MUNI"},
+    {"name": "32nd Ave & Taraval (L Taraval)", "lat": 37.7399, "lon": -122.4973, "system": "MUNI"},
+    {"name": "46th Ave & Taraval (L Taraval)", "lat": 37.7399, "lon": -122.5143, "system": "MUNI"},
+]
+
 _CALTRAIN_STATIONS = [
     {"name": "San Francisco", "lat": 37.7764, "lon": -122.3947},
     {"name": "22nd Street", "lat": 37.7574, "lon": -122.3927},
@@ -146,6 +191,27 @@ async def prefetch_caltrain_stations(force: bool = False) -> bool:
     return True
 
 
+def _load_muni_stops() -> list[dict[str, Any]]:
+    try:
+        with open(MUNI_CACHE_PATH, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+        return payload if isinstance(payload, list) else _MUNI_METRO_STOPS
+    except FileNotFoundError:
+        return _MUNI_METRO_STOPS
+
+
+async def prefetch_muni_stops(force: bool = False) -> bool:
+    """
+    Write the built-in MUNI Metro stop list to disk.
+    Returns True when written, False when the file already exists and force is False.
+    """
+    if not force and os.path.exists(MUNI_CACHE_PATH):
+        return False
+    with open(MUNI_CACHE_PATH, "w", encoding="utf-8") as f:
+        json.dump(_MUNI_METRO_STOPS, f)
+    return True
+
+
 def _bart_cache_valid() -> bool:
     if not os.path.exists(BART_CACHE_PATH):
         return False
@@ -271,14 +337,22 @@ async def fetch_ba_value_drivers(
     nearest_system: str | None = None
     transit_premium_likely = False
 
+    nearest_muni_stop: str | None = None
+    muni_distance_miles: float | None = None
+
     if lat is not None and lon is not None:
         bart = await _fetch_bart_stations()
         caltrain = [
             {"name": s.get("name"), "lat": s.get("lat"), "lon": s.get("lon"), "system": "Caltrain"}
             for s in _load_caltrain_stations()
         ]
-        nearest_name, nearest_distance, nearest_system = _nearest_station(float(lat), float(lon), bart + caltrain)
+        muni = _load_muni_stops()
+        nearest_name, nearest_distance, nearest_system = _nearest_station(float(lat), float(lon), bart + caltrain + muni)
         transit_premium_likely = bool(nearest_distance is not None and nearest_distance <= 0.5)
+
+        nearest_muni_name, nearest_muni_dist, _ = _nearest_station(float(lat), float(lon), muni)
+        nearest_muni_stop = nearest_muni_name
+        muni_distance_miles = nearest_muni_dist
 
     return {
         "adu_potential": is_adu_candidate,
@@ -289,6 +363,8 @@ async def fetch_ba_value_drivers(
         "implications": rent_control["implications"],
         "nearest_bart_station": nearest_name if nearest_system == "BART" else None,
         "bart_distance_miles": nearest_distance if nearest_system == "BART" else None,
+        "nearest_muni_stop": nearest_muni_stop,
+        "muni_distance_miles": muni_distance_miles,
         "nearest_transit_station": nearest_name,
         "transit_distance_miles": nearest_distance,
         "transit_system": nearest_system,

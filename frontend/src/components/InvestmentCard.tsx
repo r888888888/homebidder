@@ -19,6 +19,8 @@ export interface InvestmentData {
   rent_control_implications: string | null;
   nearest_bart_station: string | null;
   bart_distance_miles: number | null;
+  nearest_muni_stop: string | null;
+  muni_distance_miles: number | null;
   transit_premium_likely: boolean;
 }
 
@@ -124,6 +126,15 @@ export function InvestmentCard({ investment }: Props) {
               {investment.nearest_bart_station} ({investment.bart_distance_miles.toFixed(2)} miles)
             </p>
             {investment.transit_premium_likely && <p className="text-xs">Transit premium likely</p>}
+          </div>
+        )}
+
+        {investment.nearest_muni_stop && investment.muni_distance_miles != null && (
+          <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-900">
+            <p className="font-semibold">Nearest MUNI</p>
+            <p className="text-xs">
+              {investment.nearest_muni_stop} ({investment.muni_distance_miles.toFixed(2)} miles)
+            </p>
           </div>
         )}
 

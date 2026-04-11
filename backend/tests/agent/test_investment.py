@@ -354,3 +354,32 @@ class TestComputeInvestmentMetrics:
         expected_10yr = round(price * pow(1 + growth / 100, 10), 0)
         assert result["purchase_price"] == price
         assert result["projected_value_10yr"] == expected_10yr
+
+    def test_muni_fields_passed_through_from_ba_value_drivers(self):
+        from agent.tools.investment import compute_investment_metrics
+
+        result = compute_investment_metrics(
+            property={"price": 1_200_000},
+            mortgage_rates={"rate_30yr_fixed": 6.5, "as_of_date": "2026-03-26"},
+            hpi_trend={"yoy_change_pct": 3.0},
+            ba_value_drivers={
+                "nearest_muni_stop": "Castro St",
+                "muni_distance_miles": 0.15,
+            },
+        )
+
+        assert result["nearest_muni_stop"] == "Castro St"
+        assert result["muni_distance_miles"] == 0.15
+
+    def test_muni_fields_are_none_when_absent(self):
+        from agent.tools.investment import compute_investment_metrics
+
+        result = compute_investment_metrics(
+            property={"price": 1_000_000},
+            mortgage_rates={"rate_30yr_fixed": 6.5},
+            hpi_trend={},
+            ba_value_drivers={},
+        )
+
+        assert result["nearest_muni_stop"] is None
+        assert result["muni_distance_miles"] is None

@@ -123,6 +123,8 @@ def compute_investment_metrics(
         "adu_rent_estimate": ba_value_drivers.get("adu_rent_estimate"),
         "nearest_bart_station": ba_value_drivers.get("nearest_bart_station"),
         "bart_distance_miles": ba_value_drivers.get("bart_distance_miles"),
+        "nearest_muni_stop": ba_value_drivers.get("nearest_muni_stop"),
+        "muni_distance_miles": ba_value_drivers.get("muni_distance_miles"),
         "transit_premium_likely": bool(ba_value_drivers.get("transit_premium_likely")),
         "source": {
             "rates": mortgage_rates.get("source"),

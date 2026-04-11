@@ -24,6 +24,8 @@ const BASE: InvestmentData = {
   nearest_bart_station: "16TH ST MISSION",
   bart_distance_miles: 0.31,
   transit_premium_likely: true,
+  nearest_muni_stop: "Castro St",
+  muni_distance_miles: 0.15,
 };
 
 describe("InvestmentCard", () => {
@@ -74,6 +76,24 @@ describe("InvestmentCard", () => {
     expect(screen.getByText(/transit premium likely/i)).toBeInTheDocument();
   });
 
+  it("renders nearest MUNI stop when present", () => {
+    render(<InvestmentCard investment={BASE} />);
+
+    expect(screen.getByText(/nearest muni/i)).toBeInTheDocument();
+    expect(screen.getByText(/Castro St/)).toBeInTheDocument();
+    expect(screen.getByText(/0\.15 miles/i)).toBeInTheDocument();
+  });
+
+  it("hides MUNI panel when nearest_muni_stop is null", () => {
+    render(
+      <InvestmentCard
+        investment={{ ...BASE, nearest_muni_stop: null, muni_distance_miles: null }}
+      />
+    );
+
+    expect(screen.queryByText(/nearest muni/i)).not.toBeInTheDocument();
+  });
+
   it("hides optional panels when data is absent", () => {
     render(
       <InvestmentCard
@@ -87,6 +107,8 @@ describe("InvestmentCard", () => {
           nearest_bart_station: null,
           bart_distance_miles: null,
           transit_premium_likely: false,
+          nearest_muni_stop: null,
+          muni_distance_miles: null,
           monthly_buy_cost: null,
           monthly_rent_equivalent: null,
           monthly_cost_diff: null,
@@ -100,5 +122,6 @@ describe("InvestmentCard", () => {
     expect(screen.queryByText(/adu potential/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/rent control/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/nearest transit/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/nearest muni/i)).not.toBeInTheDocument();
   });
 });

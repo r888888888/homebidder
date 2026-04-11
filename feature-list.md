@@ -1,9 +1,8 @@
 # TODO
 
-- Support showing nearby MUNI stops. If you need to fetch data from an API source, save it in a file in backend/data. Consider using some sort of index when loading it.
-- Investigate ways of showing the quality of nearby schools. Aim for metrics that are objective. Ask me before committing to an implementation.
-- Investigate ways of showing crime rates. Present me with a list of possible implementations. Try to distinguish between violent crimes and property crimes.
-- Investigate other data points from calenviroscreen that are worth surfacing
+- Create a plan for ways of showing the quality of nearby schools. Aim for metrics that are objective.
+- Create a plan for ways of showing crime rates. Present me with a list of possible implementations. Try to distinguish between violent crimes and property crimes.
+- Create a plan for investigating other data points from calenviroscreen that are worth surfacing
 - Persist which renovation options were toggled in teh database
 - Move feature flags into database, add admin portal
 - Support inspection reports
@@ -15,6 +14,7 @@
 
 # DONE
 
+- Support showing nearby MUNI stops. Saved 30 MUNI Metro stops to backend/data/muni_stops.json; added to transit search pool alongside BART/Caltrain; displays in InvestmentCard as a separate "Nearest MUNI" panel.
 - Add a direct google maps link to the property.
 - I want to include images from the MLS listing. If possible embed directly, but if that isn't possible then just link to a gallery.
 - Update CLAUDE.md to instruct that a list of feature can be found in @feature-list.md. When instructed to implement the next feature, work off this list. Assume it is prioritized. When complete, move the item to the DONE section and commit your changes.
