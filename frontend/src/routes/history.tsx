@@ -1,10 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import React, { useEffect, useState, useCallback } from "react";
-import { PropertySummaryCard } from "../components/PropertySummaryCard";
-import { OfferRecommendationCard } from "../components/OfferRecommendationCard";
-import { RiskAnalysisCard } from "../components/RiskAnalysisCard";
-import { InvestmentCard } from "../components/InvestmentCard";
-import { FixerAnalysisCard } from "../components/FixerAnalysisCard";
+import { PropertySummaryCard, type PropertyData } from "../components/PropertySummaryCard";
+import { OfferRecommendationCard, type OfferData } from "../components/OfferRecommendationCard";
+import { RiskAnalysisCard, type RiskData } from "../components/RiskAnalysisCard";
+import { InvestmentCard, type InvestmentData } from "../components/InvestmentCard";
+import { FixerAnalysisCard, type FixerAnalysisData } from "../components/FixerAnalysisCard";
+import { useToast } from "../components/Toast";
+import { apiBase } from "../lib/api";
 
 export const Route = createFileRoute("/history")({ component: HistoryPage });
 
@@ -27,12 +29,12 @@ interface AnalysisDetail {
   risk_level: string | null;
   investment_rating: string | null;
   rationale: string | null;
-  property_data: Record<string, unknown> | null;
+  property_data: PropertyData | null;
   neighborhood_data: Record<string, unknown> | null;
-  offer_data: Record<string, unknown> | null;
-  risk_data: Record<string, unknown> | null;
-  investment_data: Record<string, unknown> | null;
-  renovation_data: Record<string, unknown> | null;
+  offer_data: OfferData | null;
+  risk_data: RiskData | null;
+  investment_data: InvestmentData | null;
+  renovation_data: FixerAnalysisData | null;
   comps: unknown[];
 }
 
@@ -40,14 +42,16 @@ export function HistoryPage() {
   const [analyses, setAnalyses] = useState<AnalysisSummary[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [detail, setDetail] = useState<AnalysisDetail | null>(null);
-  const apiBase = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+  const toast = useToast();
 
   useEffect(() => {
     fetch(`${apiBase}/api/analyses`)
       .then((r) => r.json())
       .then(setAnalyses)
-      .catch(() => {});
-  }, [apiBase]);
+      .catch(() => {
+        toast.error("Failed to load analysis history.");
+      });
+  }, [toast]);
 
   async function handleRowClick(id: number) {
     if (selectedId === id) {
@@ -56,17 +60,25 @@ export function HistoryPage() {
       return;
     }
     const resp = await fetch(`${apiBase}/api/analyses/${id}`);
+    if (!resp.ok) {
+      toast.error(`Failed to load analysis: ${resp.statusText}`);
+      return;
+    }
     const data = await resp.json();
     setSelectedId(id);
     setDetail(data);
   }
 
   const handleDelete = useCallback(async (id: number) => {
-    await fetch(`${apiBase}/api/analyses/${id}`, { method: "DELETE" });
+    const resp = await fetch(`${apiBase}/api/analyses/${id}`, { method: "DELETE" });
+    if (!resp.ok) {
+      toast.error("Failed to delete analysis.");
+      return;
+    }
     setAnalyses((prev) => prev.filter((a) => a.id !== id));
     setSelectedId(null);
     setDetail(null);
-  }, [apiBase]);
+  }, [toast]);
 
   return (
     <main className="page-wrap py-10">
@@ -138,25 +150,25 @@ export function HistoryPage() {
                         <div className="space-y-4">
                           {detail.property_data && (
                             <PropertySummaryCard
-                              property={detail.property_data as any}
+                              property={detail.property_data}
                             />
                           )}
                           {detail.offer_data && (
                             <OfferRecommendationCard
-                              offer={detail.offer_data as any}
+                              offer={detail.offer_data}
                             />
                           )}
                           {detail.risk_data && (
-                            <RiskAnalysisCard risk={detail.risk_data as any} />
+                            <RiskAnalysisCard risk={detail.risk_data} />
                           )}
                           {detail.investment_data && (
                             <InvestmentCard
-                              investment={detail.investment_data as any}
+                              investment={detail.investment_data}
                             />
                           )}
                           {detail.renovation_data && (
                             <FixerAnalysisCard
-                              data={detail.renovation_data as any}
+                              data={detail.renovation_data}
                             />
                           )}
                           <div className="flex justify-end pt-2">

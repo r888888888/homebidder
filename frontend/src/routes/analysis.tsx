@@ -1,7 +1,8 @@
 import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnalysisStream } from "../components/AnalysisStream";
 import { useToast } from "../components/Toast";
+import { apiBase } from "../lib/api";
 import type { AnalysisEvent } from "./index";
 
 export const Route = createFileRoute("/analysis")({
@@ -18,18 +19,21 @@ export function AnalysisPage() {
   const [isRunning, setIsRunning] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const toast = useToast();
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (!address) return;
 
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setEvents([]);
     setIsRunning(true);
 
-    const controller = new AbortController();
     let cancelled = false;
 
     async function stream() {
-      const apiBase = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
       let res: Response;
       try {
         res = await fetch(`${apiBase}/api/analyze`, {
@@ -88,7 +92,7 @@ export function AnalysisPage() {
 
     stream();
     return () => { cancelled = true; controller.abort(); };
-  }, [address, buyerContext, refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [address, buyerContext, refreshKey, toast]);
 
   return (
     <main className="page-wrap py-10">

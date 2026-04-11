@@ -1,6 +1,7 @@
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { HistoryPage } from "./history";
+import { ToastProvider } from "../components/Toast";
 
 // Mock TanStack Router
 vi.mock("@tanstack/react-router", () => ({
@@ -71,8 +72,17 @@ const ANALYSIS_DETAIL = {
   },
   risk_data: null,
   investment_data: null,
+  renovation_data: null,
   comps: [],
 };
+
+function renderHistoryPage() {
+  return render(
+    <ToastProvider>
+      <HistoryPage />
+    </ToastProvider>
+  );
+}
 
 describe("HistoryPage", () => {
   beforeEach(() => {
@@ -86,7 +96,7 @@ describe("HistoryPage", () => {
     vi.mocked(fetch).mockResolvedValue(
       new Response(JSON.stringify([]), { status: 200 })
     );
-    render(<HistoryPage />);
+    renderHistoryPage();
     expect(screen.getByRole("heading", { name: /analysis history/i })).toBeInTheDocument();
   });
 
@@ -94,7 +104,7 @@ describe("HistoryPage", () => {
     vi.mocked(fetch).mockResolvedValue(
       new Response(JSON.stringify([]), { status: 200 })
     );
-    render(<HistoryPage />);
+    renderHistoryPage();
     await waitFor(() =>
       expect(screen.getByText(/no saved analyses/i)).toBeInTheDocument()
     );
@@ -104,7 +114,7 @@ describe("HistoryPage", () => {
     vi.mocked(fetch).mockResolvedValue(
       new Response(JSON.stringify(ANALYSES_LIST), { status: 200 })
     );
-    render(<HistoryPage />);
+    renderHistoryPage();
     await waitFor(() =>
       expect(screen.getByText(/450 SANCHEZ ST/i)).toBeInTheDocument()
     );
@@ -120,7 +130,7 @@ describe("HistoryPage", () => {
     vi.mocked(fetch).mockResolvedValue(
       new Response(JSON.stringify(ANALYSES_LIST), { status: 200 })
     );
-    render(<HistoryPage />);
+    renderHistoryPage();
     await waitFor(() =>
       expect(screen.getByText(/450 SANCHEZ ST/i)).toBeInTheDocument()
     );
@@ -141,7 +151,7 @@ describe("HistoryPage", () => {
         new Response(JSON.stringify(ANALYSIS_DETAIL), { status: 200 })
       );
 
-    render(<HistoryPage />);
+    renderHistoryPage();
     await waitFor(() =>
       expect(screen.getByText(/450 SANCHEZ ST/i)).toBeInTheDocument()
     );
@@ -160,7 +170,7 @@ describe("HistoryPage", () => {
       )
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
 
-    render(<HistoryPage />);
+    renderHistoryPage();
     await waitFor(() =>
       expect(screen.getByText(/450 SANCHEZ ST/i)).toBeInTheDocument()
     );
@@ -213,7 +223,7 @@ describe("HistoryPage", () => {
         new Response(JSON.stringify(detailWithRenovation), { status: 200 })
       );
 
-    render(<HistoryPage />);
+    renderHistoryPage();
     await waitFor(() =>
       expect(screen.getByText(/450 SANCHEZ ST/i)).toBeInTheDocument()
     );
@@ -234,7 +244,7 @@ describe("HistoryPage", () => {
         new Response(JSON.stringify({ ...ANALYSIS_DETAIL, renovation_data: null }), { status: 200 })
       );
 
-    render(<HistoryPage />);
+    renderHistoryPage();
     await waitFor(() =>
       expect(screen.getByText(/450 SANCHEZ ST/i)).toBeInTheDocument()
     );
@@ -257,7 +267,7 @@ describe("HistoryPage", () => {
       )
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
 
-    render(<HistoryPage />);
+    renderHistoryPage();
     await waitFor(() =>
       expect(screen.getByText(/450 SANCHEZ ST/i)).toBeInTheDocument()
     );
@@ -273,5 +283,64 @@ describe("HistoryPage", () => {
     await waitFor(() =>
       expect(screen.queryByText(/450 SANCHEZ ST/i)).not.toBeInTheDocument()
     );
+  });
+});
+
+describe("HistoryPage — error handling", () => {
+  beforeEach(() => {
+    vi.spyOn(global, "fetch");
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("shows a toast error when the analyses list fetch fails", async () => {
+    vi.mocked(fetch).mockRejectedValueOnce(new Error("Network error"));
+    renderHistoryPage();
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toBeInTheDocument()
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(/failed to load/i);
+  });
+
+  it("shows a toast and keeps row collapsed when detail fetch returns non-2xx", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(ANALYSES_LIST), { status: 200 })
+      )
+      .mockResolvedValueOnce(new Response("Not found", { status: 500 }));
+
+    renderHistoryPage();
+    await waitFor(() =>
+      expect(screen.getByText(/450 SANCHEZ ST/i)).toBeInTheDocument()
+    );
+
+    fireEvent.click(screen.getByText(/450 SANCHEZ ST/i));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toBeInTheDocument()
+    );
+    expect(screen.queryByText(/offer recommendation/i)).not.toBeInTheDocument();
+  });
+
+  it("shows a toast and keeps row in list when delete returns non-2xx", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(ANALYSES_LIST), { status: 200 })
+      )
+      .mockResolvedValueOnce(new Response("Server error", { status: 500 }));
+
+    renderHistoryPage();
+    await waitFor(() =>
+      expect(screen.getByText(/450 SANCHEZ ST/i)).toBeInTheDocument()
+    );
+
+    const deleteButtons = screen.getAllByRole("button", { name: /delete/i });
+    fireEvent.click(deleteButtons[0]);
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toBeInTheDocument()
+    );
+    expect(screen.getByText(/450 SANCHEZ ST/i)).toBeInTheDocument();
   });
 });
