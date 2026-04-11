@@ -96,6 +96,10 @@ def fetch_calenviroscreen_data(lat: float, lon: float) -> dict[str, Any] | None:
                 "diesel_pm_pct": float(props["DieselPM_P"]),
                 "pm25_pct": float(props["PM2_5_P"]),
                 "ces_score_pct": float(props["CIscoreP"]),
+                "cleanup_sites_pct": float(props["CleanupP"]),
+                "groundwater_threat_pct": float(props["GWThreatP"]),
+                "hazardous_waste_pct": float(props["HazWasteP"]),
+                "toxic_releases_pct": float(props["Tox_Rel_P"]),
             }
         except (KeyError, TypeError, ValueError) as exc:
             log.warning("CalEnviroScreen property parse error: %s | props=%s", exc, props)

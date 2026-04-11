@@ -227,6 +227,63 @@ def _assess_highway_proximity(ces: dict | None) -> dict:
     )
 
 
+def _assess_air_quality(ces: dict | None) -> dict:
+    if ces is None:
+        return _factor("air_quality", "n/a", "No CalEnviroScreen data available.")
+    pm25_pct = ces.get("pm25_pct")
+    if pm25_pct is None:
+        return _factor("air_quality", "n/a", "No CalEnviroScreen data available.")
+    if pm25_pct >= 80:
+        return _factor(
+            "air_quality", "high",
+            f"Fine particulate matter (PM2.5) at {pm25_pct:.0f}th percentile — significantly above CA average. "
+            "Long-term exposure to elevated PM2.5 is linked to respiratory and cardiovascular health risks.",
+        )
+    if pm25_pct >= 60:
+        return _factor(
+            "air_quality", "moderate",
+            f"Fine particulate matter (PM2.5) at {pm25_pct:.0f}th percentile — moderately elevated relative to CA.",
+        )
+    return _factor(
+        "air_quality", "low",
+        f"Fine particulate matter (PM2.5) at {pm25_pct:.0f}th percentile — within acceptable range.",
+    )
+
+
+def _assess_environmental_contamination(ces: dict | None) -> dict:
+    if ces is None:
+        return _factor("environmental_contamination", "n/a", "No CalEnviroScreen data available.")
+    present = {k: v for k, v in {
+        "cleanup sites": ces.get("cleanup_sites_pct"),
+        "groundwater threats": ces.get("groundwater_threat_pct"),
+        "hazardous waste": ces.get("hazardous_waste_pct"),
+    }.items() if v is not None}
+    if not present:
+        return _factor("environmental_contamination", "n/a", "No CalEnviroScreen contamination data available.")
+
+    highest = max(present.values())
+
+    if highest >= 80:
+        elevated = [f"{name} ({pct:.0f}th pct)" for name, pct in present.items() if pct >= 80]
+        return _factor(
+            "environmental_contamination", "high",
+            f"High contamination burden: {', '.join(elevated)}. "
+            "Investigate whether site-specific remediation orders, deed restrictions, or soil "
+            "contamination disclosures apply to this property.",
+        )
+    if highest >= 60:
+        elevated = [f"{name} ({pct:.0f}th pct)" for name, pct in present.items() if pct >= 60]
+        return _factor(
+            "environmental_contamination", "moderate",
+            f"Moderate contamination burden: {', '.join(elevated)}. "
+            "Review local environmental records before closing.",
+        )
+    return _factor(
+        "environmental_contamination", "low",
+        "Low environmental contamination burden in this census tract.",
+    )
+
+
 # ---------------------------------------------------------------------------
 # Scoring
 # ---------------------------------------------------------------------------
@@ -278,6 +335,8 @@ def assess_risk(
         _assess_days_on_market(listing),
         _assess_hpi_trend(fhfa_hpi),
         _assess_highway_proximity(ejscreen),
+        _assess_air_quality(ejscreen),
+        _assess_environmental_contamination(ejscreen),
     ]
 
     score = sum(_SCORE_MAP.get(f["level"], 0) for f in factors)

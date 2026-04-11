@@ -659,3 +659,151 @@ class TestTenantOccupiedFactor:
         )
         names = [f["name"] for f in result["factors"]]
         assert "tenant_occupied" in names
+
+
+class TestAirQualityFactor:
+    def test_high_pm25_gives_high_level(self):
+        from agent.tools.risk import _assess_air_quality
+
+        result = _assess_air_quality({"pm25_pct": 85.0})
+        assert result["level"] == "high"
+        assert result["name"] == "air_quality"
+
+    def test_moderate_pm25_gives_moderate_level(self):
+        from agent.tools.risk import _assess_air_quality
+
+        result = _assess_air_quality({"pm25_pct": 65.0})
+        assert result["level"] == "moderate"
+
+    def test_low_pm25_gives_low_level(self):
+        from agent.tools.risk import _assess_air_quality
+
+        result = _assess_air_quality({"pm25_pct": 40.0})
+        assert result["level"] == "low"
+
+    def test_na_when_ces_is_none(self):
+        from agent.tools.risk import _assess_air_quality
+
+        result = _assess_air_quality(None)
+        assert result["level"] == "n/a"
+
+    def test_na_when_pm25_missing_from_ces(self):
+        from agent.tools.risk import _assess_air_quality
+
+        result = _assess_air_quality({"traffic_proximity_pct": 70.0})
+        assert result["level"] == "n/a"
+
+    def test_air_quality_factor_in_assess_risk_output(self):
+        from agent.tools.risk import assess_risk
+
+        ces = {"pm25_pct": 85.0, "traffic_proximity_pct": 50.0, "diesel_pm_pct": 50.0,
+               "cleanup_sites_pct": 30.0, "groundwater_threat_pct": 30.0, "hazardous_waste_pct": 30.0}
+        result = assess_risk(
+            listing=make_listing(),
+            market_stats=make_market_stats(),
+            offer_result=make_offer_result(),
+            ejscreen=ces,
+        )
+        names = [f["name"] for f in result["factors"]]
+        assert "air_quality" in names
+
+    def test_high_air_quality_raises_score(self):
+        from agent.tools.risk import assess_risk
+
+        ces_low = {"pm25_pct": 30.0, "traffic_proximity_pct": 30.0, "diesel_pm_pct": 30.0,
+                   "cleanup_sites_pct": 30.0, "groundwater_threat_pct": 30.0, "hazardous_waste_pct": 30.0}
+        ces_high = {**ces_low, "pm25_pct": 85.0}
+
+        result_low = assess_risk(
+            listing=make_listing(), market_stats=make_market_stats(),
+            offer_result=make_offer_result(), ejscreen=ces_low,
+        )
+        result_high = assess_risk(
+            listing=make_listing(), market_stats=make_market_stats(),
+            offer_result=make_offer_result(), ejscreen=ces_high,
+        )
+        assert result_high["score"] > result_low["score"]
+
+
+class TestEnvironmentalContaminationFactor:
+    def test_high_cleanup_pct_gives_high_level(self):
+        from agent.tools.risk import _assess_environmental_contamination
+
+        result = _assess_environmental_contamination({
+            "cleanup_sites_pct": 85.0,
+            "groundwater_threat_pct": 30.0,
+            "hazardous_waste_pct": 20.0,
+        })
+        assert result["level"] == "high"
+        assert result["name"] == "environmental_contamination"
+
+    def test_high_groundwater_threat_gives_high_level(self):
+        from agent.tools.risk import _assess_environmental_contamination
+
+        result = _assess_environmental_contamination({
+            "cleanup_sites_pct": 20.0,
+            "groundwater_threat_pct": 82.0,
+            "hazardous_waste_pct": 30.0,
+        })
+        assert result["level"] == "high"
+
+    def test_high_hazardous_waste_gives_high_level(self):
+        from agent.tools.risk import _assess_environmental_contamination
+
+        result = _assess_environmental_contamination({
+            "cleanup_sites_pct": 20.0,
+            "groundwater_threat_pct": 30.0,
+            "hazardous_waste_pct": 81.0,
+        })
+        assert result["level"] == "high"
+
+    def test_moderate_when_any_between_60_and_80(self):
+        from agent.tools.risk import _assess_environmental_contamination
+
+        result = _assess_environmental_contamination({
+            "cleanup_sites_pct": 65.0,
+            "groundwater_threat_pct": 40.0,
+            "hazardous_waste_pct": 30.0,
+        })
+        assert result["level"] == "moderate"
+
+    def test_low_when_all_below_60(self):
+        from agent.tools.risk import _assess_environmental_contamination
+
+        result = _assess_environmental_contamination({
+            "cleanup_sites_pct": 30.0,
+            "groundwater_threat_pct": 25.0,
+            "hazardous_waste_pct": 40.0,
+        })
+        assert result["level"] == "low"
+
+    def test_na_when_ces_is_none(self):
+        from agent.tools.risk import _assess_environmental_contamination
+
+        result = _assess_environmental_contamination(None)
+        assert result["level"] == "n/a"
+
+    def test_contamination_factor_in_assess_risk_output(self):
+        from agent.tools.risk import assess_risk
+
+        ces = {"pm25_pct": 40.0, "traffic_proximity_pct": 40.0, "diesel_pm_pct": 40.0,
+               "cleanup_sites_pct": 85.0, "groundwater_threat_pct": 30.0, "hazardous_waste_pct": 20.0}
+        result = assess_risk(
+            listing=make_listing(),
+            market_stats=make_market_stats(),
+            offer_result=make_offer_result(),
+            ejscreen=ces,
+        )
+        names = [f["name"] for f in result["factors"]]
+        assert "environmental_contamination" in names
+
+    def test_high_description_mentions_elevated_indicators(self):
+        from agent.tools.risk import _assess_environmental_contamination
+
+        result = _assess_environmental_contamination({
+            "cleanup_sites_pct": 88.0,
+            "groundwater_threat_pct": 91.0,
+            "hazardous_waste_pct": 20.0,
+        })
+        assert result["level"] == "high"
+        assert "cleanup" in result["description"].lower() or "groundwater" in result["description"].lower()

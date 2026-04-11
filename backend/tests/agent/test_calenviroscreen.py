@@ -30,6 +30,10 @@ SAMPLE_GEOJSON = {
                 "DieselPM_P": 72.1,
                 "PM2_5_P": 64.8,
                 "CIscoreP": 78.5,
+                "CleanupP": 55.0,
+                "GWThreatP": 82.4,
+                "HazWasteP": 40.1,
+                "Tox_Rel_P": 31.7,
                 "Tract": "6075016100",
             },
         }
@@ -65,6 +69,10 @@ class TestFetchCalenviroscreenData:
         assert "diesel_pm_pct" in result
         assert "pm25_pct" in result
         assert "ces_score_pct" in result
+        assert "cleanup_sites_pct" in result
+        assert "groundwater_threat_pct" in result
+        assert "hazardous_waste_pct" in result
+        assert "toxic_releases_pct" in result
 
     def test_percentile_values_parsed_correctly(self):
         from agent.tools.calenviroscreen import fetch_calenviroscreen_data
@@ -78,6 +86,10 @@ class TestFetchCalenviroscreenData:
         assert result["diesel_pm_pct"] == pytest.approx(72.1)
         assert result["pm25_pct"] == pytest.approx(64.8)
         assert result["ces_score_pct"] == pytest.approx(78.5)
+        assert result["cleanup_sites_pct"] == pytest.approx(55.0)
+        assert result["groundwater_threat_pct"] == pytest.approx(82.4)
+        assert result["hazardous_waste_pct"] == pytest.approx(40.1)
+        assert result["toxic_releases_pct"] == pytest.approx(31.7)
 
     def test_returns_none_when_point_outside_all_tracts(self):
         from agent.tools.calenviroscreen import fetch_calenviroscreen_data
