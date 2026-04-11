@@ -1,6 +1,5 @@
 # TODO
 
-- Add a direct google maps link to the property.
 - Support showing nearby MUNI stops. If you need to fetch data from an API source, save it in a file in backend/data. Consider using some sort of index when loading it.
 - Investigate ways of showing the quality of nearby schools. Aim for metrics that are objective. Ask me before committing to an implementation.
 - Investigate ways of showing crime rates. Present me with a list of possible implementations. Try to distinguish between violent crimes and property crimes.
@@ -16,6 +15,7 @@
 
 # DONE
 
+- Add a direct google maps link to the property.
 - I want to include images from the MLS listing. If possible embed directly, but if that isn't possible then just link to a gallery.
 - Update CLAUDE.md to instruct that a list of feature can be found in @feature-list.md. When instructed to implement the next feature, work off this list. Assume it is prioritized. When complete, move the item to the DONE section and commit your changes.
 - Verify that fire hazard zone and liquefaction zone actually work. Test with real locations.

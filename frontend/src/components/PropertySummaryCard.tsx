@@ -85,6 +85,10 @@ function streetViewUrl(p: PropertyData): string {
   return `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${p.latitude},${p.longitude}`;
 }
 
+function googleMapsUrl(p: PropertyData): string {
+  return `https://www.google.com/maps/search/?api=1&query=${p.latitude},${p.longitude}`;
+}
+
 function formatPropertyType(raw: string | null | undefined): string {
   if (!raw) return "—";
   return raw
@@ -259,6 +263,7 @@ export function PropertySummaryCard({ property }: Props) {
             { label: "Zillow", href: zillowUrl(property) },
             { label: "Redfin", href: redfinUrl(property) },
             { label: "Realtor", href: realtorUrl(property) },
+            { label: "Google Maps", href: googleMapsUrl(property) },
             { label: "Street View", href: streetViewUrl(property) },
           ].map(({ label, href }) => (
             <a

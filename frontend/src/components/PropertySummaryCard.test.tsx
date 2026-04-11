@@ -388,5 +388,15 @@ describe("PropertySummaryCard", () => {
       expect(link).toHaveAttribute("href", expect.stringContaining("-122.4313"));
       expect(link).toHaveAttribute("target", "_blank");
     });
+
+    it("renders Google Maps link with lat/lng search query in href", () => {
+      render(<PropertySummaryCard property={BASE_PROPERTY} />);
+      const link = screen.getByRole("link", { name: /google maps/i });
+      expect(link).toHaveAttribute("href", expect.stringContaining("google.com/maps/search"));
+      expect(link).toHaveAttribute("href", expect.stringContaining("37.7612"));
+      expect(link).toHaveAttribute("href", expect.stringContaining("-122.4313"));
+      expect(link).toHaveAttribute("target", "_blank");
+      expect(link).toHaveAttribute("rel", expect.stringContaining("noopener"));
+    });
   });
 });
