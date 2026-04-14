@@ -3,7 +3,6 @@ Redfin Data Center market trends for a given ZIP code.
 Reads a prefetched national ZIP-level TSV file.
 """
 import gzip
-import io
 import os
 import time
 from pathlib import Path
@@ -30,11 +29,6 @@ async def _download_tsv() -> bytes:
         resp = await client.get(REDFIN_TSV_URL)
         resp.raise_for_status()
         return resp.content
-
-
-async def _get_tsv_bytes() -> bytes:
-    with open(CACHE_PATH, "rb") as f:
-        return f.read()
 
 
 async def prefetch_market_trends_dataset(force: bool = False) -> bool:
@@ -70,50 +64,47 @@ def _safe_float(parts: list[str], idx: int | None) -> float | None:
         return None
 
 
-def _parse_tsv_for_zip(raw_bytes: bytes, zip_code: str) -> list[dict[str, Any]]:
+def _parse_tsv_for_zip(zip_code: str, cache_path: str = CACHE_PATH) -> list[dict[str, Any]]:
     """
-    Decompress and parse the Redfin national TSV, returning rows for the
-    given ZIP code sorted newest-first (max 6 months).
+    Stream the gzip TSV line-by-line, returning rows for the given ZIP code
+    sorted newest-first (max 6 months). Never loads the full file into memory.
     """
-    with gzip.open(io.BytesIO(raw_bytes), "rt", encoding="utf-8", errors="replace") as f:
-        lines = f.readlines()
+    with gzip.open(cache_path, "rt", encoding="utf-8", errors="replace") as f:
+        header_line = f.readline()
+        if not header_line:
+            return []
 
-    if not lines:
-        return []
+        header = [h.strip() for h in header_line.split("\t")]
+        region_idx = _col(header, "region")
+        period_end_idx = _col(header, "period_end")
+        if region_idx is None or period_end_idx is None:
+            return []
 
-    header = [h.strip() for h in lines[0].split("\t")]
+        median_sale_price_idx = _col(header, "median_sale_price")
+        homes_sold_idx = _col(header, "homes_sold")
+        median_dom_idx = _col(header, "median_dom")
+        months_of_supply_idx = _col(header, "months_of_supply")
+        sold_above_list_idx = _col(header, "sold_above_list")
+        price_drops_idx = _col(header, "price_drops")
 
-    region_idx = _col(header, "region")
-    period_end_idx = _col(header, "period_end")
-    if region_idx is None or period_end_idx is None:
-        return []
-
-    median_sale_price_idx = _col(header, "median_sale_price")
-    homes_sold_idx = _col(header, "homes_sold")
-    median_dom_idx = _col(header, "median_dom")
-    months_of_supply_idx = _col(header, "months_of_supply")
-    sold_above_list_idx = _col(header, "sold_above_list")
-    price_drops_idx = _col(header, "price_drops")
-
-    rows: list[dict[str, Any]] = []
-    for line in lines[1:]:
-        parts = line.split("\t")
-        if len(parts) <= region_idx:
-            continue
-        region = parts[region_idx].strip()
-        # Redfin stores ZIP codes without leading zeros in some versions
-        if region != zip_code and region.lstrip("0") != zip_code.lstrip("0"):
-            continue
-
-        rows.append({
-            "period_end": parts[period_end_idx].strip(),
-            "median_sale_price": _safe_float(parts, median_sale_price_idx),
-            "homes_sold": _safe_float(parts, homes_sold_idx),
-            "median_dom": _safe_float(parts, median_dom_idx),
-            "months_of_supply": _safe_float(parts, months_of_supply_idx),
-            "pct_sold_above_list": _safe_float(parts, sold_above_list_idx),
-            "price_drops_pct": _safe_float(parts, price_drops_idx),
-        })
+        rows: list[dict[str, Any]] = []
+        for line in f:
+            parts = line.split("\t")
+            if len(parts) <= region_idx:
+                continue
+            region = parts[region_idx].strip()
+            # Redfin stores ZIP codes without leading zeros in some versions
+            if region != zip_code and region.lstrip("0") != zip_code.lstrip("0"):
+                continue
+            rows.append({
+                "period_end": parts[period_end_idx].strip(),
+                "median_sale_price": _safe_float(parts, median_sale_price_idx),
+                "homes_sold": _safe_float(parts, homes_sold_idx),
+                "median_dom": _safe_float(parts, median_dom_idx),
+                "months_of_supply": _safe_float(parts, months_of_supply_idx),
+                "pct_sold_above_list": _safe_float(parts, sold_above_list_idx),
+                "price_drops_pct": _safe_float(parts, price_drops_idx),
+            })
 
     rows.sort(key=lambda r: r["period_end"], reverse=True)
     return rows[:6]
@@ -137,17 +128,15 @@ async def fetch_market_trends(zip_code: str) -> dict[str, Any]:
     Fetch Redfin Data Center ZIP-level market stats for the last 6 months.
     Does not perform network downloads at request time.
     """
-    try:
-        raw = await _get_tsv_bytes()
-    except FileNotFoundError:
+    if not os.path.exists(CACHE_PATH):
         return {
             "zip_code": zip_code,
             "error": "Market data cache missing. Run prefetch_backend_data.py to download datasets.",
         }
+    try:
+        months = _parse_tsv_for_zip(zip_code, CACHE_PATH)
     except Exception as exc:
         return {"zip_code": zip_code, "error": f"Failed to read market data cache: {exc}"}
-
-    months = _parse_tsv_for_zip(raw, zip_code)
 
     if not months:
         return {"zip_code": zip_code, "error": "No market data found for this ZIP"}

@@ -55,10 +55,23 @@ SAMPLE_ROWS = [
 
 
 class TestParseTsvForZip:
-    def test_returns_matching_rows_only(self):
-        raw = _make_gzipped_tsv(SAMPLE_ROWS)
-        result = _parse_tsv_for_zip(raw, "94114")
+    def test_returns_matching_rows_only(self, tmp_path):
+        cache = tmp_path / "redfin.tsv.gz"
+        cache.write_bytes(_make_gzipped_tsv(SAMPLE_ROWS))
+        result = _parse_tsv_for_zip("94114", str(cache))
         assert len(result) == 3
+
+    def test_does_not_return_other_zips(self, tmp_path):
+        cache = tmp_path / "redfin.tsv.gz"
+        cache.write_bytes(_make_gzipped_tsv(SAMPLE_ROWS))
+        result = _parse_tsv_for_zip("94110", str(cache))
+        assert len(result) == 1
+
+    def test_returns_empty_when_zip_not_found(self, tmp_path):
+        cache = tmp_path / "redfin.tsv.gz"
+        cache.write_bytes(_make_gzipped_tsv(SAMPLE_ROWS))
+        result = _parse_tsv_for_zip("99999", str(cache))
+        assert result == []
 
 
 class TestComputeTrend:
