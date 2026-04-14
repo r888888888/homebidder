@@ -40,6 +40,7 @@ _ANALYSES_MIGRATIONS: list[tuple[str, str]] = [
     ("renovation_data_json",  "TEXT"),
     ("crime_data_json",       "TEXT"),
     ("buyer_context",         "TEXT"),
+    ("user_id",               "VARCHAR(36)"),
 ]
 
 _COMPS_MIGRATIONS: list[tuple[str, str]] = [

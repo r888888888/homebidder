@@ -1,11 +1,42 @@
+import uuid
 from datetime import datetime
-from sqlalchemy import String, Integer, Float, DateTime, Text, ForeignKey
+from sqlalchemy import String, Integer, Float, DateTime, Text, ForeignKey, Uuid
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from fastapi_users.db import SQLAlchemyBaseUserTableUUID
+from fastapi_users import schemas
 
 
 class Base(DeclarativeBase):
     pass
 
+
+# ---------------------------------------------------------------------------
+# User auth (fastapi-users)
+# ---------------------------------------------------------------------------
+
+class User(SQLAlchemyBaseUserTableUUID, Base):
+    __tablename__ = "users"
+
+    display_name: Mapped[str | None] = mapped_column(String(128))
+
+
+# fastapi-users Pydantic schemas (required for router registration in main.py)
+
+class UserRead(schemas.BaseUser[uuid.UUID]):
+    pass
+
+
+class UserCreate(schemas.BaseUserCreate):
+    pass
+
+
+class UserUpdate(schemas.BaseUserUpdate):
+    pass
+
+
+# ---------------------------------------------------------------------------
+# Property data
+# ---------------------------------------------------------------------------
 
 class Listing(Base):
     __tablename__ = "listings"
@@ -62,6 +93,9 @@ class Analysis(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     listing_id: Mapped[int] = mapped_column(Integer, ForeignKey("listings.id"), nullable=False)
     session_id: Mapped[str | None] = mapped_column(String(128))
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     offer_low: Mapped[float | None] = mapped_column(Float)
     offer_high: Mapped[float | None] = mapped_column(Float)
     offer_recommended: Mapped[float | None] = mapped_column(Float)

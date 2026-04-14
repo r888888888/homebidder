@@ -1,5 +1,6 @@
 import datetime
 import hashlib
+import os
 from unittest.mock import patch
 
 from db import engine
@@ -20,6 +21,16 @@ def _hash_ip(ip: str) -> str:
 async def _seed_entries(ip: str, count: int, hours_ago: float = 1.0) -> None:
     """Seed RateLimitEntry rows for a given IP at a given age."""
     identifier = _hash_ip(ip)
+    ts = datetime.datetime.utcnow() - datetime.timedelta(hours=hours_ago)
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with async_session() as session:
+        for _ in range(count):
+            session.add(RateLimitEntry(identifier=identifier, created_at=ts))
+        await session.commit()
+
+
+async def _seed_entries_for_identifier(identifier: str, count: int, hours_ago: float = 1.0) -> None:
+    """Seed RateLimitEntry rows for an arbitrary identifier string (e.g. a user UUID)."""
     ts = datetime.datetime.utcnow() - datetime.timedelta(hours=hours_ago)
     async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     async with async_session() as session:
@@ -170,3 +181,85 @@ async def test_status_old_entries_excluded_from_count(client):
     data = resp.json()
     assert data["used"] == 0
     assert data["remaining"] == 5
+
+
+# ---------------------------------------------------------------------------
+# Authenticated user rate limiting
+# ---------------------------------------------------------------------------
+
+async def test_authenticated_user_not_blocked_by_ip_limit(client):
+    """An authenticated user is not blocked by the IP-based limit."""
+    # Register + login
+    await client.post("/api/auth/register", json={"email": "auth_rl1@test.com", "password": "pass123"})
+    login_resp = await client.post(
+        "/api/auth/jwt/login",
+        data={"username": "auth_rl1@test.com", "password": "pass123"},
+    )
+    token = login_resp.json()["access_token"]
+
+    # Exhaust the IP-based limit for 10.0.100.1
+    await _seed_entries("10.0.100.1", count=5)
+
+    # The authenticated user should still be allowed (uses account quota, not IP quota)
+    with patch("api.routes.run_agent", _mock_run_agent):
+        resp = await client.post(
+            "/api/analyze",
+            json={"address": "450 Sanchez St, SF, CA 94114"},
+            headers={
+                "Fly-Client-IP": "10.0.100.1",
+                "Authorization": f"Bearer {token}",
+            },
+        )
+    assert resp.status_code == 200
+
+
+async def test_authenticated_user_limited_by_account_quota(client):
+    """An authenticated user is blocked when their own account quota is exhausted."""
+    with patch.dict(os.environ, {"RATE_LIMIT_AUTHENTICATED_PER_DAY": "3"}):
+        await client.post("/api/auth/register", json={"email": "auth_rl2@test.com", "password": "pass123"})
+        login_resp = await client.post(
+            "/api/auth/jwt/login",
+            data={"username": "auth_rl2@test.com", "password": "pass123"},
+        )
+        token = login_resp.json()["access_token"]
+        user_id = (await client.get("/api/users/me", headers={"Authorization": f"Bearer {token}"})).json()["id"]
+
+        # Exhaust the account quota
+        await _seed_entries_for_identifier(user_id, count=3)
+
+        with patch("api.routes.run_agent", _mock_run_agent):
+            resp = await client.post(
+                "/api/analyze",
+                json={"address": "450 Sanchez St, SF, CA 94114"},
+                headers={"Authorization": f"Bearer {token}"},
+            )
+    assert resp.status_code == 429
+
+
+async def test_authenticated_uses_user_id_not_ip(client):
+    """Two authenticated users from the same IP each have independent quotas."""
+    with patch.dict(os.environ, {"RATE_LIMIT_AUTHENTICATED_PER_DAY": "3"}):
+        # Register two users
+        await client.post("/api/auth/register", json={"email": "ua1@test.com", "password": "pass123"})
+        await client.post("/api/auth/register", json={"email": "ua2@test.com", "password": "pass123"})
+
+        login1 = await client.post("/api/auth/jwt/login", data={"username": "ua1@test.com", "password": "pass123"})
+        login2 = await client.post("/api/auth/jwt/login", data={"username": "ua2@test.com", "password": "pass123"})
+        token1 = login1.json()["access_token"]
+        token2 = login2.json()["access_token"]
+        user1_id = (await client.get("/api/users/me", headers={"Authorization": f"Bearer {token1}"})).json()["id"]
+
+        # Exhaust user1's quota
+        await _seed_entries_for_identifier(user1_id, count=3)
+
+        # user2 from the same IP should still succeed
+        with patch("api.routes.run_agent", _mock_run_agent):
+            resp = await client.post(
+                "/api/analyze",
+                json={"address": "450 Sanchez St, SF, CA 94114"},
+                headers={
+                    "Fly-Client-IP": "10.0.100.2",
+                    "Authorization": f"Bearer {token2}",
+                },
+            )
+    assert resp.status_code == 200

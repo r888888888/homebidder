@@ -16,7 +16,7 @@ load_dotenv()
 
 def _validate_env_vars() -> None:
     """Raise RuntimeError for any required environment variable that is absent."""
-    required = ["ANTHROPIC_API_KEY"]
+    required = ["ANTHROPIC_API_KEY", "JWT_SECRET"]
     missing = [var for var in required if not os.getenv(var)]
     if missing:
         raise RuntimeError(
@@ -58,6 +58,36 @@ app.add_middleware(
 
 app.include_router(router, prefix="/api")
 app.include_router(rate_limit_router, prefix="/api")
+
+# Auth routers (fastapi-users)
+from api.auth import fastapi_users, auth_backend
+from db.models import UserRead, UserCreate, UserUpdate
+
+app.include_router(
+    fastapi_users.get_auth_router(auth_backend),
+    prefix="/api/auth/jwt",
+    tags=["auth"],
+)
+app.include_router(
+    fastapi_users.get_register_router(UserRead, UserCreate),
+    prefix="/api/auth",
+    tags=["auth"],
+)
+app.include_router(
+    fastapi_users.get_reset_password_router(),
+    prefix="/api/auth",
+    tags=["auth"],
+)
+app.include_router(
+    fastapi_users.get_verify_router(UserRead),
+    prefix="/api/auth",
+    tags=["auth"],
+)
+app.include_router(
+    fastapi_users.get_users_router(UserRead, UserUpdate),
+    prefix="/api/users",
+    tags=["users"],
+)
 
 
 if __name__ == "__main__":

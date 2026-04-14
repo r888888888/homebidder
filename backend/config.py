@@ -27,6 +27,20 @@ class _Settings:
         return key
 
     # ------------------------------------------------------------------ #
+    # Auth                                                                 #
+    # ------------------------------------------------------------------ #
+
+    @property
+    def jwt_secret(self) -> str:
+        secret = os.getenv("JWT_SECRET")
+        if not secret:
+            raise RuntimeError(
+                "JWT_SECRET is not set. "
+                "Generate a long random string and add it to your .env file."
+            )
+        return secret
+
+    # ------------------------------------------------------------------ #
     # Database                                                             #
     # ------------------------------------------------------------------ #
 
@@ -65,6 +79,10 @@ class _Settings:
     @property
     def rate_limit_analyses_per_day(self) -> int:
         return int(os.getenv("RATE_LIMIT_ANALYSES_PER_DAY", "5"))
+
+    @property
+    def rate_limit_authenticated_per_day(self) -> int:
+        return int(os.getenv("RATE_LIMIT_AUTHENTICATED_PER_DAY", "20"))
 
     @property
     def enable_description_llm(self) -> bool:

@@ -1,4 +1,4 @@
-"""Rate limiting for unauthenticated visitors."""
+"""Rate limiting for unauthenticated and authenticated visitors."""
 
 import hashlib
 from datetime import datetime, timedelta
@@ -9,7 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
 from db import get_db
-from db.models import RateLimitEntry
+from db.models import RateLimitEntry, User
+from api.auth import current_optional_user
 
 rate_limit_router = APIRouter()
 
@@ -31,17 +32,28 @@ def get_client_identifier(request: Request) -> str:
 async def check_and_record_rate_limit(
     request: Request,
     db: AsyncSession = Depends(get_db),
+    user: User | None = Depends(current_optional_user),
 ) -> None:
-    """FastAPI dependency: enforce the per-IP daily analysis limit.
+    """FastAPI dependency: enforce the per-IP or per-account daily analysis limit.
 
-    Raises HTTP 429 if the caller has already reached the limit. Otherwise
-    records a new entry so subsequent calls count it. The entry is committed
-    before the route handler runs, claiming the slot atomically.
+    Authenticated users are tracked by their account UUID and get a higher daily
+    quota (RATE_LIMIT_AUTHENTICATED_PER_DAY, default 20). Anonymous users are
+    tracked by hashed IP and get the standard quota (RATE_LIMIT_ANALYSES_PER_DAY,
+    default 5).
+
+    Raises HTTP 429 if the caller has already reached the limit. Otherwise records
+    a new entry so subsequent calls count it.
     """
     if not settings.rate_limit_enabled:
         return
 
-    identifier = get_client_identifier(request)
+    if user is not None:
+        identifier = str(user.id)
+        limit = settings.rate_limit_authenticated_per_day
+    else:
+        identifier = get_client_identifier(request)
+        limit = settings.rate_limit_analyses_per_day
+
     cutoff = datetime.utcnow() - timedelta(hours=24)
 
     count = await db.scalar(
@@ -51,7 +63,7 @@ async def check_and_record_rate_limit(
         )
     )
 
-    if count >= settings.rate_limit_analyses_per_day:
+    if count >= limit:
         raise HTTPException(
             status_code=429,
             detail="Daily analysis limit reached. Please try again tomorrow.",
@@ -70,6 +82,7 @@ async def rate_limit_status(
     """Return the caller's current usage against the daily analysis limit.
 
     Used by the frontend to display a remaining-analyses counter.
+    Always uses the IP-based identifier (anonymous view of the limit).
     """
     identifier = get_client_identifier(request)
     limit = settings.rate_limit_analyses_per_day
