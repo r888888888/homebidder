@@ -38,9 +38,10 @@ SAMPLE_ROWS = [
 
 
 class TestParseHpiXlsx:
-    def test_returns_rows_for_matching_zip(self):
-        xlsx = _make_xlsx_bytes(SAMPLE_ROWS)
-        rows = _parse_hpi_xlsx(xlsx, "94114")
+    def test_returns_rows_for_matching_zip(self, tmp_path):
+        cache = tmp_path / "fhfa.xlsx"
+        cache.write_bytes(_make_xlsx_bytes(SAMPLE_ROWS))
+        rows = _parse_hpi_xlsx(str(cache), "94114")
         assert len(rows) == 3
 
 

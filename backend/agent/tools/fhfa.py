@@ -10,14 +10,13 @@ XLSX structure:
   Row 5:    column headers — "Five-Digit ZIP Code", "Year", "Annual Change (%)", ...
   Row 6+:   data rows; "Annual Change (%)" is NaN for the first recorded year
 """
-import io
 import os
 import time
 from pathlib import Path
 from typing import Any
 
 import httpx
-import pandas as pd
+import openpyxl
 
 from agent.tools.zillow_hpi import fetch_zillow_hpi
 
@@ -44,11 +43,6 @@ async def _download_hpi() -> bytes:
         return resp.content
 
 
-async def _get_hpi_bytes() -> bytes:
-    with open(CACHE_PATH, "rb") as f:
-        return f.read()
-
-
 async def prefetch_fhfa_hpi_dataset(force: bool = False) -> bool:
     """
     Download and cache the national FHFA ZIP5 HPI workbook.
@@ -63,34 +57,51 @@ async def prefetch_fhfa_hpi_dataset(force: bool = False) -> bool:
     return True
 
 
-def _parse_hpi_xlsx(raw_bytes: bytes, zip_code: str) -> list[dict[str, Any]]:
+def _parse_hpi_xlsx(cache_path: str, zip_code: str) -> list[dict[str, Any]]:
     """
-    Parse the FHFA ZIP5 HPI XLSX and return rows for the given ZIP sorted newest-first.
-    Rows with NaN annual change (first year of recording) are skipped.
+    Stream the FHFA ZIP5 HPI XLSX row-by-row using openpyxl read_only mode.
+    Never loads the full workbook into memory.
+    Rows with null annual change (first year of recording) are skipped.
     """
-    df = pd.read_excel(io.BytesIO(raw_bytes), engine="openpyxl", header=_HEADER_ROW)
-
-    # Normalize column names (strip whitespace)
-    df.columns = [str(c).strip() for c in df.columns]
-
-    # Filter to the requested ZIP (stored as int in the XLSX)
     zip_int = int(zip_code)
-    df = df[df[_ZIP_COL] == zip_int]
+    wb = openpyxl.load_workbook(cache_path, read_only=True, data_only=True)
+    try:
+        ws = wb.worksheets[0]
+        zip_col_idx = year_col_idx = chg_col_idx = None
+        rows: list[dict[str, Any]] = []
 
-    # Drop rows where annual change is NaN (first year of recording has no change)
-    df = df.dropna(subset=[_CHG_COL])
-
-    if df.empty:
-        return []
-
-    rows = [
-        {
-            "zip_code": zip_code,
-            "year": str(int(row[_YEAR_COL])),
-            "annual_chg": float(row[_CHG_COL]),
-        }
-        for _, row in df.iterrows()
-    ]
+        for i, xl_row in enumerate(ws.iter_rows(values_only=True)):
+            if i < _HEADER_ROW:  # skip notes rows (0-indexed 0..4)
+                continue
+            if i == _HEADER_ROW:  # header row (0-indexed 5)
+                header = [str(c).strip() if c is not None else "" for c in xl_row]
+                try:
+                    zip_col_idx = header.index(_ZIP_COL)
+                    year_col_idx = header.index(_YEAR_COL)
+                    chg_col_idx = header.index(_CHG_COL)
+                except ValueError:
+                    break
+                continue
+            if zip_col_idx is None:
+                continue
+            row_vals = list(xl_row)
+            if len(row_vals) <= max(zip_col_idx, year_col_idx, chg_col_idx):
+                continue
+            if row_vals[zip_col_idx] != zip_int:
+                continue
+            chg = row_vals[chg_col_idx]
+            if chg is None:  # first year of recording has no prior year to compare
+                continue
+            yr = row_vals[year_col_idx]
+            if yr is None:
+                continue
+            rows.append({
+                "zip_code": zip_code,
+                "year": str(int(yr)),
+                "annual_chg": float(chg),
+            })
+    finally:
+        wb.close()
 
     rows.sort(key=lambda r: r["year"], reverse=True)
     return rows
@@ -128,18 +139,14 @@ async def fetch_fhfa_hpi(zip_code: str) -> dict[str, Any]:
     Returns YoY change, 3-year average, and trend direction.
     Does not perform network downloads at request time.
     """
-    try:
-        raw = await _get_hpi_bytes()
-    except FileNotFoundError:
+    if not os.path.exists(CACHE_PATH):
         return {
             "zip_code": zip_code,
             "error": "FHFA HPI cache missing. Run prefetch_backend_data.py to download datasets.",
         }
-    except Exception as exc:
-        return {"zip_code": zip_code, "error": f"Failed to read FHFA HPI cache: {exc}"}
 
     try:
-        rows = _parse_hpi_xlsx(raw, zip_code)
+        rows = _parse_hpi_xlsx(CACHE_PATH, zip_code)
     except Exception as exc:
         return {"zip_code": zip_code, "error": f"Failed to parse FHFA HPI data: {exc}"}
 

@@ -10,7 +10,7 @@ import pytest
 
 from agent.tools.zillow_hpi import (
     _compute_annual_changes,
-    _parse_zhvi_csv,
+    _parse_zhvi_csv,  # new signature: (cache_path: str, zip_code: str)
     fetch_zillow_hpi,
     prefetch_zillow_zhvi,
 )
@@ -68,19 +68,22 @@ class TestComputeAnnualChanges:
 
 
 class TestParseZhviCsv:
-    def test_returns_rows_for_matching_zip(self):
-        csv_bytes = _make_csv_bytes("94109", SAMPLE_VALUES)
-        rows = _parse_zhvi_csv(csv_bytes, "94109")
+    def test_returns_rows_for_matching_zip(self, tmp_path):
+        cache = tmp_path / "zillow.csv"
+        cache.write_bytes(_make_csv_bytes("94109", SAMPLE_VALUES))
+        rows = _parse_zhvi_csv(str(cache), "94109")
         assert len(rows) == 4  # 5 years → 4 annual changes
 
-    def test_returns_empty_for_missing_zip(self):
-        csv_bytes = _make_csv_bytes("94109", SAMPLE_VALUES)
-        rows = _parse_zhvi_csv(csv_bytes, "94999")
+    def test_returns_empty_for_missing_zip(self, tmp_path):
+        cache = tmp_path / "zillow.csv"
+        cache.write_bytes(_make_csv_bytes("94109", SAMPLE_VALUES))
+        rows = _parse_zhvi_csv(str(cache), "94999")
         assert rows == []
 
-    def test_rows_are_newest_first(self):
-        csv_bytes = _make_csv_bytes("94109", SAMPLE_VALUES)
-        rows = _parse_zhvi_csv(csv_bytes, "94109")
+    def test_rows_are_newest_first(self, tmp_path):
+        cache = tmp_path / "zillow.csv"
+        cache.write_bytes(_make_csv_bytes("94109", SAMPLE_VALUES))
+        rows = _parse_zhvi_csv(str(cache), "94109")
         assert rows[0]["year"] == "2024"
 
 

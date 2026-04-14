@@ -7,14 +7,13 @@ Zillow publishes ZIP-level ZHVI as a CSV:
 
 Used as a fallback when FHFA ZIP5 HPI does not cover a given ZIP code.
 """
-import io
+import csv
 import os
 import time
 from pathlib import Path
 from typing import Any
 
 import httpx
-import pandas as pd
 
 ZILLOW_URL = (
     "https://files.zillowstatic.com/research/public_csvs/zhvi/"
@@ -77,40 +76,57 @@ def _compute_annual_changes(yearly_values: dict[int, float]) -> list[dict[str, A
     return rows
 
 
-def _parse_zhvi_csv(raw_bytes: bytes, zip_code: str) -> list[dict[str, Any]]:
+def _parse_zhvi_csv(cache_path: str, zip_code: str) -> list[dict[str, Any]]:
     """
-    Parse the Zillow ZHVI CSV and return annual-change rows for the given ZIP.
-    Uses the last value of each calendar year as the year's representative value.
+    Stream the ZHVI CSV line-by-line to find the given ZIP code row.
+    Never loads the full file into memory.
+    Uses the last value of each calendar year as the year's representative value
+    (columns are in chronological order, so the last non-null value per year wins).
     """
-    df = pd.read_csv(io.BytesIO(raw_bytes), dtype={_REGION_COL: str})
-
-    # ZIP codes may be stored without leading zeros; normalize both sides
     zip_norm = zip_code.lstrip("0") or "0"
-    df[_REGION_COL] = df[_REGION_COL].str.lstrip("0").fillna("0")
-    row = df[df[_REGION_COL] == zip_norm]
 
-    if row.empty:
-        return []
+    with open(cache_path, "r", encoding="utf-8", newline="") as f:
+        reader = csv.reader(f)
+        try:
+            header = next(reader)
+        except StopIteration:
+            return []
 
-    # Extract date columns (format YYYY-MM-DD)
-    date_cols = [c for c in df.columns if len(c) == 10 and c[4] == "-" and c[7] == "-"]
-    if not date_cols:
-        return []
+        try:
+            region_idx = header.index(_REGION_COL)
+        except ValueError:
+            return []
 
-    values = row[date_cols].iloc[0]
-    values = values.dropna()
+        # Identify date columns (format YYYY-MM-DD) by index
+        date_cols = [
+            (i, col) for i, col in enumerate(header)
+            if len(col) == 10 and col[4] == "-" and col[7] == "-"
+        ]
+        if not date_cols:
+            return []
 
-    # Group by year, take the last (most recent) month of each year
-    yearly: dict[int, float] = {}
-    for col, val in values.items():
-        yr = int(col[:4])
-        # Keep the latest month per year
-        if yr not in yearly or col > max(
-            (c for c in values.index if c[:4] == str(yr)), default=""
-        ):
-            yearly[yr] = float(val)
+        for row in reader:
+            if len(row) <= region_idx:
+                continue
+            if (row[region_idx].lstrip("0") or "0") != zip_norm:
+                continue
 
-    return _compute_annual_changes(yearly)
+            # Found the matching ZIP — extract yearly values
+            yearly: dict[int, float] = {}
+            for i, col in date_cols:
+                if i >= len(row):
+                    continue
+                val = row[i].strip()
+                if not val:
+                    continue
+                try:
+                    yearly[int(col[:4])] = float(val)  # later months overwrite earlier
+                except ValueError:
+                    continue
+
+            return _compute_annual_changes(yearly)
+
+    return []
 
 
 def _compute_hpi_stats(rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -145,19 +161,14 @@ async def fetch_zillow_hpi(zip_code: str) -> dict[str, Any]:
     Returns YoY change, 3-year average, and trend direction.
     Does not perform network downloads at request time.
     """
-    try:
-        with open(CACHE_PATH, "rb") as f:
-            raw = f.read()
-    except FileNotFoundError:
+    if not os.path.exists(CACHE_PATH):
         return {
             "zip_code": zip_code,
             "error": "Zillow ZHVI cache missing. Run prefetch_backend_data.py to download datasets.",
         }
-    except Exception as exc:
-        return {"zip_code": zip_code, "error": f"Failed to read Zillow ZHVI cache: {exc}"}
 
     try:
-        rows = _parse_zhvi_csv(raw, zip_code)
+        rows = _parse_zhvi_csv(CACHE_PATH, zip_code)
     except Exception as exc:
         return {"zip_code": zip_code, "error": f"Failed to parse Zillow ZHVI data: {exc}"}
 
