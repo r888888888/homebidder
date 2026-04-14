@@ -320,6 +320,101 @@ describe("PropertySummaryCard", () => {
       render(<PropertySummaryCard property={BASE_PROPERTY} />);
       expect(screen.queryByRole("img")).not.toBeInTheDocument();
     });
+
+    it("opens lightbox when a photo thumbnail is clicked", () => {
+      render(
+        <PropertySummaryCard
+          property={{
+            ...BASE_PROPERTY,
+            photos: [
+              "https://ap.rdcpix.com/abc/img1.jpg",
+              "https://ap.rdcpix.com/abc/img2.jpg",
+            ],
+          }}
+        />
+      );
+      const thumbnails = screen.getAllByRole("button", { name: /Property photo/i });
+      fireEvent.click(thumbnails[0]);
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      expect(screen.getByRole("dialog").querySelector("img")).toHaveAttribute(
+        "src",
+        "https://ap.rdcpix.com/abc/img1.jpg"
+      );
+    });
+
+    it("closes lightbox when close button is clicked", () => {
+      render(
+        <PropertySummaryCard
+          property={{
+            ...BASE_PROPERTY,
+            photos: ["https://ap.rdcpix.com/abc/img1.jpg"],
+          }}
+        />
+      );
+      const thumbnails = screen.getAllByRole("button", { name: /Property photo/i });
+      fireEvent.click(thumbnails[0]);
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: /close/i }));
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    it("closes lightbox when Escape key is pressed", () => {
+      render(
+        <PropertySummaryCard
+          property={{
+            ...BASE_PROPERTY,
+            photos: ["https://ap.rdcpix.com/abc/img1.jpg"],
+          }}
+        />
+      );
+      const thumbnails = screen.getAllByRole("button", { name: /Property photo/i });
+      fireEvent.click(thumbnails[0]);
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      fireEvent.keyDown(document, { key: "Escape" });
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    it("navigates to next photo in lightbox", () => {
+      render(
+        <PropertySummaryCard
+          property={{
+            ...BASE_PROPERTY,
+            photos: [
+              "https://ap.rdcpix.com/abc/img1.jpg",
+              "https://ap.rdcpix.com/abc/img2.jpg",
+            ],
+          }}
+        />
+      );
+      const thumbnails = screen.getAllByRole("button", { name: /Property photo/i });
+      fireEvent.click(thumbnails[0]);
+      fireEvent.click(screen.getByRole("button", { name: /next/i }));
+      expect(screen.getByRole("dialog").querySelector("img")).toHaveAttribute(
+        "src",
+        "https://ap.rdcpix.com/abc/img2.jpg"
+      );
+    });
+
+    it("navigates to previous photo in lightbox", () => {
+      render(
+        <PropertySummaryCard
+          property={{
+            ...BASE_PROPERTY,
+            photos: [
+              "https://ap.rdcpix.com/abc/img1.jpg",
+              "https://ap.rdcpix.com/abc/img2.jpg",
+            ],
+          }}
+        />
+      );
+      const thumbnails = screen.getAllByRole("button", { name: /Property photo/i });
+      fireEvent.click(thumbnails[1]);
+      fireEvent.click(screen.getByRole("button", { name: /previous/i }));
+      expect(screen.getByRole("dialog").querySelector("img")).toHaveAttribute(
+        "src",
+        "https://ap.rdcpix.com/abc/img1.jpg"
+      );
+    });
   });
 
   describe("sold listing fallback source display", () => {

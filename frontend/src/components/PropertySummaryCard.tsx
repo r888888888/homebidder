@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export interface PropertyData {
   address_input?: string | null;
@@ -189,6 +189,20 @@ interface Props {
 export function PropertySummaryCard({ property }: Props) {
   const [descExpanded, setDescExpanded] = useState(false);
   const [galleryExpanded, setGalleryExpanded] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (lightboxIndex === null) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLightboxIndex(null);
+      if (e.key === "ArrowRight")
+        setLightboxIndex((i) => (i !== null && property.photos ? Math.min(i + 1, property.photos.length - 1) : i));
+      if (e.key === "ArrowLeft")
+        setLightboxIndex((i) => (i !== null ? Math.max(i - 1, 0) : i));
+    };
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [lightboxIndex, property.photos]);
   const displayAddress = property.address_input?.trim() || property.address_matched;
   const matchedAddressDisplay = normalizeMatchedAddressWithUnit(
     property.address_input,
@@ -278,19 +292,32 @@ export function PropertySummaryCard({ property }: Props) {
           ))}
         </div>
         {property.photos && property.photos.length > 0 && (() => {
-          const visiblePhotos = galleryExpanded ? property.photos! : property.photos!.slice(0, 6);
-          const hasMore = property.photos!.length > 6;
+          const allPhotos = property.photos!;
+          const visiblePhotos = galleryExpanded ? allPhotos : allPhotos.slice(0, 6);
+          const hasMore = allPhotos.length > 6;
           return (
             <div className="mt-3">
               <div className="grid grid-cols-3 gap-1 sm:grid-cols-4">
                 {visiblePhotos.map((url, i) => (
-                  <img
+                  <button
                     key={i}
-                    src={url}
-                    alt={`Property photo ${i + 1}`}
-                    className="h-20 w-full rounded object-cover"
-                    loading="lazy"
-                  />
+                    type="button"
+                    aria-label={`Property photo ${i + 1}`}
+                    onClick={() => setLightboxIndex(i)}
+                    className="group relative overflow-hidden rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--navy)]"
+                  >
+                    <img
+                      src={url}
+                      alt={`Property photo ${i + 1}`}
+                      className="h-20 w-full object-cover transition-transform duration-200 group-hover:scale-105"
+                      loading="lazy"
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors duration-200 group-hover:bg-black/20">
+                      <svg className="h-5 w-5 text-white opacity-0 drop-shadow transition-opacity duration-200 group-hover:opacity-100" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0zM11 8v6M8 11h6" />
+                      </svg>
+                    </div>
+                  </button>
                 ))}
               </div>
               {hasMore && (
@@ -301,9 +328,66 @@ export function PropertySummaryCard({ property }: Props) {
                 >
                   {galleryExpanded
                     ? "Show fewer photos"
-                    : `Show all ${property.photos!.length} photos`}
+                    : `Show all ${allPhotos.length} photos`}
                 </button>
               )}
+            </div>
+          );
+        })()}
+        {lightboxIndex !== null && property.photos && (() => {
+          const photos = property.photos!;
+          const idx = lightboxIndex;
+          return (
+            <div
+              role="dialog"
+              aria-label="Photo lightbox"
+              aria-modal="true"
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/85"
+              onClick={() => setLightboxIndex(null)}
+            >
+              <button
+                type="button"
+                aria-label="Close"
+                onClick={() => setLightboxIndex(null)}
+                className="absolute right-4 top-4 rounded-full bg-black/50 p-2 text-white hover:bg-black/70 focus:outline-none"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+              {idx > 0 && (
+                <button
+                  type="button"
+                  aria-label="Previous photo"
+                  onClick={(e) => { e.stopPropagation(); setLightboxIndex(idx - 1); }}
+                  className="absolute left-4 rounded-full bg-black/50 p-2 text-white hover:bg-black/70 focus:outline-none"
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+              )}
+              <img
+                src={photos[idx]}
+                alt={`Property photo ${idx + 1}`}
+                className="max-h-[85vh] max-w-[90vw] rounded object-contain shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              />
+              {idx < photos.length - 1 && (
+                <button
+                  type="button"
+                  aria-label="Next photo"
+                  onClick={(e) => { e.stopPropagation(); setLightboxIndex(idx + 1); }}
+                  className="absolute right-4 rounded-full bg-black/50 p-2 text-white hover:bg-black/70 focus:outline-none"
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              )}
+              <div className="absolute bottom-4 text-sm text-white/70">
+                {idx + 1} / {photos.length}
+              </div>
             </div>
           );
         })()}
