@@ -44,7 +44,7 @@ upload() {
   local local_size
   local_size=$(wc -c < "$file" | tr -d '[:space:]')
   local remote_size
-  remote_size=$(flyctl ssh console --app "$APP" -C "stat -c%s /app/data/$name 2>/dev/null || echo -1" 2>/dev/null | tr -d '[:space:]') || true
+  remote_size=$(flyctl ssh console --app "$APP" -C "sh -c 'stat -c%s /app/data/$name 2>/dev/null || echo -1'" 2>/dev/null | tr -d '[:space:]') || true
 
   if [ "$FORCE" -eq 0 ] && [ "$local_size" = "$remote_size" ]; then
     echo "  Skipping $name (unchanged, $local_size bytes)"
@@ -53,7 +53,7 @@ upload() {
 
   local size
   size=$(du -sh "$file" | cut -f1)
-  echo "  Uploading $name ($size)..."
+  echo "  Uploading $name ($size, local: $local_size, remote: ${remote_size:-empty})..."
   cat "$file" | flyctl ssh console --app "$APP" -C "sh -c 'cat > /app/data/$name'" || {
     wake_machine
     cat "$file" | flyctl ssh console --app "$APP" -C "sh -c 'cat > /app/data/$name'"
