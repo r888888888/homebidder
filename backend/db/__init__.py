@@ -11,6 +11,18 @@ log = logging.getLogger(__name__)
 # otherwise fall through to the centralised settings object.
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./homebidder.db")
 
+# Ensure the parent directory exists for file-based SQLite URLs (e.g. on a
+# freshly-mounted Fly volume where the subdirectory hasn't been created yet).
+if DATABASE_URL.startswith("sqlite"):
+    # Split on the triple-slash to get the file path portion.
+    # sqlite+aiosqlite:////app/data/db/homebidder.db -> /app/data/db/homebidder.db
+    # sqlite+aiosqlite:///./homebidder.db            -> ./homebidder.db
+    _parts = DATABASE_URL.split("///", 1)
+    if len(_parts) == 2:
+        _db_dir = os.path.dirname(os.path.abspath(_parts[1]))
+        if _db_dir:
+            os.makedirs(_db_dir, exist_ok=True)
+
 engine = create_async_engine(DATABASE_URL, echo=False)
 SessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 

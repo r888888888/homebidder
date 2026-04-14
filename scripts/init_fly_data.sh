@@ -11,10 +11,15 @@ set -euo pipefail
 APP="homebidder-api"
 FORCE="${1:-}"
 
+echo "==> Waking up $APP machine..."
+flyctl machine start --app "$APP" 2>/dev/null || true
+# Give the machine a few seconds to reach the running state
+sleep 5
+
 echo "==> Downloading CA hazard GeoJSON + market datasets on $APP..."
-flyctl ssh console --app "$APP" -C "cd /app && python3 scripts/prefetch_backend_data.py ${FORCE}"
+flyctl ssh console --app "$APP" -C "python3 /app/scripts/prefetch_backend_data.py ${FORCE}"
 
 echo "==> Downloading CalEnviroScreen 4.0 GeoJSON on $APP..."
-flyctl ssh console --app "$APP" -C "cd /app && python3 scripts/download_calenviroscreen.py ${FORCE}"
+flyctl ssh console --app "$APP" -C "python3 /app/scripts/download_calenviroscreen.py ${FORCE}"
 
 echo "==> Done. Data volume is populated."
