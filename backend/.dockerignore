@@ -1,0 +1,10 @@
+__pycache__
+.pytest_cache
+*.pyc
+*.pyo
+.env
+homebidder.db
+homebidder.log
+homebidder.log.*
+data/
+tests/

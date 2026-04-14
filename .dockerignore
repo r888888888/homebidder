@@ -1,0 +1,12 @@
+backend/__pycache__
+backend/.pytest_cache
+backend/**/*.pyc
+backend/**/*.pyo
+backend/.env
+backend/homebidder.db
+backend/homebidder.log
+backend/homebidder.log.*
+backend/data/
+backend/tests/
+frontend/
+.git/
