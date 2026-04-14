@@ -2,21 +2,29 @@ import json
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from db import get_db
 from agent.orchestrator import run_agent
 from api.rate_limit import check_and_record_rate_limit
+from api.sanitize import sanitize_buyer_context
 
 router = APIRouter()
 
 
 class AnalyzeRequest(BaseModel):
-    address: str
-    buyer_context: str = ""
+    address: str = Field(max_length=200)
+    buyer_context: str = Field(default="", max_length=500)
     force_refresh: bool = False
+
+    @field_validator("address", "buyer_context", mode="before")
+    @classmethod
+    def _sanitize_text_fields(cls, v: object) -> object:
+        if isinstance(v, str):
+            return sanitize_buyer_context(v)
+        return v
 
 
 @router.post("/analyze")

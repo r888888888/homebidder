@@ -474,7 +474,7 @@ async def estimate_renovation_cost(
         f"{property_data.get('property_type', 'unknown')}, "
         f"{bedrooms or 'unknown'} bed / {bathrooms or 'unknown'} bath\n"
         f"Fixer signals: {', '.join(fixer_phrases) if fixer_phrases else 'general fixer condition'}\n"
-        + (f"Buyer notes: {buyer_context}\n" if buyer_context.strip() else "")
+        + (f"<buyer_notes>\n{buyer_context}\n</buyer_notes>\n" if buyer_context.strip() else "")
         + "\nReturn JSON only (4–7 line items):\n"
         '{"line_items": [{"category": "...", "low": <int>, "high": <int>}], "scope_notes": "..."}\n'
         "Include only items that make sense for this scope. Integers only for costs."

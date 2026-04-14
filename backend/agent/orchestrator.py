@@ -653,8 +653,8 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
             "role": "user",
             "content": (
                 f"Please analyze this property and recommend an offer price.\n\n"
-                f"Property address: {address}\n"
-                + (f"Buyer notes: {buyer_context}\n" if buyer_context else "")
+                f"<property_address>{address}</property_address>\n"
+                + (f"<buyer_notes>\n{buyer_context}\n</buyer_notes>\n" if buyer_context else "")
             ),
         }
     ]
