@@ -27,8 +27,8 @@ sleep 5
 echo "==> Disabling autostop for upload..."
 MACHINE_ID=$(flyctl machine list --app "$APP" --json 2>/dev/null \
   | python3 -c "import sys,json; print(json.load(sys.stdin)[0]['id'])")
-flyctl machine update "$MACHINE_ID" --autostop=off --app "$APP" >/dev/null
-trap 'echo "==> Re-enabling autostop..."; flyctl machine update "$MACHINE_ID" --autostop=stop --app "$APP" >/dev/null || true' EXIT
+flyctl machine update "$MACHINE_ID" --autostop=off --yes --app "$APP" >/dev/null
+trap 'echo "==> Re-enabling autostop..."; flyctl machine update "$MACHINE_ID" --autostop=stop --yes --app "$APP" >/dev/null || true' EXIT
 
 echo "==> Ensuring /app/data directory exists..."
 flyctl ssh console --app "$APP" -C "mkdir -p /app/data"
