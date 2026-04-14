@@ -59,6 +59,14 @@ class _Settings:
     # ------------------------------------------------------------------ #
 
     @property
+    def rate_limit_enabled(self) -> bool:
+        return os.getenv("RATE_LIMIT_ENABLED", "true").lower() in ("true", "1", "yes")
+
+    @property
+    def rate_limit_analyses_per_day(self) -> int:
+        return int(os.getenv("RATE_LIMIT_ANALYSES_PER_DAY", "5"))
+
+    @property
     def enable_description_llm(self) -> bool:
         return os.getenv("ENABLE_DESCRIPTION_LLM", "").strip() == "1"
 

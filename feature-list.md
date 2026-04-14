@@ -1,6 +1,5 @@
 # TODO
 
-- Visitors without a user account should only be able to generate 5 analyses per day. Figure out the best ways of doing this (whether by IP address, cookie, etc)
 - Persist which renovation options were toggled in teh database
 - Move feature flags into database. Add admin portal for managing the feature flags. Admin portal should be simple HTTP auth protected.
 - Plan this new feature: Add support for user accounts. An account is not required to start an analysis, but an analysis should tie back to your account if you start one while logged in. Users should have access to a basic profile page with some basic functionality (change password, delete account). Enable social logins with Google or Apple or Facebook.
@@ -13,6 +12,7 @@
 
 # DONE
 
+- Rate-limit unauthenticated visitors to 5 analyses per 24-hour rolling window. IP-based identification using Fly-Client-IP header (hashed for privacy). New rate_limit_entries DB table; RATE_LIMIT_ENABLED / RATE_LIMIT_ANALYSES_PER_DAY env vars. GET /api/rate-limit/status endpoint returns used/remaining/reset_at. Frontend shows a counter below the form card ("N of 5 free analyses remaining today"), turns amber at ≤ 2, shows reset time at 0. Submit button shows "Daily limit reached" and is disabled when quota exhausted. analysis.tsx shows a specific toast on 429.
 - Add favicon to deployed app. Updated manifest.json with HomeBidder branding (was placeholder TanStack App values); added ICO fallback link and manifest link to HTML head alongside the existing SVG icon reference.
 - Surface additional CalEnviroScreen 4.0 data points in risk analysis. Investigated all CES fields; added two new risk factors: Air Quality (PM2.5 percentile, already fetched but previously unused) and Environmental Contamination (cleanup/Superfund sites, groundwater threats, hazardous waste — each scored high/moderate/low at ≥80th/≥60th pct thresholds). Both factors are displayed in the Risk tab with CalEnviroScreen labels. Backend expanded to return 8 CES fields (was 4). Skipped: pesticides (rural/agricultural, not relevant for Bay Area urban properties), ozone (not property-specific), socioeconomic indicators (already covered by school ratings).
 - Show crime rates near the property. Hybrid approach: DataSF Socrata API (SFPD data, free) for San Francisco properties; SpotCrime API (requires SPOTCRIME_API_KEY) for other Bay Area cities. Incidents within 0.5-mile radius over 90 days; distinguishes violent (assault, robbery, homicide, rape) from property (theft, burglary, auto theft, arson). Displayed in Risk tab as CrimeCard with color-coded counts (green/amber/red) and top crime types. Persisted in crime_data_json column and replayed from cache.

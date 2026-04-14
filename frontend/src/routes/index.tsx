@@ -1,5 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { AnalysisForm } from "../components/AnalysisForm";
+import { apiBase } from "../lib/api";
 
 export const Route = createFileRoute("/")({
   component: HomePage,
@@ -49,12 +51,33 @@ const HOW_IT_WORKS = [
   },
 ];
 
-function HomePage() {
+interface RateLimitInfo {
+  used: number;
+  limit: number;
+  remaining: number;
+  reset_at: string | null;
+}
+
+function formatResetTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
+export function HomePage() {
   const navigate = useNavigate();
+  const [rateLimitInfo, setRateLimitInfo] = useState<RateLimitInfo | null>(null);
+
+  useEffect(() => {
+    fetch(`${apiBase}/api/rate-limit/status`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => data && setRateLimitInfo(data))
+      .catch(() => {});
+  }, []);
 
   function handleSubmit(address: string, buyerContext: string) {
     navigate({ to: "/analysis", search: { address, buyerContext } });
   }
+
+  const rateLimitReached = rateLimitInfo !== null && rateLimitInfo.remaining === 0;
 
   return (
     <>
@@ -88,8 +111,31 @@ function HomePage() {
 
           {/* Form card */}
           <div className="card w-full p-6 sm:p-8">
-            <AnalysisForm onSubmit={handleSubmit} isRunning={false} />
+            <AnalysisForm
+              onSubmit={handleSubmit}
+              isRunning={false}
+              rateLimitReached={rateLimitReached}
+            />
           </div>
+
+          {/* Rate limit counter */}
+          {rateLimitInfo && (
+            <p
+              className={`mt-3 text-xs ${
+                rateLimitReached
+                  ? "text-red-300/80"
+                  : rateLimitInfo.remaining <= 2
+                    ? "text-yellow-300/70"
+                    : "text-white/40"
+              }`}
+            >
+              {rateLimitReached
+                ? rateLimitInfo.reset_at
+                  ? `Resets at ${formatResetTime(rateLimitInfo.reset_at)}`
+                  : "Try again tomorrow"
+                : `${rateLimitInfo.remaining} of ${rateLimitInfo.limit} free analyses remaining today`}
+            </p>
+          )}
 
           {/* Dev shortcut — only rendered in development builds */}
           {import.meta.env.DEV && (

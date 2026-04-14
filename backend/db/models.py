@@ -48,6 +48,14 @@ class Comp(Base):
     analysis: Mapped["Analysis"] = relationship("Analysis", back_populates="comps")
 
 
+class RateLimitEntry(Base):
+    __tablename__ = "rate_limit_entries"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    identifier: Mapped[str] = mapped_column(String(64), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+
 class Analysis(Base):
     __tablename__ = "analyses"
 

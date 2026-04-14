@@ -8,6 +8,7 @@ from sqlalchemy import select
 
 from db import get_db
 from agent.orchestrator import run_agent
+from api.rate_limit import check_and_record_rate_limit
 
 router = APIRouter()
 
@@ -22,6 +23,7 @@ class AnalyzeRequest(BaseModel):
 async def analyze_listing(
     req: AnalyzeRequest,
     db: AsyncSession = Depends(get_db),
+    _: None = Depends(check_and_record_rate_limit),
 ):
     """
     Stream an agent analysis for the given property address.

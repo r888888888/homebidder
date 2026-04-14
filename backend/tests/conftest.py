@@ -10,7 +10,13 @@ from httpx import AsyncClient, ASGITransport
 @pytest.fixture
 async def client():
     from main import app
-    from db import init_db
+    from db import engine, init_db
+    from db.models import Base
+
+    # Drop and recreate all tables so each test starts with a clean database.
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
     await init_db()
+
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac

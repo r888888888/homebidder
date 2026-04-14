@@ -50,6 +50,14 @@ export function AnalysisPage() {
         return;
       }
 
+      if (res.status === 429) {
+        if (!cancelled) {
+          toast.error("Daily analysis limit reached. Please try again tomorrow.");
+          setIsRunning(false);
+        }
+        return;
+      }
+
       if (!res.ok || !res.body) {
         if (!cancelled) {
           toast.error(`Server error: ${res.statusText}`);
