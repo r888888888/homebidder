@@ -59,6 +59,12 @@ app.add_middleware(
 app.include_router(router, prefix="/api")
 app.include_router(rate_limit_router, prefix="/api")
 
+from api.profile import profile_router
+app.include_router(profile_router, prefix="/api")
+
+from api.oauth import oauth_router
+app.include_router(oauth_router, prefix="/api")
+
 # Auth routers (fastapi-users)
 from api.auth import fastapi_users, auth_backend
 from db.models import UserRead, UserCreate, UserUpdate

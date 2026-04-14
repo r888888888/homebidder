@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import sessionmaker
 
 
-async def _mock_run_agent(address, buyer_context="", db=None, force_refresh=False):
+async def _mock_run_agent(address, buyer_context="", db=None, force_refresh=False, user_id=None):
     import json
     yield f"data: {json.dumps({'type': 'done'})}\n\n"
 

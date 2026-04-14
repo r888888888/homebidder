@@ -1,9 +1,10 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Integer, Float, DateTime, Text, ForeignKey, Uuid
+from sqlalchemy import String, Integer, Float, DateTime, Text, ForeignKey
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from fastapi_users.db import SQLAlchemyBaseUserTableUUID
 from fastapi_users import schemas
+from fastapi_users_db_sqlalchemy.generics import GUID
 
 
 class Base(DeclarativeBase):
@@ -94,7 +95,7 @@ class Analysis(Base):
     listing_id: Mapped[int] = mapped_column(Integer, ForeignKey("listings.id"), nullable=False)
     session_id: Mapped[str | None] = mapped_column(String(128))
     user_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+        GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
     offer_low: Mapped[float | None] = mapped_column(Float)
     offer_high: Mapped[float | None] = mapped_column(Float)

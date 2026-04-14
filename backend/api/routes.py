@@ -10,6 +10,8 @@ from db import get_db
 from agent.orchestrator import run_agent
 from api.rate_limit import check_and_record_rate_limit
 from api.sanitize import sanitize_buyer_context
+from api.auth import current_optional_user
+from db.models import User
 
 router = APIRouter()
 
@@ -32,14 +34,16 @@ async def analyze_listing(
     req: AnalyzeRequest,
     db: AsyncSession = Depends(get_db),
     _: None = Depends(check_and_record_rate_limit),
+    user: User | None = Depends(current_optional_user),
 ):
     """
     Stream an agent analysis for the given property address.
     Returns Server-Sent Events (text/event-stream).
     """
+    user_id = user.id if user is not None else None
 
     async def event_stream():
-        async for chunk in run_agent(req.address, req.buyer_context, db=db, force_refresh=req.force_refresh):
+        async for chunk in run_agent(req.address, req.buyer_context, db=db, force_refresh=req.force_refresh, user_id=user_id):
             yield chunk
 
     return StreamingResponse(
@@ -53,17 +57,25 @@ async def analyze_listing(
 
 
 @router.get("/analyses")
-async def list_analyses(db: AsyncSession = Depends(get_db)):
-    """List the last 20 analyses, newest first."""
-    from db.models import Listing, Analysis
-    from sqlalchemy.orm import selectinload
+async def list_analyses(
+    db: AsyncSession = Depends(get_db),
+    user: User | None = Depends(current_optional_user),
+):
+    """List the last 20 analyses for the caller, newest first.
 
-    stmt = (
-        select(Analysis, Listing.address_matched)
-        .join(Listing)
-        .order_by(Analysis.created_at.desc())
-        .limit(20)
-    )
+    Authenticated users see only their own analyses.
+    Anonymous callers see only analyses with no owner (user_id IS NULL).
+    """
+    from db.models import Listing, Analysis
+    from sqlalchemy import null
+
+    stmt = select(Analysis, Listing.address_matched).join(Listing)
+    if user is not None:
+        stmt = stmt.where(Analysis.user_id == user.id)
+    else:
+        stmt = stmt.where(Analysis.user_id == null())
+    stmt = stmt.order_by(Analysis.created_at.desc()).limit(20)
+
     rows = await db.execute(stmt)
     result = []
     for analysis, address in rows:
@@ -126,14 +138,31 @@ async def get_analysis(analysis_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.delete("/analyses/{analysis_id}", status_code=204)
-async def delete_analysis(analysis_id: int, db: AsyncSession = Depends(get_db)):
-    """Delete a saved analysis record."""
+async def delete_analysis(
+    analysis_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User | None = Depends(current_optional_user),
+):
+    """Delete a saved analysis record.
+
+    Authenticated users can only delete analyses they own.
+    Anonymous callers can only delete analyses with no owner (user_id IS NULL).
+    """
     from db.models import Analysis
 
     result = await db.execute(select(Analysis).where(Analysis.id == analysis_id))
     analysis = result.scalar_one_or_none()
     if analysis is None:
         raise HTTPException(status_code=404, detail="Analysis not found")
+
+    # Ownership check
+    if user is not None:
+        if analysis.user_id != user.id:
+            raise HTTPException(status_code=403, detail="Not authorized to delete this analysis")
+    else:
+        if analysis.user_id is not None:
+            raise HTTPException(status_code=403, detail="Not authorized to delete this analysis")
+
     await db.delete(analysis)
     await db.commit()
 

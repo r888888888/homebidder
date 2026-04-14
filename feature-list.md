@@ -1,5 +1,6 @@
 # TODO
-- Plan this new feature: Add support for user accounts. An account is not required to start an analysis, but an analysis should tie back to your account if you start one while logged in. Users should have access to a basic profile page with some basic functionality (change password, delete account). Enable social logins with Google or Apple or Facebook.
+
+- Update .env.sample with all the environment variables that are missing.
 - Persist which renovation options were toggled in teh database
 - Investigate ways of getting a more accurate link to Redfin for the property.
 - Research free ways to restore the AVM estimate. If there alternative can be found, restore the Rentcast integration. Make sure to gate it behind a feature flag.
@@ -11,6 +12,8 @@
 - Plan this new feature: a validation mode. The app should look at recently sold properties in SF and run analysis on each property. Then it should grade its performance. For poorly scoring analyses, use the LLM to hypothesize what caused the discrepancy.
 
 # DONE
+
+- User accounts (4 phases). Phase 1: email/password registration and login via fastapi-users (JWT Bearer, 30-day tokens), per-account rate limiting (20/day vs 5/day anonymous). Phase 2: analyses tied to the logged-in user, list/delete scoped by ownership, frontend AuthContext + login/register routes + auth headers on all API calls. Phase 3: profile page with change-password (PATCH /api/users/me) and delete-account (DELETE /api/users/me with ON DELETE SET NULL cascade on analyses). Phase 4: Google OAuth2 via httpx-oauth — authorize + callback endpoints, "Continue with Google" on login/register pages, /auth/callback/google route. Account not required; all existing anonymous flows unchanged.
 
 - Make the gallery photos clickable to open a larger version. Each thumbnail is wrapped in a button; clicking opens a full-screen lightbox overlay. Hover effect scales the image and shows a magnifier icon. Lightbox supports Escape to close, click-outside to close, close button, and previous/next navigation with arrow buttons and arrow keys.
 - Rate-limit unauthenticated visitors to 5 analyses per 24-hour rolling window. IP-based identification using Fly-Client-IP header (hashed for privacy). New rate_limit_entries DB table; RATE_LIMIT_ENABLED / RATE_LIMIT_ANALYSES_PER_DAY env vars. GET /api/rate-limit/status endpoint returns used/remaining/reset_at. Frontend shows a counter below the form card ("N of 5 free analyses remaining today"), turns amber at ≤ 2, shows reset time at 0. Submit button shows "Daily limit reached" and is disabled when quota exhausted. analysis.tsx shows a specific toast on 429.

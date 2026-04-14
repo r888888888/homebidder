@@ -1,12 +1,12 @@
 from unittest.mock import patch
 
 
-async def _mock_run_agent(address, buyer_context="", db=None, force_refresh=False):
+async def _mock_run_agent(address, buyer_context="", db=None, force_refresh=False, user_id=None):
     import json
     yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
 
-async def _mock_run_agent_with_analysis_id(address, buyer_context="", db=None, force_refresh=False):
+async def _mock_run_agent_with_analysis_id(address, buyer_context="", db=None, force_refresh=False, user_id=None):
     import json
     yield f"data: {json.dumps({'type': 'status', 'text': 'Starting...'})}\n\n"
     yield f"data: {json.dumps({'type': 'analysis_id', 'id': 42})}\n\n"

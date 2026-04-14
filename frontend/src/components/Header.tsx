@@ -1,6 +1,9 @@
 import { Link } from '@tanstack/react-router'
+import { useAuth } from '../lib/AuthContext'
 
 export default function Header() {
+  const { user, isLoading, logout } = useAuth()
+
   return (
     <header className="sticky top-0 z-50 border-b border-[var(--line)] bg-[var(--header-bg)] px-4 backdrop-blur-lg">
       <nav className="page-wrap flex items-center gap-x-3 py-3 sm:py-4">
@@ -19,12 +22,48 @@ export default function Header() {
             HomeBidder
           </span>
         </Link>
+
         <Link
           to="/history"
           className="ml-auto text-sm text-[var(--ink-soft)] no-underline hover:text-[var(--ink)]"
         >
           History
         </Link>
+
+        {!isLoading && (
+          user ? (
+            <>
+              <Link
+                to="/profile"
+                className="text-sm text-[var(--ink-soft)] no-underline hover:text-[var(--ink)]"
+              >
+                {user.email.split('@')[0]}
+              </Link>
+              <button
+                type="button"
+                onClick={logout}
+                className="text-sm text-[var(--ink-soft)] hover:text-[var(--ink)]"
+              >
+                Log out
+              </button>
+            </>
+          ) : (
+            <>
+              <Link
+                to="/login"
+                className="text-sm text-[var(--ink-soft)] no-underline hover:text-[var(--ink)]"
+              >
+                Log in
+              </Link>
+              <Link
+                to="/register"
+                className="rounded bg-[var(--navy)] px-3 py-1 text-sm font-semibold text-white no-underline hover:opacity-90"
+              >
+                Sign up
+              </Link>
+            </>
+          )
+        )}
       </nav>
     </header>
   )

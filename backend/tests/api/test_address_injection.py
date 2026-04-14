@@ -39,7 +39,7 @@ async def test_address_at_max_length_accepted(client):
     """address exactly 200 chars should pass validation."""
     from unittest.mock import patch
 
-    async def _mock(address, buyer_context="", db=None, force_refresh=False):
+    async def _mock(address, buyer_context="", db=None, force_refresh=False, user_id=None):
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
     with patch("api.routes.run_agent", _mock):
@@ -53,7 +53,7 @@ async def test_address_with_newline_injection_accepted_after_sanitization(client
     """address with \\n control chars should be sanitized and accepted (not 422)."""
     from unittest.mock import patch
 
-    async def _mock(address, buyer_context="", db=None, force_refresh=False):
+    async def _mock(address, buyer_context="", db=None, force_refresh=False, user_id=None):
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
     with patch("api.routes.run_agent", _mock):
@@ -67,7 +67,7 @@ async def test_address_with_angle_brackets_accepted_after_sanitization(client):
     """address with <> chars should be sanitized and accepted (not 422)."""
     from unittest.mock import patch
 
-    async def _mock(address, buyer_context="", db=None, force_refresh=False):
+    async def _mock(address, buyer_context="", db=None, force_refresh=False, user_id=None):
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
     with patch("api.routes.run_agent", _mock):

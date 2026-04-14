@@ -2,6 +2,7 @@ import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
 import Footer from '../components/Footer'
 import Header from '../components/Header'
 import { ToastProvider } from '../components/Toast'
+import { AuthProvider } from '../lib/AuthContext'
 
 import appCss from '../styles.css?url'
 
@@ -32,11 +33,13 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body className="font-sans antialiased [overflow-wrap:anywhere]">
-        <ToastProvider>
-          <Header />
-          {children}
-          <Footer />
-        </ToastProvider>
+        <AuthProvider>
+          <ToastProvider>
+            <Header />
+            {children}
+            <Footer />
+          </ToastProvider>
+        </AuthProvider>
         <Scripts />
       </body>
     </html>

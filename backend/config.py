@@ -105,6 +105,22 @@ class _Settings:
         return os.getenv("RENOVATION_LLM_MODEL", "claude-sonnet-4-6")
 
     # ------------------------------------------------------------------ #
+    # OAuth providers (optional — features disabled when empty)           #
+    # ------------------------------------------------------------------ #
+
+    @property
+    def google_client_id(self) -> str:
+        return os.getenv("GOOGLE_CLIENT_ID", "")
+
+    @property
+    def google_client_secret(self) -> str:
+        return os.getenv("GOOGLE_CLIENT_SECRET", "")
+
+    @property
+    def google_redirect_url(self) -> str:
+        return os.getenv("GOOGLE_REDIRECT_URL", "http://localhost:3000/auth/callback/google")
+
+    # ------------------------------------------------------------------ #
     # Server / logging                                                     #
     # ------------------------------------------------------------------ #
 

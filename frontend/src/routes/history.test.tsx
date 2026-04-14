@@ -187,7 +187,7 @@ describe("HistoryPage", () => {
 
     expect(fetch).toHaveBeenCalledWith(
       expect.stringContaining("/api/analyses/1"),
-      { method: "DELETE" }
+      expect.objectContaining({ method: "DELETE" })
     );
   });
 

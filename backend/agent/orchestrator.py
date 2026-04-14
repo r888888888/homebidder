@@ -270,6 +270,7 @@ async def _persist_analysis(
     renovation_result: dict | None = None,
     crime_result: dict | None = None,
     buyer_context: str = "",
+    user_id=None,
 ) -> int:
     """Write Listing, Analysis, and Comp records to DB and return analysis id."""
     from sqlalchemy import select
@@ -341,6 +342,7 @@ async def _persist_analysis(
         renovation_data_json=json.dumps(renovation_result) if renovation_result else None,
         crime_data_json=json.dumps(crime_result) if crime_result else None,
         buyer_context=buyer_context or None,
+        user_id=user_id,
     )
     db.add(analysis)
     await db.flush()
@@ -634,7 +636,7 @@ async def _run_phase9_renovation(
         )
 
 
-async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | None = None, force_refresh: bool = False) -> AsyncIterator[str]:
+async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | None = None, force_refresh: bool = False, user_id=None) -> AsyncIterator[str]:
     """
     Run the full agent loop for a property address.
     Yields SSE-formatted text chunks as the agent reasons.
@@ -772,6 +774,7 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
                         renovation_result=renovation_result_persist,
                         crime_result=phase6_crime,
                         buyer_context=buyer_context,
+                        user_id=user_id,
                     )
                     log.info("Analysis persisted: id=%d", analysis_id)
                     yield f"data: {json.dumps({'type': 'analysis_id', 'id': analysis_id})}\n\n"

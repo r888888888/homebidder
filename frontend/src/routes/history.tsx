@@ -7,6 +7,7 @@ import { InvestmentCard, type InvestmentData } from "../components/InvestmentCar
 import { FixerAnalysisCard, type FixerAnalysisData } from "../components/FixerAnalysisCard";
 import { useToast } from "../components/Toast";
 import { apiBase } from "../lib/api";
+import { authHeaders } from "../lib/auth";
 
 export const Route = createFileRoute("/history")({ component: HistoryPage });
 
@@ -45,7 +46,7 @@ export function HistoryPage() {
   const toast = useToast();
 
   useEffect(() => {
-    fetch(`${apiBase}/api/analyses`)
+    fetch(`${apiBase}/api/analyses`, { headers: authHeaders() })
       .then((r) => r.json())
       .then(setAnalyses)
       .catch(() => {
@@ -59,7 +60,7 @@ export function HistoryPage() {
       setDetail(null);
       return;
     }
-    const resp = await fetch(`${apiBase}/api/analyses/${id}`);
+    const resp = await fetch(`${apiBase}/api/analyses/${id}`, { headers: authHeaders() });
     if (!resp.ok) {
       toast.error(`Failed to load analysis: ${resp.statusText}`);
       return;
@@ -70,7 +71,7 @@ export function HistoryPage() {
   }
 
   const handleDelete = useCallback(async (id: number) => {
-    const resp = await fetch(`${apiBase}/api/analyses/${id}`, { method: "DELETE" });
+    const resp = await fetch(`${apiBase}/api/analyses/${id}`, { method: "DELETE", headers: authHeaders() });
     if (!resp.ok) {
       toast.error("Failed to delete analysis.");
       return;

@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
-from sqlalchemy import text
+from sqlalchemy import event, text
 from .models import Base
 import logging
 import sys
@@ -23,8 +23,18 @@ if DATABASE_URL.startswith("sqlite"):
         if _db_dir:
             os.makedirs(_db_dir, exist_ok=True)
 
-engine = create_async_engine(DATABASE_URL, echo=False)
+_engine_kwargs: dict = {"echo": False}
+
+engine = create_async_engine(DATABASE_URL, **_engine_kwargs)
 SessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+
+# Enable FK enforcement for every SQLite connection (no-op on other DBs).
+@event.listens_for(engine.sync_engine, "connect")
+def _set_sqlite_pragma(dbapi_conn, _connection_record):
+    if DATABASE_URL.startswith("sqlite"):
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA foreign_keys = ON")
+        cursor.close()
 
 # Columns added after the initial schema. Each entry is (column_name, DDL_type).
 # init_db() will ALTER TABLE to add any that are absent from the live database.
@@ -40,7 +50,7 @@ _ANALYSES_MIGRATIONS: list[tuple[str, str]] = [
     ("renovation_data_json",  "TEXT"),
     ("crime_data_json",       "TEXT"),
     ("buyer_context",         "TEXT"),
-    ("user_id",               "VARCHAR(36)"),
+    ("user_id",               "CHAR(36)"),
 ]
 
 _COMPS_MIGRATIONS: list[tuple[str, str]] = [

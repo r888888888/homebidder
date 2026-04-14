@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { AnalysisStream } from "../components/AnalysisStream";
 import { useToast } from "../components/Toast";
 import { apiBase } from "../lib/api";
+import { authHeaders } from "../lib/auth";
 import type { AnalysisEvent } from "./index";
 
 export const Route = createFileRoute("/analysis")({
@@ -38,7 +39,7 @@ export function AnalysisPage() {
       try {
         res = await fetch(`${apiBase}/api/analyze`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...authHeaders() },
           body: JSON.stringify({ address, buyer_context: buyerContext, force_refresh: refreshKey > 0 }),
           signal: controller.signal,
         });
