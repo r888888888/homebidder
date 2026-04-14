@@ -1,4 +1,4 @@
-FROM node:20-slim AS builder
+FROM node:22-slim AS builder
 
 WORKDIR /app
 
@@ -11,12 +11,16 @@ ENV VITE_API_URL=$VITE_API_URL
 COPY . .
 RUN npm run build
 
-FROM node:20-slim
+FROM node:22-slim
 
 WORKDIR /app
 
-COPY --from=builder /app/.output ./.output
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+
+COPY --from=builder /app/dist ./dist
+COPY serve.mjs ./
 
 EXPOSE 3000
 ENV PORT=3000
-CMD ["node", ".output/server/index.mjs"]
+CMD ["node", "serve.mjs"]
