@@ -1,9 +1,10 @@
 # TODO
 
+- The deployed app doesn't have a favicon.
+- Visitors without a user account should only be able to generate one analysis per day. Figure out the best ways of doing this (whether by IP address, cookie, etc)
 - Persist which renovation options were toggled in teh database
 - Move feature flags into database. Add admin portal for managing the feature flags. Admin portal should be simple HTTP auth protected.
 - Plan this new feature: Add support for user accounts. An account is not required to start an analysis, but an analysis should tie back to your account if you start one while logged in. Users should have access to a basic profile page with some basic functionality (change password, delete account). Enable social logins with Google or Apple or Facebook.
-- Visitors without a user account should only be able to generate one analysis per day. Figure out the best ways of doing this (whether by IP address, cookie, etc)
 - Research free ways to restore the AVM estimate. If there alternative can be found, restore the Rentcast integration. Make sure to gate it behind a feature flag.
 - Support inspection reports
 - Support pest inspection reports
@@ -19,6 +20,7 @@
 - Support showing nearby MUNI stops. Saved 30 MUNI Metro stops to backend/data/muni_stops.json; added to transit search pool alongside BART/Caltrain; displays in InvestmentCard as a separate "Nearest MUNI" panel.
 - Add a direct google maps link to the property.
 - I want to include images from the MLS listing. If possible embed directly, but if that isn't possible then just link to a gallery.
+- Fix photo gallery: _extract_photo_urls was reading a non-existent `photos` dict column; homeharvest actually exports `primary_photo` (single URL string) and `alt_photos` (comma-separated URL string). Updated to read both columns and combine into a list.
 - Update CLAUDE.md to instruct that a list of feature can be found in @feature-list.md. When instructed to implement the next feature, work off this list. Assume it is prioritized. When complete, move the item to the DONE section and commit your changes.
 - Verify that fire hazard zone and liquefaction zone actually work. Test with real locations.
 - Review the existing test coverage and remove tests that test scenarios that will likely never happen, or are based on assumptions that are no longer relevant. Look for opportunities to consolidate and refactor test coverage.

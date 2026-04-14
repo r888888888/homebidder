@@ -407,15 +407,26 @@ def _safe(row: Any, key: str, default: Any = None) -> Any:
 
 
 def _extract_photo_urls(row: Any) -> list[str]:
-    """Extract photo URLs from a homeharvest row's photos field."""
-    photos_raw = _safe(row, "photos", []) or []
-    if not isinstance(photos_raw, list):
-        return []
-    return [
-        str(p["href"])
-        for p in photos_raw
-        if isinstance(p, dict) and p.get("href")
-    ]
+    """Extract photo URLs from a homeharvest row.
+
+    homeharvest stores photos in two DataFrame columns:
+    - primary_photo: a single URL string
+    - alt_photos: a comma-separated string of URL strings
+    """
+    urls: list[str] = []
+
+    primary = _safe(row, "primary_photo")
+    if primary and isinstance(primary, str) and primary.strip():
+        urls.append(primary.strip())
+
+    alt_raw = _safe(row, "alt_photos")
+    if alt_raw and isinstance(alt_raw, str):
+        for url in alt_raw.split(", "):
+            url = url.strip()
+            if url:
+                urls.append(url)
+
+    return urls
 
 
 def _first_nonempty_text(*values: Any) -> str | None:

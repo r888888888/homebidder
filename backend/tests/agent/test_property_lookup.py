@@ -1147,16 +1147,14 @@ class TestSoldListingFallback:
 # ---------------------------------------------------------------------------
 
 class TestPhotosExtraction:
-    async def test_photos_urls_extracted_from_homeharvest_row(self):
-        """photos field is returned as a list of URL strings from homeharvest rows."""
+    async def test_photos_from_primary_and_alt_photos_columns(self):
+        """photos are extracted from homeharvest's primary_photo and alt_photos columns."""
         from agent.tools.property_lookup import _homeharvest_listing
 
         row = {
             **HOMEHARVEST_ROW,
-            "photos": [
-                {"href": "https://ap.rdcpix.com/abc123/img1.jpg", "title": None, "tags": []},
-                {"href": "https://ap.rdcpix.com/abc123/img2.jpg", "title": None, "tags": []},
-            ],
+            "primary_photo": "https://ap.rdcpix.com/abc123/primary.webp",
+            "alt_photos": "https://ap.rdcpix.com/abc123/img1.webp, https://ap.rdcpix.com/abc123/img2.webp",
         }
         df = _make_homeharvest_df([row])
 
@@ -1165,9 +1163,23 @@ class TestPhotosExtraction:
             result = await _homeharvest_listing("450 SANCHEZ ST, SAN FRANCISCO, CA, 94114")
 
         assert result["photos"] == [
-            "https://ap.rdcpix.com/abc123/img1.jpg",
-            "https://ap.rdcpix.com/abc123/img2.jpg",
+            "https://ap.rdcpix.com/abc123/primary.webp",
+            "https://ap.rdcpix.com/abc123/img1.webp",
+            "https://ap.rdcpix.com/abc123/img2.webp",
         ]
+
+    async def test_photos_only_primary_when_no_alt(self):
+        """photos contains only primary_photo when alt_photos is absent."""
+        from agent.tools.property_lookup import _homeharvest_listing
+
+        row = {**HOMEHARVEST_ROW, "primary_photo": "https://ap.rdcpix.com/abc123/primary.webp"}
+        df = _make_homeharvest_df([row])
+
+        with patch("agent.tools.property_lookup.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+            result = await _homeharvest_listing("450 SANCHEZ ST, SAN FRANCISCO, CA, 94114")
+
+        assert result["photos"] == ["https://ap.rdcpix.com/abc123/primary.webp"]
 
     async def test_photos_empty_list_when_column_absent(self):
         """photos is an empty list when the homeharvest row has no photos column."""
