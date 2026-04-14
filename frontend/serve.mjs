@@ -32,7 +32,14 @@ createServer(async (req, res) => {
   const filePath = join(CLIENT_DIR, pathname)
   if (existsSync(filePath) && statSync(filePath).isFile()) {
     const mime = MIME[extname(filePath)] || 'application/octet-stream'
-    res.writeHead(200, { 'Content-Type': mime, 'Cache-Control': 'public, max-age=31536000, immutable' })
+    // Hashed assets (e.g. /assets/main-ByKAYWMf.js) are immutable.
+    // Unhashed root files (favicon.ico, manifest.json, etc.) must be
+    // revalidated on each deploy so browsers pick up updates promptly.
+    const isHashedAsset = pathname.startsWith('/assets/')
+    const cacheControl = isHashedAsset
+      ? 'public, max-age=31536000, immutable'
+      : 'public, max-age=3600'
+    res.writeHead(200, { 'Content-Type': mime, 'Cache-Control': cacheControl })
     createReadStream(filePath).pipe(res)
     return
   }
