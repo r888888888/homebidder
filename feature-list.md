@@ -1,12 +1,15 @@
 # TODO
+
 - Persist which renovation options were toggled in teh database
-- Move feature flags into database. Add admin portal for managing the feature flags.
+- Move feature flags into database. Add admin portal for managing the feature flags. Admin portal should be simple HTTP auth protected.
+- Plan this new feature: Add support for user accounts. An account is not required to start an analysis, but an analysis should tie back to your account if you start one while logged in. Users should have access to a basic profile page with some basic functionality (change password, delete account). Enable social logins with Google or Apple or Facebook.
+- Visitors without a user account should only be able to generate one analysis per day. Figure out the best ways of doing this (whether by IP address, cookie, etc)
+- Research free ways to restore the AVM estimate. If there alternative can be found, restore the Rentcast integration. Make sure to gate it behind a feature flag.
 - Support inspection reports
 - Support pest inspection reports
 - Support disclosures
-- Review other potential factors for affecting retail price
 - Factor in seasonality of sales
-- Read rent estimation tools
+- Plan this new feature: a validation mode. The app should look at recently sold properties in SF and run analysis on each property. Then it should grade its performance. For poorly scoring analyses, use the LLM to hypothesize what caused the discrepancy.
 
 # DONE
 
