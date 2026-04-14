@@ -17,6 +17,8 @@ export const Route = createRootRoute({
     links: [
       { rel: 'stylesheet', href: appCss },
       { rel: 'icon', type: 'image/svg+xml', href: '/header-icon.svg' },
+      { rel: 'shortcut icon', href: '/favicon.ico' },
+      { rel: 'manifest', href: '/manifest.json' },
     ],
   }),
   shellComponent: RootDocument,

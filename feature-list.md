@@ -1,7 +1,6 @@
 # TODO
 
-- The deployed app doesn't have a favicon.
-- Visitors without a user account should only be able to generate one analysis per day. Figure out the best ways of doing this (whether by IP address, cookie, etc)
+- Visitors without a user account should only be able to generate 5 analyses per day. Figure out the best ways of doing this (whether by IP address, cookie, etc)
 - Persist which renovation options were toggled in teh database
 - Move feature flags into database. Add admin portal for managing the feature flags. Admin portal should be simple HTTP auth protected.
 - Plan this new feature: Add support for user accounts. An account is not required to start an analysis, but an analysis should tie back to your account if you start one while logged in. Users should have access to a basic profile page with some basic functionality (change password, delete account). Enable social logins with Google or Apple or Facebook.
@@ -14,13 +13,14 @@
 
 # DONE
 
+- Add favicon to deployed app. Updated manifest.json with HomeBidder branding (was placeholder TanStack App values); added ICO fallback link and manifest link to HTML head alongside the existing SVG icon reference.
 - Surface additional CalEnviroScreen 4.0 data points in risk analysis. Investigated all CES fields; added two new risk factors: Air Quality (PM2.5 percentile, already fetched but previously unused) and Environmental Contamination (cleanup/Superfund sites, groundwater threats, hazardous waste — each scored high/moderate/low at ≥80th/≥60th pct thresholds). Both factors are displayed in the Risk tab with CalEnviroScreen labels. Backend expanded to return 8 CES fields (was 4). Skipped: pesticides (rural/agricultural, not relevant for Bay Area urban properties), ozone (not property-specific), socioeconomic indicators (already covered by school ratings).
 - Show crime rates near the property. Hybrid approach: DataSF Socrata API (SFPD data, free) for San Francisco properties; SpotCrime API (requires SPOTCRIME_API_KEY) for other Bay Area cities. Incidents within 0.5-mile radius over 90 days; distinguishes violent (assault, robbery, homicide, rape) from property (theft, burglary, auto theft, arson). Displayed in Risk tab as CrimeCard with color-coded counts (green/amber/red) and top crime types. Persisted in crime_data_json column and replayed from cache.
 - Show quality of nearby schools using CAASPP proficiency rates. Nearest elementary/middle/high within 2 miles displayed in InvestmentCard with Math/ELA % meeting/exceeding CA standards, color-coded green/yellow/red. Built-in Bay Area school dataset (31 schools); `prefetch_schools` writes to `data/schools.json`.
 - Support showing nearby MUNI stops. Saved 30 MUNI Metro stops to backend/data/muni_stops.json; added to transit search pool alongside BART/Caltrain; displays in InvestmentCard as a separate "Nearest MUNI" panel.
 - Add a direct google maps link to the property.
 - I want to include images from the MLS listing. If possible embed directly, but if that isn't possible then just link to a gallery.
-- Fix photo gallery: _extract_photo_urls was reading a non-existent `photos` dict column; homeharvest actually exports `primary_photo` (single URL string) and `alt_photos` (comma-separated URL string). Updated to read both columns and combine into a list.
+- Fix photo gallery: \_extract_photo_urls was reading a non-existent `photos` dict column; homeharvest actually exports `primary_photo` (single URL string) and `alt_photos` (comma-separated URL string). Updated to read both columns and combine into a list.
 - Update CLAUDE.md to instruct that a list of feature can be found in @feature-list.md. When instructed to implement the next feature, work off this list. Assume it is prioritized. When complete, move the item to the DONE section and commit your changes.
 - Verify that fire hazard zone and liquefaction zone actually work. Test with real locations.
 - Review the existing test coverage and remove tests that test scenarios that will likely never happen, or are based on assumptions that are no longer relevant. Look for opportunities to consolidate and refactor test coverage.
