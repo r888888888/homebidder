@@ -15,6 +15,7 @@ from agent.tools.ca_hazards import (
     _check_liquefaction,
     fetch_ca_hazard_zones,
 )
+from shapely.wkb import dumps as wkb_dumps
 
 
 def _make_polygon_geojson(rings: list[list[list[float]]]) -> dict:
@@ -85,9 +86,12 @@ class TestCheckLiquefaction:
     ])
     def test_maps_risk_levels(self, liq_value, expected):
         geojson = _make_liquefaction_geojson(liq_value, ZONE_RING)
-        features = geojson["features"]
-        tree = _build_tree(features)
-        result = _check_liquefaction(LAT_IN, LON_IN, features, tree)
+        features = [f for f in geojson["features"] if f.get("geometry")]
+        geoms = [shape(f["geometry"]) for f in features]
+        props = [(f.get("properties", {}).get("LIQSUSCEP") or "").upper().strip() or None
+                 for f in features]
+        tree = STRtree(geoms)
+        result = _check_liquefaction(LAT_IN, LON_IN, props, tree)
         assert result == expected
 
 
@@ -100,9 +104,12 @@ class TestCheckFireHazard:
     ])
     def test_maps_fire_hazard_levels(self, haz_class, expected):
         geojson = _make_fire_hazard_geojson(haz_class, ZONE_RING)
-        features = geojson["features"]
-        tree = _build_tree(features)
-        result = _check_fire_hazard(LAT_IN, LON_IN, features, tree)
+        features = [f for f in geojson["features"] if f.get("geometry")]
+        geoms = [shape(f["geometry"]) for f in features]
+        props = [(f.get("properties", {}).get("HAZ_CLASS") or "").upper().strip() or None
+                 for f in features]
+        tree = STRtree(geoms)
+        result = _check_fire_hazard(LAT_IN, LON_IN, props, tree)
         assert result == expected
 
 
@@ -117,10 +124,13 @@ def _fault_tuple(geojson: dict):
     return polys, STRtree(polys)
 
 
-def _feature_tuple(geojson: dict):
-    features = geojson["features"]
-    tree = _build_tree(features)
-    return features, tree
+def _feature_tuple(geojson: dict, prop_key: str):
+    features = [f for f in geojson["features"] if f.get("geometry")]
+    geoms = [shape(f["geometry"]) for f in features]
+    props = [(f.get("properties", {}).get(prop_key) or "").upper().strip() or None
+             for f in features]
+    tree = STRtree(geoms)
+    return geoms, props, tree
 
 
 class TestFetchCaHazardZones:
@@ -129,9 +139,9 @@ class TestFetchCaHazardZones:
         with patch("agent.tools.ca_hazards._load_fault_zones",
                    return_value=_fault_tuple(MOCK_FAULT_GEOJSON)), \
              patch("agent.tools.ca_hazards._load_liquefaction_zones",
-                   return_value=_feature_tuple(MOCK_LIQ_GEOJSON)), \
+                   return_value=_feature_tuple(MOCK_LIQ_GEOJSON, "LIQSUSCEP")), \
              patch("agent.tools.ca_hazards._load_fire_hazard_zones",
-                   return_value=_feature_tuple(MOCK_FIRE_GEOJSON)):
+                   return_value=_feature_tuple(MOCK_FIRE_GEOJSON, "HAZ_CLASS")):
             yield
 
     async def test_inside_all_zones(self):
@@ -146,8 +156,8 @@ class TestFetchCaHazardZones:
 
     async def test_no_live_fire_or_liq_fallback_when_local_data_missing(self):
         with patch("agent.tools.ca_hazards._load_fault_zones", return_value=([], STRtree([]))), \
-             patch("agent.tools.ca_hazards._load_liquefaction_zones", return_value=([], STRtree([]))), \
-             patch("agent.tools.ca_hazards._load_fire_hazard_zones", return_value=([], STRtree([]))), \
+             patch("agent.tools.ca_hazards._load_liquefaction_zones", return_value=([], [], STRtree([]))), \
+             patch("agent.tools.ca_hazards._load_fire_hazard_zones", return_value=([], [], STRtree([]))), \
              patch("agent.tools.ca_hazards._query_myhazards_fire", new=AsyncMock(side_effect=AssertionError("no live fallback"))), \
              patch("agent.tools.ca_hazards._query_myhazards_liquefaction", new=AsyncMock(side_effect=AssertionError("no live fallback"))), \
              patch("agent.tools.ca_hazards._query_fema_flood_zone", new=AsyncMock(return_value={"features": []})):

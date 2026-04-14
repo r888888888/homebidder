@@ -18,12 +18,14 @@ Data download URLs (run once to populate backend/data/):
 """
 import json
 import logging
+import pickle
 from pathlib import Path
 from typing import Any
 
 import httpx
 from shapely import STRtree
 from shapely.geometry import Point, shape
+from shapely.wkb import loads as wkb_loads
 
 log = logging.getLogger(__name__)
 
@@ -69,11 +71,13 @@ ARCGIS_PAGE_SIZE = 2000
 # Shapefile loaders (lazy, module-level cache)
 # ---------------------------------------------------------------------------
 
-_fault_cache: list | None = None
+_fault_geoms: list | None = None
 _fault_tree: STRtree | None = None
-_liq_cache: list | None = None
+_liq_geoms: list | None = None
+_liq_props: list[str | None] | None = None
 _liq_tree: STRtree | None = None
-_fire_cache: list | None = None
+_fire_geoms: list | None = None
+_fire_props: list[str | None] | None = None
 _fire_tree: STRtree | None = None
 
 
@@ -87,15 +91,26 @@ def _load_geojson_features(filename: str) -> list[dict]:
     return data.get("features", [])
 
 
+def _load_pkl(pkl_path: Path) -> dict:
+    with open(pkl_path, "rb") as f:
+        return pickle.load(f)
+
+
 def _load_fault_zones() -> tuple[list, STRtree]:
-    """Return (polygons, STRtree) for AP fault zones, built once."""
-    global _fault_cache, _fault_tree
-    if _fault_cache is None:
-        features = _load_geojson_features("ap_fault_zones.geojson")
-        _fault_cache = [shape(f["geometry"]) for f in features if f.get("geometry")]
-        _fault_tree = STRtree(_fault_cache)
-        log.info("Loaded %d AP fault zone polygons (STRtree built)", len(_fault_cache))
-    return _fault_cache, _fault_tree
+    """Return (geoms, STRtree) for AP fault zones, built once."""
+    global _fault_geoms, _fault_tree
+    if _fault_geoms is None:
+        pkl_path = DATA_DIR / "ap_fault_zones.pkl"
+        if pkl_path.exists():
+            data = _load_pkl(pkl_path)
+            _fault_geoms = [wkb_loads(w) for w in data["wkb"]]
+        else:
+            # Fallback: GeoJSON is small (2.5 MB) — acceptable memory cost
+            features = _load_geojson_features("ap_fault_zones.geojson")
+            _fault_geoms = [shape(f["geometry"]) for f in features if f.get("geometry")]
+        _fault_tree = STRtree(_fault_geoms)
+        log.info("Loaded %d AP fault zone polygons (STRtree built)", len(_fault_geoms))
+    return _fault_geoms, _fault_tree
 
 
 def _normalize_liquefaction_geojson(data: dict) -> dict:
@@ -114,14 +129,27 @@ def _normalize_liquefaction_geojson(data: dict) -> dict:
     return {"type": "FeatureCollection", "features": out_features}
 
 
-def _load_liquefaction_zones() -> tuple[list[dict], STRtree]:
-    global _liq_cache, _liq_tree
-    if _liq_cache is None:
-        _liq_cache = _load_geojson_features("liquefaction_zones.geojson")
-        geoms = [shape(f["geometry"]) for f in _liq_cache if f.get("geometry")]
-        _liq_tree = STRtree(geoms)
-        log.info("Loaded %d liquefaction zone features (STRtree built)", len(_liq_cache))
-    return _liq_cache, _liq_tree
+def _load_liquefaction_zones() -> tuple[list, list[str | None], STRtree]:
+    """Return (geoms, props, STRtree) for liquefaction zones, built once."""
+    global _liq_geoms, _liq_props, _liq_tree
+    if _liq_geoms is None:
+        pkl_path = DATA_DIR / "liquefaction_zones.pkl"
+        if pkl_path.exists():
+            data = _load_pkl(pkl_path)
+            _liq_geoms = [wkb_loads(w) for w in data["wkb"]]
+            _liq_props = data["props"]
+        else:
+            # Fallback: GeoJSON is 36 MB — acceptable memory cost
+            features = _load_geojson_features("liquefaction_zones.geojson")
+            valid = [f for f in features if f.get("geometry")]
+            _liq_geoms = [shape(f["geometry"]) for f in valid]
+            _liq_props = [
+                ((f.get("properties", {}).get("LIQSUSCEP") or "").upper().strip() or None)
+                for f in valid
+            ]
+        _liq_tree = STRtree(_liq_geoms)
+        log.info("Loaded %d liquefaction zone features (STRtree built)", len(_liq_geoms))
+    return _liq_geoms, _liq_props, _liq_tree
 
 
 def _normalize_myhazards_geojson(data: dict) -> dict:
@@ -141,14 +169,24 @@ def _normalize_myhazards_geojson(data: dict) -> dict:
     return {"type": "FeatureCollection", "features": out_features}
 
 
-def _load_fire_hazard_zones() -> tuple[list[dict], STRtree]:
-    global _fire_cache, _fire_tree
-    if _fire_cache is None:
-        _fire_cache = _load_geojson_features("fire_hazard_zones.geojson")
-        geoms = [shape(f["geometry"]) for f in _fire_cache if f.get("geometry")]
-        _fire_tree = STRtree(geoms)
-        log.info("Loaded %d fire hazard zone features (STRtree built)", len(_fire_cache))
-    return _fire_cache, _fire_tree
+def _load_fire_hazard_zones() -> tuple[list, list[str | None], STRtree]:
+    """Return (geoms, props, STRtree) for fire hazard zones, built once."""
+    global _fire_geoms, _fire_props, _fire_tree
+    if _fire_geoms is None:
+        pkl_path = DATA_DIR / "fire_hazard_zones.pkl"
+        if not pkl_path.exists():
+            raise RuntimeError(
+                f"fire_hazard_zones.pkl not found at {pkl_path}. "
+                "Run ./scripts/upload_fly_data.sh to upload pre-built pkl files. "
+                "Loading from raw GeoJSON (257 MB) requires ~1.2 GB peak memory "
+                "and will OOM on this machine."
+            )
+        data = _load_pkl(pkl_path)
+        _fire_geoms = [wkb_loads(w) for w in data["wkb"]]
+        _fire_props = data["props"]
+        _fire_tree = STRtree(_fire_geoms)
+        log.info("Loaded %d fire hazard zone features (STRtree built)", len(_fire_geoms))
+    return _fire_geoms, _fire_props, _fire_tree
 
 
 async def prefetch_ca_hazard_geojson(force: bool = False) -> dict[str, bool]:
@@ -287,12 +325,14 @@ async def prefetch_ca_hazard_geojson(force: bool = False) -> dict[str, bool]:
         else:
             log.info("Skipping fire hazard prefetch; file already exists at %s", fire_path)
 
-    global _fault_cache, _fault_tree, _liq_cache, _liq_tree, _fire_cache, _fire_tree
-    _fault_cache = None
+    global _fault_geoms, _fault_tree, _liq_geoms, _liq_props, _liq_tree, _fire_geoms, _fire_props, _fire_tree
+    _fault_geoms = None
     _fault_tree = None
-    _liq_cache = None
+    _liq_geoms = None
+    _liq_props = None
     _liq_tree = None
-    _fire_cache = None
+    _fire_geoms = None
+    _fire_props = None
     _fire_tree = None
     log.info("Completed CA hazard prefetch: %s", results)
     return results
@@ -318,12 +358,11 @@ _LIQUEFACTION_MAP = {
 }
 
 
-def _check_liquefaction(lat: float, lon: float, features: list[dict], tree: STRtree) -> str | None:
+def _check_liquefaction(lat: float, lon: float, props: list[str | None], tree: STRtree) -> str | None:
     """Return 'High', 'Moderate', 'Low', or None based on CGS liquefaction zones."""
     pt = Point(lon, lat)
     for idx in tree.query(pt, predicate="within"):
-        props = features[idx].get("properties", {})
-        raw = (props.get("LIQSUSCEP") or "").upper().strip()
+        raw = props[idx] or ""
         return _LIQUEFACTION_MAP.get(raw, "Low")
     return None
 
@@ -337,12 +376,11 @@ _FIRE_MAP = {
 }
 
 
-def _check_fire_hazard(lat: float, lon: float, features: list[dict], tree: STRtree) -> str | None:
+def _check_fire_hazard(lat: float, lon: float, props: list[str | None], tree: STRtree) -> str | None:
     """Return 'Very High', 'High', 'Moderate', or None based on CalFire FHSZ."""
     pt = Point(lon, lat)
     for idx in tree.query(pt, predicate="within"):
-        props = features[idx].get("properties", {})
-        raw = (props.get("HAZ_CLASS") or "").upper().strip()
+        raw = props[idx] or ""
         return _FIRE_MAP.get(raw, "Moderate")
     return None
 
@@ -441,12 +479,12 @@ async def fetch_ca_hazard_zones(lat: float, lon: float) -> dict[str, Any]:
       flood_zone_sfha   — bool: Special Flood Hazard Area (mandatory insurance)
     """
     fault_zones, fault_tree = _load_fault_zones()
-    liq_features, liq_tree = _load_liquefaction_zones()
-    fire_features, fire_tree = _load_fire_hazard_zones()
+    liq_geoms, liq_props, liq_tree = _load_liquefaction_zones()
+    fire_geoms, fire_props, fire_tree = _load_fire_hazard_zones()
 
     alquist_priolo = _check_fault_zone(lat, lon, fault_zones, fault_tree)
-    liquefaction_risk = _check_liquefaction(lat, lon, liq_features, liq_tree)
-    fire_hazard_zone = _check_fire_hazard(lat, lon, fire_features, fire_tree)
+    liquefaction_risk = _check_liquefaction(lat, lon, liq_props, liq_tree)
+    fire_hazard_zone = _check_fire_hazard(lat, lon, fire_props, fire_tree)
 
     flood_zone: str | None = None
     flood_zone_sfha: bool = False
