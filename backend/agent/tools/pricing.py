@@ -234,14 +234,7 @@ def recommend_offer(
     is_condo = "condo" in property_type_raw
 
     if median_comp:
-        fair_value = float(median_comp)
-
-        # AVM blend: 85% comp anchor + 15% RentCast AVM (when available)
-        avm_estimate = listing.get("avm_estimate")
-        avm_blend_applied = False
-        if avm_estimate is not None:
-            fair_value = round(0.85 * fair_value + 0.15 * float(avm_estimate))
-            avm_blend_applied = True
+        fair_value = median_comp
 
         lot_adjustment_pct: float | None = None
         sqft_adjustment_pct: float | None = None
@@ -262,8 +255,6 @@ def recommend_offer(
             "base_comp_median": median_comp,
             "lot_adjustment_pct": round(lot_adjustment_pct * 100, 2) if lot_adjustment_pct is not None else None,
             "sqft_adjustment_pct": round(sqft_adjustment_pct * 100, 2) if sqft_adjustment_pct is not None else None,
-            "avm_estimate": int(avm_estimate) if avm_blend_applied else None,
-            "avm_blend_pct": 15 if avm_blend_applied else None,
         }
     elif ppsf and sqft:
         fair_value = round(ppsf * sqft)
@@ -273,8 +264,6 @@ def recommend_offer(
             "base_comp_median": None,
             "lot_adjustment_pct": None,
             "sqft_adjustment_pct": None,
-            "avm_estimate": None,
-            "avm_blend_pct": None,
         }
     else:
         fair_value = round(list_price)
@@ -284,8 +273,6 @@ def recommend_offer(
             "base_comp_median": None,
             "lot_adjustment_pct": None,
             "sqft_adjustment_pct": None,
-            "avm_estimate": None,
-            "avm_blend_pct": None,
         }
 
     # --- Fair value confidence interval ---
