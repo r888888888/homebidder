@@ -11,7 +11,7 @@
 
 # DONE
 
-- Investigate ways of getting a more accurate link to Redfin for the property. If listing_url from homeharvest is a Redfin URL, use it directly. Otherwise construct an address-based URL (state/city/street-zip) instead of the old zip-code search fallback.
+- Investigate ways of getting a more accurate link to Redfin for the property. If listing_url from homeharvest is a Redfin URL, use it directly. Otherwise call Redfin's location-autocomplete API (stingray/do/location-autocomplete) to obtain the exact listing URL with home ID. Frontend falls back to a Redfin address search URL when no direct URL is available.
 
 - Update .env.example with all missing environment variables: JWT_SECRET, SPOTCRIME_API_KEY, rate-limit flags (RATE_LIMIT_ENABLED/ANALYSES_PER_DAY/AUTHENTICATED_PER_DAY), LLM feature flags and model overrides (ENABLE_DESCRIPTION_LLM, DESCRIPTION_LLM_MODEL, PERMIT_LLM_MODEL, RENOVATION_LLM_MODEL), and Google OAuth (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URL). Grouped by category with signup links.
 

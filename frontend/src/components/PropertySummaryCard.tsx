@@ -43,6 +43,7 @@ export interface PropertyData {
   price_history: unknown[];
   avm_estimate: number | null;
   listing_url?: string | null;
+  redfin_url?: string | null;
   photos?: string[] | null;
   source: string;
 }
@@ -67,15 +68,9 @@ function zillowUrl(p: PropertyData): string {
 }
 
 function redfinUrl(p: PropertyData): string {
-  if (p.listing_url && p.listing_url.includes("redfin.com")) {
-    return p.listing_url;
-  }
-  const street = p.address_matched
-    .split(",")[0]
-    .trim()
-    .replace(/\s+/g, "-");
-  const city = (p.city ?? "").replace(/\s+/g, "-");
-  return `https://www.redfin.com/${p.state}/${city}/${street}-${p.zip_code}/`;
+  if (p.redfin_url) return p.redfin_url;
+  const query = encodeURIComponent(p.address_matched);
+  return `https://www.redfin.com/search?q=${query}`;
 }
 
 function toTitleCase(s: string): string {

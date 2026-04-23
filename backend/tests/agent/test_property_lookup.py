@@ -153,7 +153,8 @@ class TestGeocoding:
         no_match_response.json.return_value = {"result": {"addressMatches": []}}
 
         with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
-             patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh:
+             patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh, \
+             patch("agent.tools.property_lookup._redfin_autocomplete_url", new_callable=AsyncMock, return_value=None):
 
             mock_client = AsyncMock()
             mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
@@ -209,13 +210,15 @@ class TestHomeharvest:
         assert result["year_built"] == 1928
         assert result["source"] == "homeharvest"
 
-    async def test_listing_url_passed_through_from_homeharvest(self):
-        """listing_url is included in the result when homeharvest provides property_url."""
+    async def test_listing_url_set_when_homeharvest_returns_realtor_url(self):
+        """When homeharvest gives a Realtor URL, listing_url is set and redfin_url comes from autocomplete."""
         from agent.tools.property_lookup import lookup_property_by_address
 
         realtor_url = "https://www.realtor.com/realestateandhomes-detail/450-Sanchez-St_San-Francisco_CA_94114_M89012-34567/"
+        redfin_autocomplete_url = "https://www.redfin.com/CA/San-Francisco/450-Sanchez-St-94114/home/1869267"
         with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
-             patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh:
+             patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh, \
+             patch("agent.tools.property_lookup._redfin_autocomplete_url", new_callable=AsyncMock, return_value=redfin_autocomplete_url):
 
             mock_client = AsyncMock()
             mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
@@ -239,13 +242,41 @@ class TestHomeharvest:
             result = await lookup_property_by_address("450 Sanchez St, San Francisco, CA 94114")
 
         assert result["listing_url"] == realtor_url
+        assert result["redfin_url"] == redfin_autocomplete_url
 
-    async def test_listing_url_is_none_when_no_homeharvest_data(self):
-        """listing_url is None when no homeharvest listing was found."""
+    async def test_redfin_url_set_when_homeharvest_returns_redfin_url(self):
+        """When homeharvest gives a Redfin URL, redfin_url is set and listing_url is None."""
+        from agent.tools.property_lookup import lookup_property_by_address
+
+        redfin_url = "https://www.redfin.com/CA/San-Francisco/450-Sanchez-St-94114/home/1869267"
+        with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
+             patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh, \
+             patch("agent.tools.property_lookup._redfin_autocomplete_url", new_callable=AsyncMock, return_value=None) as mock_autocomplete:
+
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.return_value = _make_census_mock()
+            mock_hh.return_value = {
+                "price": 1_250_000.0,
+                "price_history": [],
+                "property_url": redfin_url,
+                "source": "homeharvest",
+            }
+
+            result = await lookup_property_by_address("450 Sanchez St, San Francisco, CA 94114")
+
+        assert result["redfin_url"] == redfin_url
+        assert result["listing_url"] is None
+        mock_autocomplete.assert_not_called()
+
+    async def test_listing_url_and_redfin_url_none_when_no_homeharvest_data(self):
+        """listing_url and redfin_url are None when no homeharvest listing was found."""
         from agent.tools.property_lookup import lookup_property_by_address
 
         with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
-             patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh:
+             patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh, \
+             patch("agent.tools.property_lookup._redfin_autocomplete_url", new_callable=AsyncMock, return_value=None):
 
             mock_client = AsyncMock()
             mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
@@ -256,6 +287,7 @@ class TestHomeharvest:
             result = await lookup_property_by_address("450 Sanchez St, San Francisco, CA 94114")
 
         assert result["listing_url"] is None
+        assert result["redfin_url"] is None
 
     async def test_unit_address_prefers_exact_input_for_listing_lookup(self):
         """
@@ -328,6 +360,7 @@ class TestResultStructure:
             "price", "bedrooms", "bathrooms", "sqft", "year_built", "lot_size",
             "property_type", "hoa_fee", "days_on_market", "list_date", "price_history",
             "avm_estimate", "source", "listing_description", "description_signals",
+            "listing_url", "redfin_url",
         }
 
         with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
@@ -1230,3 +1263,111 @@ class TestPhotosExtraction:
             result = await lookup_property_by_address("450 Sanchez St, San Francisco, CA 94114")
 
         assert result["photos"] == []
+
+
+# ---------------------------------------------------------------------------
+# Redfin autocomplete URL tests
+# ---------------------------------------------------------------------------
+
+class TestRedfinAutocomplete:
+    async def test_returns_full_url_for_type2_row(self):
+        """Parses the Redfin autocomplete response and returns the full URL."""
+        from agent.tools.property_lookup import _redfin_autocomplete_url
+
+        payload = {
+            "payload": {
+                "sections": [
+                    {
+                        "rows": [
+                            {
+                                "type": "2",
+                                "url": "/CA/San-Francisco/450-Sanchez-St-94114/home/1869267",
+                                "name": "450 Sanchez St",
+                                "subName": "San Francisco, CA 94114",
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+        resp_text = "{}&&" + json.dumps(payload)
+
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status = MagicMock()
+        mock_resp.text = resp_text
+
+        with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls:
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.return_value = mock_resp
+
+            result = await _redfin_autocomplete_url("450 Sanchez St, San Francisco, CA 94114")
+
+        assert result == "https://www.redfin.com/CA/San-Francisco/450-Sanchez-St-94114/home/1869267"
+
+    async def test_ignores_non_address_rows(self):
+        """Rows that are not type '2' (e.g. city/neighborhood) are skipped."""
+        from agent.tools.property_lookup import _redfin_autocomplete_url
+
+        payload = {
+            "payload": {
+                "sections": [
+                    {
+                        "rows": [
+                            {"type": "6", "url": "/city/17151/CA/San-Francisco", "name": "San Francisco"},
+                        ]
+                    }
+                ]
+            }
+        }
+        resp_text = "{}&&" + json.dumps(payload)
+
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status = MagicMock()
+        mock_resp.text = resp_text
+
+        with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls:
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.return_value = mock_resp
+
+            result = await _redfin_autocomplete_url("San Francisco, CA")
+
+        assert result is None
+
+    async def test_returns_none_on_http_error(self):
+        """HTTP errors are caught silently and None is returned."""
+        from agent.tools.property_lookup import _redfin_autocomplete_url
+
+        with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls:
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.side_effect = Exception("network error")
+
+            result = await _redfin_autocomplete_url("450 Sanchez St, San Francisco, CA 94114")
+
+        assert result is None
+
+    async def test_returns_none_on_empty_sections(self):
+        """Empty sections payload returns None without error."""
+        from agent.tools.property_lookup import _redfin_autocomplete_url
+
+        payload = {"payload": {"sections": []}}
+        resp_text = "{}&&" + json.dumps(payload)
+
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status = MagicMock()
+        mock_resp.text = resp_text
+
+        with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls:
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.return_value = mock_resp
+
+            result = await _redfin_autocomplete_url("450 Sanchez St, San Francisco, CA 94114")
+
+        assert result is None

@@ -7,6 +7,7 @@ Returns a unified property dict and the geocoded coordinates.
 """
 
 import asyncio
+import json
 import re
 from typing import Any
 from urllib.parse import urlencode
@@ -95,7 +96,8 @@ async def lookup_property_by_address(address: str) -> dict[str, Any]:
         "description_signals": description_signals,
         "price_history": listing.get("price_history", []),
         "avm_estimate": None,
-        "listing_url": listing.get("property_url") or None,
+        "listing_url": _realtor_url_from_listing(listing),
+        "redfin_url": await _resolve_redfin_url(listing, address),
         "photos": listing.get("photos", []),
         "source": source,
     }
@@ -142,6 +144,66 @@ async def _geocode(address: str) -> dict[str, Any]:
             }
 
     raise ValueError(f"Address not found by Census geocoder: {address!r}")
+
+
+# ---------------------------------------------------------------------------
+# Step 1b — Redfin URL helpers
+# ---------------------------------------------------------------------------
+
+def _realtor_url_from_listing(listing: dict[str, Any]) -> str | None:
+    """Return the listing URL only when it's from Realtor (not Redfin)."""
+    url = listing.get("property_url") or ""
+    if url and "redfin.com" not in url:
+        return url
+    return None
+
+
+async def _resolve_redfin_url(listing: dict[str, Any], address: str) -> str | None:
+    """
+    Resolve the best Redfin URL for a property.
+    Prefers the direct URL from homeharvest when it's a Redfin URL; otherwise
+    calls the Redfin autocomplete API to get the URL with listing ID.
+    """
+    url = listing.get("property_url") or ""
+    if url and "redfin.com" in url:
+        return url
+    return await _redfin_autocomplete_url(address)
+
+
+async def _redfin_autocomplete_url(address: str) -> str | None:
+    """
+    Call Redfin's location-autocomplete API to obtain the direct listing URL.
+    The response has a '{}&&' CSRF prefix followed by JSON.
+    Returns 'https://www.redfin.com<path>' for type-2 (address) rows, or None.
+    """
+    params = {"location": address, "count": 1, "v": 2}
+    url = "https://www.redfin.com/stingray/do/location-autocomplete?" + urlencode(params)
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36"
+        ),
+        "Accept": "application/json, */*",
+        "Referer": "https://www.redfin.com/",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
+            resp = await client.get(url, headers=headers)
+            resp.raise_for_status()
+        text = resp.text
+        if text.startswith("{}&&"):
+            text = text[4:]
+        data = json.loads(text)
+        for section in data.get("payload", {}).get("sections", []):
+            for row in section.get("rows", []):
+                if str(row.get("type", "")) == "2":
+                    relative_url = row.get("url", "")
+                    if relative_url:
+                        return "https://www.redfin.com" + relative_url
+    except Exception:
+        return None
+    return None
 
 
 # ---------------------------------------------------------------------------

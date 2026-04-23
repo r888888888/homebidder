@@ -14,6 +14,7 @@ const BASE_PROPERTY = {
   neighborhoods: "Noe Valley, Castro",
   unit: null,
   listing_url: "https://www.realtor.com/realestateandhomes-detail/450-Sanchez-St_San-Francisco_CA_94114_M89012-34567/",
+  redfin_url: "https://www.redfin.com/CA/San-Francisco/450-Sanchez-St-94114/home/1869267",
   price: 1_250_000,
   bedrooms: 3,
   bathrooms: 2,
@@ -449,27 +450,21 @@ describe("PropertySummaryCard", () => {
       expect(link).toHaveAttribute("rel", expect.stringContaining("noopener"));
     });
 
-    it("renders Redfin link with constructed address URL when listing_url is not from Redfin", () => {
+    it("renders Redfin link using redfin_url from backend", () => {
       render(<PropertySummaryCard property={BASE_PROPERTY} />);
-      const link = screen.getByRole("link", { name: /redfin/i });
-      expect(link).toHaveAttribute(
-        "href",
-        "https://www.redfin.com/CA/San-Francisco/450-SANCHEZ-ST-94114/"
-      );
-      expect(link).toHaveAttribute("target", "_blank");
-    });
-
-    it("renders Redfin link using listing_url directly when it is a Redfin URL", () => {
-      const property = {
-        ...BASE_PROPERTY,
-        listing_url: "https://www.redfin.com/CA/San-Francisco/450-Sanchez-St-94114/home/1869267",
-      };
-      render(<PropertySummaryCard property={property} />);
       const link = screen.getByRole("link", { name: /redfin/i });
       expect(link).toHaveAttribute(
         "href",
         "https://www.redfin.com/CA/San-Francisco/450-Sanchez-St-94114/home/1869267"
       );
+      expect(link).toHaveAttribute("target", "_blank");
+    });
+
+    it("falls back to Redfin search URL when redfin_url is absent", () => {
+      render(<PropertySummaryCard property={{ ...BASE_PROPERTY, redfin_url: null }} />);
+      const link = screen.getByRole("link", { name: /redfin/i });
+      expect(link).toHaveAttribute("href", expect.stringContaining("redfin.com/search?q="));
+      expect(link).toHaveAttribute("href", expect.stringContaining("SANCHEZ"));
     });
 
     it("renders Realtor link using listing_url from backend", () => {
