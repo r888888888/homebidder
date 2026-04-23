@@ -109,6 +109,30 @@ class TestFetchCalenviroscreenData:
 
         assert result is None
 
+    def test_census_tract_returned(self):
+        from agent.tools.calenviroscreen import fetch_calenviroscreen_data
+
+        with patch("pathlib.Path.exists", return_value=True), \
+             _patch_data_file(SAMPLE_GEOJSON):
+            result = fetch_calenviroscreen_data(37.725, -122.435)
+
+        assert result is not None
+        assert result["census_tract"] == "6075016100"
+
+    def test_census_tract_none_when_property_missing(self):
+        import copy
+        geojson = copy.deepcopy(SAMPLE_GEOJSON)
+        del geojson["features"][0]["properties"]["Tract"]
+
+        from agent.tools.calenviroscreen import fetch_calenviroscreen_data
+
+        with patch("pathlib.Path.exists", return_value=True), \
+             _patch_data_file(geojson):
+            result = fetch_calenviroscreen_data(37.725, -122.435)
+
+        assert result is not None
+        assert result["census_tract"] is None
+
     def test_cache_is_populated_on_second_call(self):
         import agent.tools.calenviroscreen as mod
         from agent.tools.calenviroscreen import fetch_calenviroscreen_data

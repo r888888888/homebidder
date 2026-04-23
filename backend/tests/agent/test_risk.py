@@ -807,3 +807,54 @@ class TestEnvironmentalContaminationFactor:
         })
         assert result["level"] == "high"
         assert "cleanup" in result["description"].lower() or "groundwater" in result["description"].lower()
+
+
+class TestCesCensusTract:
+    def test_ces_census_tract_included_when_ejscreen_has_tract(self):
+        from agent.tools.risk import assess_risk
+
+        ces = {
+            "pm25_pct": 40.0,
+            "traffic_proximity_pct": 40.0,
+            "diesel_pm_pct": 40.0,
+            "cleanup_sites_pct": 30.0,
+            "groundwater_threat_pct": 30.0,
+            "hazardous_waste_pct": 20.0,
+            "census_tract": "6075016100",
+        }
+        result = assess_risk(
+            listing=make_listing(),
+            market_stats=make_market_stats(),
+            offer_result=make_offer_result(),
+            ejscreen=ces,
+        )
+        assert result.get("ces_census_tract") == "6075016100"
+
+    def test_ces_census_tract_none_when_ejscreen_has_no_tract(self):
+        from agent.tools.risk import assess_risk
+
+        ces = {
+            "pm25_pct": 40.0,
+            "traffic_proximity_pct": 40.0,
+            "diesel_pm_pct": 40.0,
+            "cleanup_sites_pct": 30.0,
+            "groundwater_threat_pct": 30.0,
+            "hazardous_waste_pct": 20.0,
+        }
+        result = assess_risk(
+            listing=make_listing(),
+            market_stats=make_market_stats(),
+            offer_result=make_offer_result(),
+            ejscreen=ces,
+        )
+        assert result.get("ces_census_tract") is None
+
+    def test_ces_census_tract_absent_when_no_ejscreen(self):
+        from agent.tools.risk import assess_risk
+
+        result = assess_risk(
+            listing=make_listing(),
+            market_stats=make_market_stats(),
+            offer_result=make_offer_result(),
+        )
+        assert result.get("ces_census_tract") is None

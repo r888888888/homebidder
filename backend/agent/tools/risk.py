@@ -346,4 +346,5 @@ def assess_risk(
         "overall_risk": overall,
         "score": score,
         "factors": factors,
+        "ces_census_tract": (ejscreen or {}).get("census_tract"),
     }

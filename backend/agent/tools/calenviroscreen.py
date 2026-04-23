@@ -100,6 +100,7 @@ def fetch_calenviroscreen_data(lat: float, lon: float) -> dict[str, Any] | None:
                 "groundwater_threat_pct": float(props["GWThreatP"]),
                 "hazardous_waste_pct": float(props["HazWasteP"]),
                 "toxic_releases_pct": float(props["Tox_Rel_P"]),
+                "census_tract": props.get("Tract"),
             }
         except (KeyError, TypeError, ValueError) as exc:
             log.warning("CalEnviroScreen property parse error: %s | props=%s", exc, props)

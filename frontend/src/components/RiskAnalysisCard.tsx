@@ -8,7 +8,14 @@ export interface RiskData {
   overall_risk: "Low" | "Moderate" | "High" | "Very High";
   score: number;
   factors: RiskFactor[];
+  ces_census_tract?: string | null;
 }
+
+const CES_FACTOR_NAMES = new Set([
+  "highway_proximity",
+  "air_quality",
+  "environmental_contamination",
+]);
 
 // Human-readable labels for each factor key
 const FACTOR_LABELS: Record<string, string> = {
@@ -37,6 +44,8 @@ const FACTOR_LEVEL_STYLES: Record<string, string> = {
   high:     "bg-red-50 text-[var(--coral)]",
   "n/a":    "bg-[var(--bg)] text-[var(--ink-muted)]",
 };
+
+const CES_BASE_URL = "https://oehha.ca.gov/calenviroscreen/census-tract";
 
 interface Props {
   risk: RiskData;
@@ -75,6 +84,10 @@ export function RiskAnalysisCard({ risk }: Props) {
         {ordered.map((factor) => {
           const label = FACTOR_LABELS[factor.name] ?? factor.name;
           const levelStyle = FACTOR_LEVEL_STYLES[factor.level] ?? FACTOR_LEVEL_STYLES["n/a"];
+          const cesLink =
+            CES_FACTOR_NAMES.has(factor.name) && risk.ces_census_tract
+              ? `${CES_BASE_URL}/${risk.ces_census_tract}`
+              : null;
 
           return (
             <div key={factor.name} className="flex items-start gap-4 px-6 py-4">
@@ -87,7 +100,19 @@ export function RiskAnalysisCard({ risk }: Props) {
                 </span>
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-[var(--ink)]">{label}</p>
+                <p className="text-sm font-medium text-[var(--ink)]">
+                  {label}
+                  {cesLink && (
+                    <a
+                      href={cesLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ml-2 text-xs font-normal text-[var(--ink-muted)] hover:underline"
+                    >
+                      CalEnviroScreen ↗
+                    </a>
+                  )}
+                </p>
                 <p className="mt-0.5 text-xs leading-relaxed text-[var(--ink-soft)]">
                   {factor.description}
                 </p>
