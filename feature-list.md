@@ -1,6 +1,5 @@
 # TODO
 
-- Update .env.sample with all the environment variables that are missing.
 - Persist which renovation options were toggled in teh database
 - Investigate ways of getting a more accurate link to Redfin for the property.
 - Research free ways to restore the AVM estimate. If there alternative can be found, restore the Rentcast integration. Make sure to gate it behind a feature flag.
@@ -12,6 +11,8 @@
 - Plan this new feature: a validation mode. The app should look at recently sold properties in SF and run analysis on each property. Then it should grade its performance. For poorly scoring analyses, use the LLM to hypothesize what caused the discrepancy.
 
 # DONE
+
+- Update .env.example with all missing environment variables: JWT_SECRET, SPOTCRIME_API_KEY, rate-limit flags (RATE_LIMIT_ENABLED/ANALYSES_PER_DAY/AUTHENTICATED_PER_DAY), LLM feature flags and model overrides (ENABLE_DESCRIPTION_LLM, DESCRIPTION_LLM_MODEL, PERMIT_LLM_MODEL, RENOVATION_LLM_MODEL), and Google OAuth (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URL). Grouped by category with signup links.
 
 - User accounts (4 phases). Phase 1: email/password registration and login via fastapi-users (JWT Bearer, 30-day tokens), per-account rate limiting (20/day vs 5/day anonymous). Phase 2: analyses tied to the logged-in user, list/delete scoped by ownership, frontend AuthContext + login/register routes + auth headers on all API calls. Phase 3: profile page with change-password (PATCH /api/users/me) and delete-account (DELETE /api/users/me with ON DELETE SET NULL cascade on analyses). Phase 4: Google OAuth2 via httpx-oauth — authorize + callback endpoints, "Continue with Google" on login/register pages, /auth/callback/google route. Account not required; all existing anonymous flows unchanged.
 
