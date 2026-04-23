@@ -1,7 +1,6 @@
 # TODO
 
 - Persist which renovation options were toggled in teh database
-- Investigate ways of getting a more accurate link to Redfin for the property.
 - Research free ways to restore the AVM estimate. If there alternative can be found, restore the Rentcast integration. Make sure to gate it behind a feature flag.
 - Support inspection reports
 - Support pest inspection reports
@@ -11,6 +10,8 @@
 - Plan this new feature: a validation mode. The app should look at recently sold properties in SF and run analysis on each property. Then it should grade its performance. For poorly scoring analyses, use the LLM to hypothesize what caused the discrepancy.
 
 # DONE
+
+- Investigate ways of getting a more accurate link to Redfin for the property. If listing_url from homeharvest is a Redfin URL, use it directly. Otherwise construct an address-based URL (state/city/street-zip) instead of the old zip-code search fallback.
 
 - Update .env.example with all missing environment variables: JWT_SECRET, SPOTCRIME_API_KEY, rate-limit flags (RATE_LIMIT_ENABLED/ANALYSES_PER_DAY/AUTHENTICATED_PER_DAY), LLM feature flags and model overrides (ENABLE_DESCRIPTION_LLM, DESCRIPTION_LLM_MODEL, PERMIT_LLM_MODEL, RENOVATION_LLM_MODEL), and Google OAuth (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URL). Grouped by category with signup links.
 

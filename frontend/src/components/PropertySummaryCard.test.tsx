@@ -449,12 +449,27 @@ describe("PropertySummaryCard", () => {
       expect(link).toHaveAttribute("rel", expect.stringContaining("noopener"));
     });
 
-    it("renders Redfin link pointing to zip code search", () => {
+    it("renders Redfin link with constructed address URL when listing_url is not from Redfin", () => {
       render(<PropertySummaryCard property={BASE_PROPERTY} />);
       const link = screen.getByRole("link", { name: /redfin/i });
-      expect(link).toHaveAttribute("href", expect.stringContaining("redfin.com"));
-      expect(link).toHaveAttribute("href", expect.stringContaining("94114"));
+      expect(link).toHaveAttribute(
+        "href",
+        "https://www.redfin.com/CA/San-Francisco/450-SANCHEZ-ST-94114/"
+      );
       expect(link).toHaveAttribute("target", "_blank");
+    });
+
+    it("renders Redfin link using listing_url directly when it is a Redfin URL", () => {
+      const property = {
+        ...BASE_PROPERTY,
+        listing_url: "https://www.redfin.com/CA/San-Francisco/450-Sanchez-St-94114/home/1869267",
+      };
+      render(<PropertySummaryCard property={property} />);
+      const link = screen.getByRole("link", { name: /redfin/i });
+      expect(link).toHaveAttribute(
+        "href",
+        "https://www.redfin.com/CA/San-Francisco/450-Sanchez-St-94114/home/1869267"
+      );
     });
 
     it("renders Realtor link using listing_url from backend", () => {

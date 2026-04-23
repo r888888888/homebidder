@@ -67,7 +67,15 @@ function zillowUrl(p: PropertyData): string {
 }
 
 function redfinUrl(p: PropertyData): string {
-  return `https://www.redfin.com/zipcode/${p.zip_code}/homes-for-sale`;
+  if (p.listing_url && p.listing_url.includes("redfin.com")) {
+    return p.listing_url;
+  }
+  const street = p.address_matched
+    .split(",")[0]
+    .trim()
+    .replace(/\s+/g, "-");
+  const city = (p.city ?? "").replace(/\s+/g, "-");
+  return `https://www.redfin.com/${p.state}/${city}/${street}-${p.zip_code}/`;
 }
 
 function toTitleCase(s: string): string {
