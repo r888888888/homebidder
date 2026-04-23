@@ -170,6 +170,8 @@ export function HistoryPage() {
                           {detail.renovation_data && (
                             <FixerAnalysisCard
                               data={detail.renovation_data}
+                              analysisId={detail.id}
+                              initialDisabledIndices={detail.renovation_data.disabled_indices ?? []}
                             />
                           )}
                           <div className="flex justify-end pt-2">

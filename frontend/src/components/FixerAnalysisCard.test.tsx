@@ -1,6 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { FixerAnalysisCard, type FixerAnalysisData } from "./FixerAnalysisCard";
 
 const BASE: FixerAnalysisData = {
@@ -217,5 +217,45 @@ describe("FixerAnalysisCard toggle behavior", () => {
     // new all-in mid: 900k + 6500 = 906500, savings: 1M - 906500 = 93500 (>3%) → cheaper_fixer
     await userEvent.click(screen.getByRole("checkbox", { name: /toggle full gut renovation/i }));
     expect(screen.getByText(/fixer may win/i)).toBeInTheDocument();
+  });
+});
+
+describe("FixerAnalysisCard persistence", () => {
+  beforeEach(() => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: true } as Response);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("initializes disabled items from initialDisabledIndices prop", () => {
+    render(<FixerAnalysisCard data={BASE} analysisId={42} initialDisabledIndices={[0]} />);
+    const kitchenToggle = screen.getByRole("checkbox", { name: /toggle kitchen remodel/i });
+    const bathroomToggle = screen.getByRole("checkbox", { name: /toggle bathroom remodel/i });
+    expect(kitchenToggle).not.toBeChecked();
+    expect(bathroomToggle).toBeChecked();
+  });
+
+  it("sends PATCH request after toggle when analysisId is provided", async () => {
+    render(<FixerAnalysisCard data={BASE} analysisId={42} />);
+    await userEvent.click(screen.getByRole("checkbox", { name: /toggle kitchen remodel/i }));
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/analyses/42/renovation-toggles",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ disabled_indices: [0] }),
+        }),
+      );
+    }, { timeout: 1000 });
+  });
+
+  it("does not send PATCH when analysisId is not provided", async () => {
+    render(<FixerAnalysisCard data={BASE} />);
+    await userEvent.click(screen.getByRole("checkbox", { name: /toggle kitchen remodel/i }));
+    // Give debounce time to fire if it were going to
+    await new Promise((r) => setTimeout(r, 600));
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 });

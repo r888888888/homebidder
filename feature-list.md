@@ -1,6 +1,5 @@
 # TODO
 
-- Persist which renovation options were toggled in teh database
 - Support inspection reports
 - Support pest inspection reports
 - Support disclosures
@@ -9,6 +8,8 @@
 - Plan this new feature: a validation mode. The app should look at recently sold properties in SF and run analysis on each property. Then it should grade its performance. For poorly scoring analyses, use the LLM to hypothesize what caused the discrepancy.
 
 # DONE
+
+- Persist which renovation options were toggled in the database. New `PATCH /api/analyses/{id}/renovation-toggles` endpoint stores `disabled_indices: list[int]` inside `renovation_data_json`. `FixerAnalysisCard` accepts `analysisId` and `initialDisabledIndices` props; debounces a PATCH on every toggle. `AnalysisStream` passes the `analysis_id` SSE event down; history page passes `id` + `disabled_indices` from saved data.
 
 - Restore RentCast AVM estimate behind a feature flag. RentCast (free tier: 50 calls/month) is the only viable free, legally-safe property-specific AVM. Restored behind `ENABLE_RENTCAST_AVM=1` + `RENTCAST_API_KEY`. When active, blends 15% AVM weight into comp-based fair value. Frontend shows "AVM Estimate" row in PropertySummaryCard when non-null. Degrades gracefully when flag is off.
 

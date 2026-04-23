@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export interface RenovationLineItem {
   category: string;
@@ -24,10 +24,13 @@ export interface FixerAnalysisData {
   savings_mid: number;
   scope_notes?: string | null;
   disclaimer: string;
+  disabled_indices?: number[];
 }
 
 interface Props {
   data: FixerAnalysisData;
+  analysisId?: number;
+  initialDisabledIndices?: number[];
 }
 
 const VERDICT_STYLES: Record<FixerAnalysisData["verdict"], string> = {
@@ -53,8 +56,30 @@ function deriveVerdict(savings: number, turnkeyValue: number): FixerAnalysisData
   return "comparable";
 }
 
-export function FixerAnalysisCard({ data }: Props) {
-  const [disabledIndices, setDisabledIndices] = useState<Set<number>>(new Set());
+export function FixerAnalysisCard({ data, analysisId, initialDisabledIndices }: Props) {
+  const [disabledIndices, setDisabledIndices] = useState<Set<number>>(
+    new Set(initialDisabledIndices ?? []),
+  );
+
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function persistToggles(indices: Set<number>) {
+    if (analysisId === undefined) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      fetch(`/api/analyses/${analysisId}/renovation-toggles`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ disabled_indices: [...indices] }),
+      });
+    }, 500);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
 
   function toggleItem(index: number) {
     setDisabledIndices((prev) => {
@@ -64,6 +89,7 @@ export function FixerAnalysisCard({ data }: Props) {
       } else {
         next.add(index);
       }
+      persistToggles(next);
       return next;
     });
   }

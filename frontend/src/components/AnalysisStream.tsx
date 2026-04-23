@@ -187,7 +187,10 @@ export function AnalysisStream({ events, isRunning }: Props) {
               isRunning && <PanelSkeleton label="Computing offer range…" />
             )}
             {renovationData ? (
-              <FixerAnalysisCard data={renovationData} />
+              <FixerAnalysisCard
+                data={renovationData}
+                analysisId={analysisIdEvent?.id as number | undefined}
+              />
             ) : (
               isRunning && <PanelSkeleton label="Analyzing renovation potential…" />
             )}

@@ -1,6 +1,6 @@
 import json
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -165,6 +165,46 @@ async def delete_analysis(
 
     await db.delete(analysis)
     await db.commit()
+
+
+class RenovationToggleUpdate(BaseModel):
+    disabled_indices: list[int]
+
+
+@router.patch("/analyses/{analysis_id}/renovation-toggles")
+async def patch_renovation_toggles(
+    analysis_id: int,
+    body: RenovationToggleUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: User | None = Depends(current_optional_user),
+    x_session_id: str | None = Header(default=None, alias="X-Session-ID"),
+):
+    """Persist which renovation line-item indices the user has toggled off."""
+    from db.models import Analysis
+
+    result = await db.execute(select(Analysis).where(Analysis.id == analysis_id))
+    analysis = result.scalar_one_or_none()
+    if analysis is None:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
+    # Ownership check
+    if user is not None:
+        if analysis.user_id != user.id:
+            raise HTTPException(status_code=403, detail="Not authorized")
+    else:
+        # Anonymous: require matching session_id
+        if analysis.user_id is not None or analysis.session_id != x_session_id:
+            raise HTTPException(status_code=403, detail="Not authorized")
+
+    if not analysis.renovation_data_json:
+        raise HTTPException(status_code=404, detail="Analysis has no renovation data")
+
+    data = json.loads(analysis.renovation_data_json)
+    data["disabled_indices"] = body.disabled_indices
+    analysis.renovation_data_json = json.dumps(data)
+    await db.commit()
+
+    return {"disabled_indices": body.disabled_indices}
 
 
 @router.get("/health")

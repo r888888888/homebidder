@@ -216,6 +216,136 @@ async def test_buyer_context_with_angle_brackets_accepted(client):
     assert resp.status_code == 200
 
 
+async def test_patch_renovation_toggles_success(client):
+    """PATCH /api/analyses/{id}/renovation-toggles persists disabled_indices."""
+    import json, datetime
+    from db.models import Analysis, Listing
+    from db import engine
+    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlalchemy.orm import sessionmaker
+
+    renovation_payload = {
+        "is_fixer": True,
+        "line_items": [
+            {"category": "Kitchen remodel", "low": 35_000, "high": 60_000},
+            {"category": "Bathroom remodel", "low": 15_000, "high": 25_000},
+            {"category": "Roof replacement", "low": 20_000, "high": 35_000},
+        ],
+        "verdict": "cheaper_fixer",
+    }
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with async_session() as session:
+        listing = Listing(
+            address_input="10 Toggle St, SF, CA 94110",
+            address_matched="10 TOGGLE ST, SF, CA 94110",
+        )
+        session.add(listing)
+        await session.flush()
+        analysis = Analysis(
+            listing_id=listing.id,
+            session_id="toggle-session",
+            created_at=datetime.datetime.utcnow(),
+            renovation_data_json=json.dumps(renovation_payload),
+        )
+        session.add(analysis)
+        await session.commit()
+        analysis_id = analysis.id
+
+    resp = await client.patch(
+        f"/api/analyses/{analysis_id}/renovation-toggles",
+        json={"disabled_indices": [0, 2]},
+        headers={"X-Session-ID": "toggle-session"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["disabled_indices"] == [0, 2]
+
+    # Confirm it survived a round-trip through the DB
+    get_resp = await client.get(f"/api/analyses/{analysis_id}")
+    assert get_resp.status_code == 200
+    assert get_resp.json()["renovation_data"]["disabled_indices"] == [0, 2]
+
+
+async def test_patch_renovation_toggles_ownership_enforced(client):
+    """PATCH returns 403 when caller does not own the analysis."""
+    import json, datetime
+    from db.models import Analysis, Listing
+    from db import engine
+    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlalchemy.orm import sessionmaker
+    import uuid
+
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with async_session() as session:
+        listing = Listing(
+            address_input="11 Toggle St, SF, CA 94110",
+            address_matched="11 TOGGLE ST, SF, CA 94110",
+        )
+        session.add(listing)
+        await session.flush()
+        analysis = Analysis(
+            listing_id=listing.id,
+            session_id="owner-session",
+            created_at=datetime.datetime.utcnow(),
+            renovation_data_json=json.dumps({"is_fixer": True, "line_items": []}),
+        )
+        session.add(analysis)
+        await session.commit()
+        analysis_id = analysis.id
+
+    # Different session ID — should be rejected
+    resp = await client.patch(
+        f"/api/analyses/{analysis_id}/renovation-toggles",
+        json={"disabled_indices": [0]},
+        headers={"X-Session-ID": "other-session"},
+    )
+    assert resp.status_code == 403
+
+
+async def test_patch_renovation_toggles_no_renovation_data(client):
+    """PATCH returns 404 when the analysis has no renovation_data_json."""
+    import datetime
+    from db.models import Analysis, Listing
+    from db import engine
+    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlalchemy.orm import sessionmaker
+
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with async_session() as session:
+        listing = Listing(
+            address_input="12 Toggle St, SF, CA 94110",
+            address_matched="12 TOGGLE ST, SF, CA 94110",
+        )
+        session.add(listing)
+        await session.flush()
+        analysis = Analysis(
+            listing_id=listing.id,
+            session_id="no-reno-session",
+            created_at=datetime.datetime.utcnow(),
+            # No renovation_data_json
+        )
+        session.add(analysis)
+        await session.commit()
+        analysis_id = analysis.id
+
+    resp = await client.patch(
+        f"/api/analyses/{analysis_id}/renovation-toggles",
+        json={"disabled_indices": [0]},
+        headers={"X-Session-ID": "no-reno-session"},
+    )
+    assert resp.status_code == 404
+
+
+async def test_patch_renovation_toggles_analysis_not_found(client):
+    """PATCH returns 404 when the analysis does not exist."""
+    resp = await client.patch(
+        "/api/analyses/99999/renovation-toggles",
+        json={"disabled_indices": [0]},
+        headers={"X-Session-ID": "any-session"},
+    )
+    assert resp.status_code == 404
+
+
 async def test_get_analysis_renovation_data_null_when_absent(client):
     """GET /api/analyses/{id} returns renovation_data: null when no renovation data exists."""
     import datetime
