@@ -418,6 +418,23 @@ describe("PropertySummaryCard", () => {
     });
   });
 
+  describe("AVM estimate display", () => {
+    it("shows AVM Estimate row when avm_estimate is a number", () => {
+      render(
+        <PropertySummaryCard
+          property={{ ...BASE_PROPERTY, avm_estimate: 1_350_000 }}
+        />
+      );
+      const dt = screen.getByText(/avm estimate/i);
+      expect(dt.nextElementSibling?.textContent).toBe("$1,350,000");
+    });
+
+    it("hides AVM Estimate row when avm_estimate is null", () => {
+      render(<PropertySummaryCard property={{ ...BASE_PROPERTY, avm_estimate: null }} />);
+      expect(screen.queryByText(/avm estimate/i)).not.toBeInTheDocument();
+    });
+  });
+
   describe("sold listing fallback source display", () => {
     it("shows 'List Price' label for active for-sale listings", () => {
       render(<PropertySummaryCard property={BASE_PROPERTY} />);
@@ -460,11 +477,9 @@ describe("PropertySummaryCard", () => {
       expect(link).toHaveAttribute("target", "_blank");
     });
 
-    it("falls back to Redfin search URL when redfin_url is absent", () => {
+    it("hides Redfin link when redfin_url is absent", () => {
       render(<PropertySummaryCard property={{ ...BASE_PROPERTY, redfin_url: null }} />);
-      const link = screen.getByRole("link", { name: /redfin/i });
-      expect(link).toHaveAttribute("href", expect.stringContaining("redfin.com/search?q="));
-      expect(link).toHaveAttribute("href", expect.stringContaining("SANCHEZ"));
+      expect(screen.queryByRole("link", { name: /redfin/i })).toBeNull();
     });
 
     it("renders Realtor link using listing_url from backend", () => {
@@ -494,12 +509,11 @@ describe("PropertySummaryCard", () => {
       expect(link).toHaveAttribute("target", "_blank");
     });
 
-    it("renders Google Maps link with lat/lng search query in href", () => {
+    it("renders Google Maps link with address search query in href", () => {
       render(<PropertySummaryCard property={BASE_PROPERTY} />);
       const link = screen.getByRole("link", { name: /google maps/i });
       expect(link).toHaveAttribute("href", expect.stringContaining("google.com/maps/search"));
-      expect(link).toHaveAttribute("href", expect.stringContaining("37.7612"));
-      expect(link).toHaveAttribute("href", expect.stringContaining("-122.4313"));
+      expect(link).toHaveAttribute("href", expect.stringContaining(encodeURIComponent(BASE_PROPERTY.address_matched)));
       expect(link).toHaveAttribute("target", "_blank");
       expect(link).toHaveAttribute("rel", expect.stringContaining("noopener"));
     });

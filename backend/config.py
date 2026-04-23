@@ -68,6 +68,10 @@ class _Settings:
     def spotcrime_api_key(self) -> str | None:
         return os.getenv("SPOTCRIME_API_KEY") or None
 
+    @property
+    def rentcast_api_key(self) -> str | None:
+        return os.getenv("RENTCAST_API_KEY") or None
+
     # ------------------------------------------------------------------ #
     # Feature flags                                                        #
     # ------------------------------------------------------------------ #
@@ -91,6 +95,11 @@ class _Settings:
     @property
     def description_llm_model(self) -> str:
         return os.getenv("DESCRIPTION_LLM_MODEL", "claude-sonnet-4-6")
+
+    @property
+    def enable_rentcast_avm(self) -> bool:
+        """True only when ENABLE_RENTCAST_AVM=1 AND RENTCAST_API_KEY is set."""
+        return os.getenv("ENABLE_RENTCAST_AVM", "").strip() == "1" and bool(os.getenv("RENTCAST_API_KEY"))
 
     @property
     def enable_permit_llm(self) -> bool:

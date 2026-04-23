@@ -1,7 +1,6 @@
 # TODO
 
 - Persist which renovation options were toggled in teh database
-- Research free ways to restore the AVM estimate. If there alternative can be found, restore the Rentcast integration. Make sure to gate it behind a feature flag.
 - Support inspection reports
 - Support pest inspection reports
 - Support disclosures
@@ -10,6 +9,8 @@
 - Plan this new feature: a validation mode. The app should look at recently sold properties in SF and run analysis on each property. Then it should grade its performance. For poorly scoring analyses, use the LLM to hypothesize what caused the discrepancy.
 
 # DONE
+
+- Restore RentCast AVM estimate behind a feature flag. RentCast (free tier: 50 calls/month) is the only viable free, legally-safe property-specific AVM. Restored behind `ENABLE_RENTCAST_AVM=1` + `RENTCAST_API_KEY`. When active, blends 15% AVM weight into comp-based fair value. Frontend shows "AVM Estimate" row in PropertySummaryCard when non-null. Degrades gracefully when flag is off.
 
 - Investigate ways of getting a more accurate link to Redfin for the property. If listing_url from homeharvest is a Redfin URL, use it directly. Otherwise call Redfin's location-autocomplete API (stingray/do/location-autocomplete) to obtain the exact listing URL with home ID. Frontend falls back to a Redfin address search URL when no direct URL is available.
 

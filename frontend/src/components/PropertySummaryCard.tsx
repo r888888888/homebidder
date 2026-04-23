@@ -67,10 +67,8 @@ function zillowUrl(p: PropertyData): string {
   return `https://www.zillow.com/homes/${slug}_rb/`;
 }
 
-function redfinUrl(p: PropertyData): string {
-  if (p.redfin_url) return p.redfin_url;
-  const query = encodeURIComponent(p.address_matched);
-  return `https://www.redfin.com/search?q=${query}`;
+function redfinUrl(p: PropertyData): string | null {
+  return p.redfin_url ?? null;
 }
 
 function toTitleCase(s: string): string {
@@ -89,7 +87,8 @@ function streetViewUrl(p: PropertyData): string {
 }
 
 function googleMapsUrl(p: PropertyData): string {
-  return `https://www.google.com/maps/search/?api=1&query=${p.latitude},${p.longitude}`;
+  const query = encodeURIComponent(p.address_matched);
+  return `https://www.google.com/maps/search/?api=1&query=${query}`;
 }
 
 function formatPropertyType(raw: string | null | undefined): string {
@@ -230,6 +229,9 @@ export function PropertySummaryCard({ property }: Props) {
 
   const coreFields: Field[] = [
     { label: property.source === "homeharvest_sold" ? "Last Sold Price" : "List Price", value: priceDisplay },
+    ...(property.avm_estimate != null
+      ? [{ label: "AVM Estimate", value: fmtUsd(property.avm_estimate) }]
+      : []),
     { label: "HOA / mo", value: fmtUsd(property.hoa_fee) },
     { label: "Beds", value: fmt(property.bedrooms) },
     { label: "Baths", value: fmt(property.bathrooms) },
@@ -282,10 +284,10 @@ export function PropertySummaryCard({ property }: Props) {
             { label: "Realtor", href: realtorUrl(property) },
             { label: "Google Maps", href: googleMapsUrl(property) },
             { label: "Street View", href: streetViewUrl(property) },
-          ].map(({ label, href }) => (
+          ].filter(({ href }) => href != null).map(({ label, href }) => (
             <a
               key={label}
-              href={href}
+              href={href!}
               target="_blank"
               rel="noopener noreferrer"
               className="text-[11px] text-[var(--navy)] hover:underline"

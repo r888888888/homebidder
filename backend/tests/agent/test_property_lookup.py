@@ -1048,6 +1048,66 @@ class TestSelectBestHomeharvest:
         result = _select_best_homeharvest_row(df, "1250 Ellis St #2, San Francisco, CA 94109")
         assert result is None
 
+
+# ---------------------------------------------------------------------------
+# AVM estimate integration
+# ---------------------------------------------------------------------------
+
+class TestAvmIntegration:
+    async def test_avm_estimate_populated_when_feature_enabled(self):
+        """avm_estimate in result comes from fetch_avm_estimate when flag is on."""
+        from agent.tools.property_lookup import lookup_property_by_address
+
+        with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
+             patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh, \
+             patch("agent.tools.property_lookup.fetch_avm_estimate", new_callable=AsyncMock, return_value=1_300_000):
+
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.return_value = _make_census_mock()
+            mock_hh.return_value = {}
+
+            result = await lookup_property_by_address("450 Sanchez St, San Francisco, CA 94114")
+
+        assert result["avm_estimate"] == 1_300_000
+
+    async def test_avm_estimate_is_none_when_fetch_returns_none(self):
+        """avm_estimate is None when fetch_avm_estimate returns None (flag off or no key)."""
+        from agent.tools.property_lookup import lookup_property_by_address
+
+        with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
+             patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh, \
+             patch("agent.tools.property_lookup.fetch_avm_estimate", new_callable=AsyncMock, return_value=None):
+
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.return_value = _make_census_mock()
+            mock_hh.return_value = {}
+
+            result = await lookup_property_by_address("450 Sanchez St, San Francisco, CA 94114")
+
+        assert result["avm_estimate"] is None
+
+    async def test_avm_estimate_is_none_when_fetch_raises(self):
+        """avm_estimate is None and lookup does not propagate exceptions from fetch_avm_estimate."""
+        from agent.tools.property_lookup import lookup_property_by_address
+
+        with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
+             patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh, \
+             patch("agent.tools.property_lookup.fetch_avm_estimate", new_callable=AsyncMock, side_effect=Exception("unexpected")):
+
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.return_value = _make_census_mock()
+            mock_hh.return_value = {}
+
+            result = await lookup_property_by_address("450 Sanchez St, San Francisco, CA 94114")
+
+        assert result["avm_estimate"] is None
+
     def test_does_not_match_different_building_same_unit_number(self):
         """
         A row at a DIFFERENT building that happens to share the same unit number

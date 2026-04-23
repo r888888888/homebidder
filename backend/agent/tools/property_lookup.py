@@ -16,10 +16,23 @@ import httpx
 
 from .description_signals import extract_description_signals
 from .condition_llm import evaluate_condition_with_llm, merge_signal_results
+from .rentcast_avm import fetch_avm_estimate
 
 CENSUS_GEOCODER_URL = (
     "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress"
 )
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+async def _safe_fetch_avm(address: str) -> int | None:
+    """Wrapper that swallows any unexpected exception from fetch_avm_estimate."""
+    try:
+        return await fetch_avm_estimate(address)
+    except Exception:
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -95,7 +108,7 @@ async def lookup_property_by_address(address: str) -> dict[str, Any]:
         "listing_description": listing_description,
         "description_signals": description_signals,
         "price_history": listing.get("price_history", []),
-        "avm_estimate": None,
+        "avm_estimate": await _safe_fetch_avm(address),
         "listing_url": _realtor_url_from_listing(listing),
         "redfin_url": await _resolve_redfin_url(listing, address),
         "photos": listing.get("photos", []),
