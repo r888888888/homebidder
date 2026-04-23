@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -46,8 +47,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     return () => map.forEach((t) => clearTimeout(t));
   }, []);
 
+  const value = useMemo(() => ({ error }), [error]);
+
   return (
-    <ToastContext.Provider value={{ error }}>
+    <ToastContext.Provider value={value}>
       {children}
       {/* Portal-like fixed container */}
       <div
