@@ -45,7 +45,8 @@ const FACTOR_LEVEL_STYLES: Record<string, string> = {
   "n/a":    "bg-[var(--bg)] text-[var(--ink-muted)]",
 };
 
-const CES_BASE_URL = "https://oehha.ca.gov/calenviroscreen/census-tract";
+const CES_MAP_BASE_URL =
+  "https://oehha.maps.arcgis.com/apps/webappviewer/index.html?id=d4c4071cf25042aea60799a8b144ad8a&find=";
 
 interface Props {
   risk: RiskData;
@@ -86,7 +87,7 @@ export function RiskAnalysisCard({ risk }: Props) {
           const levelStyle = FACTOR_LEVEL_STYLES[factor.level] ?? FACTOR_LEVEL_STYLES["n/a"];
           const cesLink =
             CES_FACTOR_NAMES.has(factor.name) && risk.ces_census_tract
-              ? `${CES_BASE_URL}/${risk.ces_census_tract}`
+              ? `${CES_MAP_BASE_URL}${risk.ces_census_tract}`
               : null;
 
           return (
