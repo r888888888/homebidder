@@ -24,7 +24,7 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
 # fastapi-users Pydantic schemas (required for router registration in main.py)
 
 class UserRead(schemas.BaseUser[uuid.UUID]):
-    pass
+    display_name: str | None = None
 
 
 class UserCreate(schemas.BaseUserCreate):

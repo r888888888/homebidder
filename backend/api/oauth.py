@@ -39,7 +39,6 @@ async def google_authorize():
     authorization_url = await google_oauth_client.get_authorization_url(
         redirect_uri=settings.google_redirect_url,
         state=state,
-        scope=["openid", "email"],
     )
     _STATE_STORE[state] = state  # record issued state tokens
     return {"authorization_url": authorization_url}
@@ -65,24 +64,43 @@ async def google_callback(
         raise HTTPException(status_code=400, detail=f"OAuth token exchange failed: {exc}") from exc
 
     try:
-        email, _ = await google_oauth_client.get_id_email(token_response.access_token)
+        access_token = token_response["access_token"]
+        async with google_oauth_client.get_httpx_client() as http:
+            response = await http.get(
+                "https://people.googleapis.com/v1/people/me",
+                params={"personFields": "emailAddresses,names"},
+                headers={**google_oauth_client.request_headers, "Authorization": f"Bearer {access_token}"},
+            )
+            if response.status_code >= 400:
+                raise ValueError(f"People API returned {response.status_code}: {response.text}")
+            profile = response.json()
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Failed to fetch user info: {exc}") from exc
 
-    if not email:
+    try:
+        email = next(
+            e["value"] for e in profile.get("emailAddresses", [])
+            if e["metadata"]["primary"]
+        )
+    except StopIteration:
         raise HTTPException(status_code=400, detail="No email returned from Google")
+
+    display_name: str | None = next(
+        (n["displayName"] for n in profile.get("names", []) if n["metadata"]["primary"]),
+        None,
+    )
 
     # Find existing user or create one.
     existing = await user_manager.user_db.get_by_email(email)
     if existing is None:
         # Create a new verified user without a password (OAuth-only login).
-        import uuid as uuid_mod
         user = await user_manager.user_db.create({
             "email": email,
             "hashed_password": "",   # no password login allowed
             "is_active": True,
             "is_verified": True,
             "is_superuser": False,
+            "display_name": display_name,
         })
     else:
         user = existing

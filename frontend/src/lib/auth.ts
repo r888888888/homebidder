@@ -23,6 +23,7 @@ export interface UserRead {
   id: string;
   email: string;
   is_active: boolean;
+  display_name?: string | null;
 }
 
 export async function fetchCurrentUser(): Promise<UserRead | null> {

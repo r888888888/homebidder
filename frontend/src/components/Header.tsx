@@ -37,7 +37,7 @@ export default function Header() {
                 to="/profile"
                 className="text-sm text-[var(--ink-soft)] no-underline hover:text-[var(--ink)]"
               >
-                {user.email.split('@')[0]}
+                {user.display_name ? user.display_name.split(' ')[0] : user.email.split('@')[0]}
               </Link>
               <button
                 type="button"

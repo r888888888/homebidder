@@ -71,6 +71,30 @@ describe("Header (authenticated)", () => {
     expect(screen.queryByRole("link", { name: /log in/i })).not.toBeInTheDocument();
   });
 
+  it("shows display_name instead of email prefix when available", async () => {
+    localStorage.setItem("hb_token", "valid.jwt");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: "uuid-1",
+          email: "alice@example.com",
+          is_active: true,
+          display_name: "Alice Smith",
+        }),
+      })
+    );
+
+    renderHeader();
+
+    await waitFor(() => {
+      expect(screen.getByText("Alice")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Alice Smith")).not.toBeInTheDocument();
+    expect(screen.queryByText("alice")).not.toBeInTheDocument();
+  });
+
   it("clears auth state after clicking logout", async () => {
     localStorage.setItem("hb_token", "valid.jwt");
     vi.stubGlobal(
