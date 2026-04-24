@@ -152,6 +152,19 @@ class _Settings:
         return os.getenv("APPLE_REDIRECT_URL", "http://localhost:3000/auth/callback/apple")
 
     # ------------------------------------------------------------------ #
+    # Admin portal                                                         #
+    # ------------------------------------------------------------------ #
+
+    @property
+    def admin_username(self) -> str:
+        return os.getenv("ADMIN_USERNAME", "admin")
+
+    @property
+    def admin_password(self) -> str | None:
+        """Returns None when ADMIN_PASSWORD is not set (admin portal disabled)."""
+        return os.getenv("ADMIN_PASSWORD") or None
+
+    # ------------------------------------------------------------------ #
     # Server / logging                                                     #
     # ------------------------------------------------------------------ #
 

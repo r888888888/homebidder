@@ -62,6 +62,9 @@ app.include_router(rate_limit_router, prefix="/api")
 from api.profile import profile_router
 app.include_router(profile_router, prefix="/api")
 
+from api.admin import admin_router
+app.include_router(admin_router, prefix="/api")
+
 from api.oauth import oauth_router
 app.include_router(oauth_router, prefix="/api")
 
