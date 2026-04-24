@@ -16,6 +16,7 @@ import { Route as HistoryRouteImport } from './routes/history'
 import { Route as AnalysisRouteImport } from './routes/analysis'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthCallbackGoogleRouteImport } from './routes/auth/callback/google'
+import { Route as AuthCallbackAppleRouteImport } from './routes/auth/callback/apple'
 
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
@@ -52,6 +53,11 @@ const AuthCallbackGoogleRoute = AuthCallbackGoogleRouteImport.update({
   path: '/auth/callback/google',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthCallbackAppleRoute = AuthCallbackAppleRouteImport.update({
+  id: '/auth/callback/apple',
+  path: '/auth/callback/apple',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -60,6 +66,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/register': typeof RegisterRoute
+  '/auth/callback/apple': typeof AuthCallbackAppleRoute
   '/auth/callback/google': typeof AuthCallbackGoogleRoute
 }
 export interface FileRoutesByTo {
@@ -69,6 +76,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/register': typeof RegisterRoute
+  '/auth/callback/apple': typeof AuthCallbackAppleRoute
   '/auth/callback/google': typeof AuthCallbackGoogleRoute
 }
 export interface FileRoutesById {
@@ -79,6 +87,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/register': typeof RegisterRoute
+  '/auth/callback/apple': typeof AuthCallbackAppleRoute
   '/auth/callback/google': typeof AuthCallbackGoogleRoute
 }
 export interface FileRouteTypes {
@@ -90,6 +99,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/profile'
     | '/register'
+    | '/auth/callback/apple'
     | '/auth/callback/google'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -99,6 +109,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/profile'
     | '/register'
+    | '/auth/callback/apple'
     | '/auth/callback/google'
   id:
     | '__root__'
@@ -108,6 +119,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/profile'
     | '/register'
+    | '/auth/callback/apple'
     | '/auth/callback/google'
   fileRoutesById: FileRoutesById
 }
@@ -118,6 +130,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   ProfileRoute: typeof ProfileRoute
   RegisterRoute: typeof RegisterRoute
+  AuthCallbackAppleRoute: typeof AuthCallbackAppleRoute
   AuthCallbackGoogleRoute: typeof AuthCallbackGoogleRoute
 }
 
@@ -172,6 +185,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthCallbackGoogleRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/auth/callback/apple': {
+      id: '/auth/callback/apple'
+      path: '/auth/callback/apple'
+      fullPath: '/auth/callback/apple'
+      preLoaderRoute: typeof AuthCallbackAppleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -182,6 +202,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   ProfileRoute: ProfileRoute,
   RegisterRoute: RegisterRoute,
+  AuthCallbackAppleRoute: AuthCallbackAppleRoute,
   AuthCallbackGoogleRoute: AuthCallbackGoogleRoute,
 }
 export const routeTree = rootRouteImport

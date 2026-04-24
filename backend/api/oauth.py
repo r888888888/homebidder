@@ -11,8 +11,14 @@ These wrap httpx-oauth's GoogleOAuth2 client and fastapi-users' user manager so 
 """
 from __future__ import annotations
 
+import base64
+import json
 import secrets
+import time
+from urllib.parse import urlencode
 
+import httpx
+import jwt  # PyJWT
 from fastapi import APIRouter, Depends, HTTPException, Query
 from httpx_oauth.clients.google import GoogleOAuth2
 
@@ -101,6 +107,131 @@ async def google_callback(
             "is_verified": True,
             "is_superuser": False,
             "display_name": display_name,
+        })
+    else:
+        user = existing
+
+    # Issue a JWT via the auth backend.
+    strategy = auth_backend.get_strategy()
+    token = await strategy.write_token(user)
+    return {"access_token": token, "token_type": "bearer"}
+
+
+# ---------------------------------------------------------------------------
+# Apple Sign In helpers
+# ---------------------------------------------------------------------------
+
+def _build_apple_client_secret() -> str:
+    """Generate the short-lived JWT used as Apple's client_secret (ES256, 5-minute TTL)."""
+    now = int(time.time())
+    payload = {
+        "iss": settings.apple_team_id,
+        "iat": now,
+        "exp": now + 300,
+        "aud": "https://appleid.apple.com",
+        "sub": settings.apple_client_id,
+    }
+    return jwt.encode(
+        payload,
+        settings.apple_private_key,
+        algorithm="ES256",
+        headers={"kid": settings.apple_key_id},
+    )
+
+
+def _decode_apple_id_token_email(id_token: str) -> str:
+    """Extract email from Apple id_token payload.
+
+    Decodes the base64url payload without signature verification — safe for MVP
+    because the token arrives directly from Apple's HTTPS token endpoint.
+    """
+    parts = id_token.split(".")
+    if len(parts) < 2:
+        raise ValueError("Malformed id_token")
+    # base64url padding: length must be a multiple of 4
+    padded = parts[1] + "=" * (4 - len(parts[1]) % 4)
+    claims = json.loads(base64.urlsafe_b64decode(padded))
+    email = claims.get("email")
+    if not email:
+        raise ValueError("No email claim in Apple id_token")
+    return email
+
+
+# ---------------------------------------------------------------------------
+# GET /api/auth/apple/authorize
+# ---------------------------------------------------------------------------
+
+@oauth_router.get("/auth/apple/authorize")
+async def apple_authorize():
+    """Return the Apple Sign In authorization URL the frontend should redirect to."""
+    state = secrets.token_urlsafe(32)
+    _STATE_STORE[state] = state
+    params = {
+        "response_type": "code",
+        "client_id": settings.apple_client_id,
+        "redirect_uri": settings.apple_redirect_url,
+        "state": state,
+        "scope": "email",
+        "response_mode": "query",
+    }
+    return {"authorization_url": "https://appleid.apple.com/auth/authorize?" + urlencode(params)}
+
+
+# ---------------------------------------------------------------------------
+# GET /api/auth/apple/callback
+# ---------------------------------------------------------------------------
+
+@oauth_router.get("/auth/apple/callback")
+async def apple_callback(
+    code: str = Query(...),
+    state: str = Query(...),
+    user_manager=Depends(get_user_manager),
+):
+    """Handle the Apple Sign In callback.
+
+    Exchanges the authorization code for Apple tokens, extracts the email from
+    the id_token, then finds-or-creates a HomeBidder user account and issues a JWT.
+    """
+    try:
+        client_secret = _build_apple_client_secret()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to build Apple client secret: {exc}") from exc
+
+    try:
+        async with httpx.AsyncClient() as http:
+            response = await http.post(
+                "https://appleid.apple.com/auth/token",
+                data={
+                    "client_id": settings.apple_client_id,
+                    "client_secret": client_secret,
+                    "code": code,
+                    "grant_type": "authorization_code",
+                    "redirect_uri": settings.apple_redirect_url,
+                },
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+            response.raise_for_status()
+            token_data = response.json()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Apple token exchange failed: {exc}") from exc
+
+    try:
+        email = _decode_apple_id_token_email(token_data.get("id_token", ""))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Failed to extract email from Apple token: {exc}") from exc
+
+    # Find existing user or create one.
+    existing = await user_manager.user_db.get_by_email(email)
+    if existing is None:
+        # Create a new verified user without a password (OAuth-only login).
+        # display_name is None — Apple does not include name in id_token for response_mode=query.
+        user = await user_manager.user_db.create({
+            "email": email,
+            "hashed_password": "",
+            "is_active": True,
+            "is_verified": True,
+            "is_superuser": False,
+            "display_name": None,
         })
     else:
         user = existing

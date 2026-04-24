@@ -1,6 +1,5 @@
 # TODO
 
-- Support Sign Up with Apple account
 - Support inspection reports
 - Support pest inspection reports
 - Support disclosures
@@ -9,6 +8,8 @@
 - Plan this new feature: a validation mode. The app should look at recently sold properties in SF and run analysis on each property. Then it should grade its performance. For poorly scoring analyses, use the LLM to hypothesize what caused the discrepancy.
 
 # DONE
+
+- Support Sign Up with Apple account. `GET /api/auth/apple/authorize` returns an authorization URL; `GET /api/auth/apple/callback` exchanges the code via Apple's token endpoint, decodes the `id_token` to extract email, and finds-or-creates a user. `client_secret` is a per-request ES256 JWT generated from the Apple private key. "Continue with Apple" button on login + register pages; `/auth/callback/apple` frontend route mirrors the Google pattern.
 
 - Persist which renovation options were toggled in the database. New `PATCH /api/analyses/{id}/renovation-toggles` endpoint stores `disabled_indices: list[int]` inside `renovation_data_json`. `FixerAnalysisCard` accepts `analysisId` and `initialDisabledIndices` props; debounces a PATCH on every toggle. `AnalysisStream` passes the `analysis_id` SSE event down; history page passes `id` + `disabled_indices` from saved data.
 

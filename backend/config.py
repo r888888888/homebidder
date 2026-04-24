@@ -129,6 +129,28 @@ class _Settings:
     def google_redirect_url(self) -> str:
         return os.getenv("GOOGLE_REDIRECT_URL", "http://localhost:3000/auth/callback/google")
 
+    # Apple Sign In
+    @property
+    def apple_client_id(self) -> str:
+        return os.getenv("APPLE_CLIENT_ID", "")
+
+    @property
+    def apple_team_id(self) -> str:
+        return os.getenv("APPLE_TEAM_ID", "")
+
+    @property
+    def apple_key_id(self) -> str:
+        return os.getenv("APPLE_KEY_ID", "")
+
+    @property
+    def apple_private_key(self) -> str:
+        # .env files store newlines as literal \n — convert to real newlines for PEM parsing.
+        return os.getenv("APPLE_PRIVATE_KEY", "").replace("\\n", "\n")
+
+    @property
+    def apple_redirect_url(self) -> str:
+        return os.getenv("APPLE_REDIRECT_URL", "http://localhost:3000/auth/callback/apple")
+
     # ------------------------------------------------------------------ #
     # Server / logging                                                     #
     # ------------------------------------------------------------------ #

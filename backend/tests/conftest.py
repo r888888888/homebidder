@@ -12,6 +12,12 @@ os.environ.setdefault("RATE_LIMIT_AUTHENTICATED_PER_DAY", "20")
 # Google OAuth — empty in tests (endpoints use mocked client)
 os.environ.setdefault("GOOGLE_CLIENT_ID", "test-google-client-id")
 os.environ.setdefault("GOOGLE_CLIENT_SECRET", "test-google-client-secret")
+# Apple Sign In — empty private key is fine; httpx.AsyncClient is mocked in tests
+os.environ.setdefault("APPLE_CLIENT_ID", "com.example.test.service")
+os.environ.setdefault("APPLE_TEAM_ID", "TESTTEAMID1")
+os.environ.setdefault("APPLE_KEY_ID", "TESTKEYID1")
+os.environ.setdefault("APPLE_PRIVATE_KEY", "")
+os.environ.setdefault("APPLE_REDIRECT_URL", "http://localhost:3000/auth/callback/apple")
 
 import pytest
 from httpx import AsyncClient, ASGITransport
