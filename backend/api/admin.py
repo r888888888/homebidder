@@ -84,8 +84,9 @@ async def admin_list_analyses(
 
     offset = (page - 1) * page_size
     stmt = (
-        select(Analysis, Listing.address_matched)
+        select(Analysis, Listing.address_matched, User.email)
         .join(Listing)
+        .outerjoin(User, Analysis.user_id == User.id)
         .order_by(Analysis.created_at.desc())
         .offset(offset)
         .limit(page_size)
@@ -97,6 +98,7 @@ async def admin_list_analyses(
             "id": analysis.id,
             "address": address,
             "user_id": str(analysis.user_id) if analysis.user_id else None,
+            "user_email": user_email,
             "offer_low": analysis.offer_low,
             "offer_high": analysis.offer_high,
             "offer_recommended": analysis.offer_recommended,
@@ -104,6 +106,6 @@ async def admin_list_analyses(
             "investment_rating": analysis.investment_rating,
             "created_at": analysis.created_at.isoformat() if analysis.created_at else None,
         }
-        for analysis, address in rows
+        for analysis, address, user_email in rows
     ]
     return _paginate(items, total, page, page_size)

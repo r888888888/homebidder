@@ -27,7 +27,7 @@ const USERS = [
 ];
 const ANALYSES = [
   {
-    id: 1, address: "123 Main St, San Francisco, CA", user_id: "uuid-1",
+    id: 1, address: "123 Main St, San Francisco, CA", user_id: "uuid-1", user_email: "alice@example.com",
     offer_low: 800000, offer_high: 950000, offer_recommended: 870000,
     risk_level: "medium", investment_rating: "good", created_at: "2026-04-24T00:00:00",
   },
@@ -90,7 +90,7 @@ describe("AdminPage — login form", () => {
     mockSuccess();
     renderAdmin();
     await loginAs(user);
-    await waitFor(() => expect(screen.getByText("alice@example.com")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText("alice@example.com")[0]).toBeInTheDocument());
     expect(screen.getByText("123 Main St, San Francisco, CA")).toBeInTheDocument();
   });
 
@@ -121,7 +121,7 @@ describe("AdminPage — pagination", () => {
     mockSuccess();
     renderAdmin();
     await loginAs(user);
-    await waitFor(() => expect(screen.getByText("alice@example.com")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText("alice@example.com")[0]).toBeInTheDocument());
     expect(vi.mocked(fetch)).toHaveBeenCalledWith(
       expect.stringMatching(/page=1/),
       expect.anything()
@@ -133,7 +133,7 @@ describe("AdminPage — pagination", () => {
     mockSuccess(1, 1);
     renderAdmin();
     await loginAs(user);
-    await waitFor(() => expect(screen.getByText("alice@example.com")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText("alice@example.com")[0]).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: /prev/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /next/i })).not.toBeInTheDocument();
   });
@@ -143,7 +143,7 @@ describe("AdminPage — pagination", () => {
     mockSuccess(3, 1); // users has 3 pages
     renderAdmin();
     await loginAs(user);
-    await waitFor(() => expect(screen.getByText("alice@example.com")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText("alice@example.com")[0]).toBeInTheDocument());
     expect(screen.getByRole("button", { name: /prev/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /next/i })).toBeInTheDocument();
   });
@@ -153,7 +153,7 @@ describe("AdminPage — pagination", () => {
     mockSuccess(3, 1);
     renderAdmin();
     await loginAs(user);
-    await waitFor(() => expect(screen.getByText("alice@example.com")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText("alice@example.com")[0]).toBeInTheDocument());
     expect(screen.getByRole("button", { name: /prev/i })).toBeDisabled();
   });
 
@@ -162,7 +162,7 @@ describe("AdminPage — pagination", () => {
     mockSuccess(3, 1);
     renderAdmin();
     await loginAs(user);
-    await waitFor(() => expect(screen.getByText("alice@example.com")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText("alice@example.com")[0]).toBeInTheDocument());
     expect(screen.getByRole("button", { name: /next/i })).not.toBeDisabled();
   });
 
@@ -176,7 +176,7 @@ describe("AdminPage — pagination", () => {
 
     renderAdmin();
     await loginAs(user);
-    await waitFor(() => expect(screen.getByText("alice@example.com")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText("alice@example.com")[0]).toBeInTheDocument());
 
     const nextBtns = screen.getAllByRole("button", { name: /next/i });
     await user.click(nextBtns[0]); // first Next = users section

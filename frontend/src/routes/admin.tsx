@@ -21,6 +21,7 @@ interface AdminAnalysis {
   id: number;
   address: string | null;
   user_id: string | null;
+  user_email: string | null;
   offer_low: number | null;
   offer_high: number | null;
   offer_recommended: number | null;
@@ -283,12 +284,8 @@ export function AdminPage() {
                 <tr key={a.id} className="bg-white">
                   <td className="px-4 py-2 font-mono text-xs">{a.id}</td>
                   <td className="px-4 py-2">{a.address ?? "—"}</td>
-                  <td className="px-4 py-2 font-mono text-xs text-(--slate)">
-                    {a.user_id ? (
-                      a.user_id.slice(0, 8) + "…"
-                    ) : (
-                      <span className="text-amber-600">anon</span>
-                    )}
+                  <td className="px-4 py-2">
+                    {a.user_email ?? <span className="text-amber-600">anon</span>}
                   </td>
                   <td className="px-4 py-2">{fmt$(a.offer_low)}</td>
                   <td className="px-4 py-2 font-medium">{fmt$(a.offer_recommended)}</td>
