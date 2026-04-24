@@ -40,7 +40,7 @@ export default function RegisterPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-[var(--ink)] mb-1">
+            <label htmlFor="email" className="mb-1.5 block text-sm font-semibold text-[var(--ink)]">
               Email
             </label>
             <input
@@ -50,12 +50,12 @@ export default function RegisterPage() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--ink)] outline-none focus:ring-2 focus:ring-[var(--navy)]"
+              className="w-full rounded-xl border border-[var(--card-border)] bg-white px-4 py-3 text-sm text-[var(--ink)] shadow-sm placeholder:text-[var(--ink-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--coral)] disabled:opacity-50"
             />
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-[var(--ink)] mb-1">
+            <label htmlFor="password" className="mb-1.5 block text-sm font-semibold text-[var(--ink)]">
               Password
             </label>
             <input
@@ -65,7 +65,7 @@ export default function RegisterPage() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--ink)] outline-none focus:ring-2 focus:ring-[var(--navy)]"
+              className="w-full rounded-xl border border-[var(--card-border)] bg-white px-4 py-3 text-sm text-[var(--ink)] shadow-sm placeholder:text-[var(--ink-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--coral)] disabled:opacity-50"
             />
           </div>
 

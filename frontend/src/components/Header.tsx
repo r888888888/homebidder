@@ -146,7 +146,7 @@ export default function Header() {
                 </Link>
                 <Link
                   to="/register"
-                  className="rounded-lg bg-[var(--navy)] px-3 py-1.5 text-sm font-semibold text-white no-underline hover:opacity-90"
+                  className="rounded-lg bg-[var(--coral)] px-3 py-1.5 text-sm font-semibold text-white no-underline hover:bg-[var(--coral-hover)]"
                 >
                   Sign up
                 </Link>

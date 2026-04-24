@@ -18,11 +18,11 @@
   --coral-hover: #c44e2c;
 
   --card: #ffffff;
-  --card-border: rgba(0, 0, 0, 0.07);
+  --card-border: rgba(0, 0, 0, 0.12);
   --card-shadow: 0 1px 2px rgba(15, 32, 53, 0.04), 0 8px 32px rgba(15, 32, 53, 0.08);
   --card-shadow-hover: 0 4px 16px rgba(15, 32, 53, 0.12), 0 1px 3px rgba(15, 32, 53, 0.07);
 
-  --line: rgba(0, 0, 0, 0.07);
+  --line: rgba(0, 0, 0, 0.10);
   --header-bg: rgba(255, 255, 255, 0.96);
 
   --green: #059669;
@@ -47,14 +47,16 @@ body {
   overflow-x: hidden;
 }
 
-a {
-  color: var(--coral);
-  text-decoration-color: rgba(221, 95, 59, 0.35);
-  text-underline-offset: 2px;
-}
+@layer base {
+  a {
+    color: var(--coral);
+    text-decoration-color: rgba(221, 95, 59, 0.55);
+    text-underline-offset: 2px;
+  }
 
-a:hover {
-  color: var(--coral-hover);
+  a:hover {
+    color: var(--coral-hover);
+  }
 }
 
 .display-title {
@@ -197,4 +199,10 @@ button, a {
 /* Subtle press feedback on buttons */
 button:active:not(:disabled) {
   transform: scale(0.97);
+}
+
+/* Keyboard focus ring for all buttons */
+button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px white, 0 0 0 4px var(--coral);
 }

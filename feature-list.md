@@ -1,5 +1,6 @@
 # TODO
 
+- Support Sign Up with Apple account
 - Support inspection reports
 - Support pest inspection reports
 - Support disclosures
