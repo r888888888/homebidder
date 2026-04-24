@@ -78,14 +78,20 @@ async def check_and_record_rate_limit(
 async def rate_limit_status(
     request: Request,
     db: AsyncSession = Depends(get_db),
+    user: User | None = Depends(current_optional_user),
 ):
     """Return the caller's current usage against the daily analysis limit.
 
     Used by the frontend to display a remaining-analyses counter.
-    Always uses the IP-based identifier (anonymous view of the limit).
+    Authenticated users see their account-based quota; anonymous users see
+    the IP-based quota.
     """
-    identifier = get_client_identifier(request)
-    limit = settings.rate_limit_analyses_per_day
+    if user is not None:
+        identifier = str(user.id)
+        limit = settings.rate_limit_authenticated_per_day
+    else:
+        identifier = get_client_identifier(request)
+        limit = settings.rate_limit_analyses_per_day
     cutoff = datetime.utcnow() - timedelta(hours=24)
 
     used = await db.scalar(

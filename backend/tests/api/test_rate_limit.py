@@ -263,3 +263,59 @@ async def test_authenticated_uses_user_id_not_ip(client):
                 },
             )
     assert resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# GET /api/rate-limit/status — authenticated user view
+# ---------------------------------------------------------------------------
+
+async def test_status_authenticated_user_sees_account_limit(client):
+    """Logged-in user sees the authenticated limit (20), not the IP limit (5)."""
+    await client.post("/api/auth/register", json={"email": "status_auth1@test.com", "password": "pass123"})
+    login_resp = await client.post(
+        "/api/auth/jwt/login",
+        data={"username": "status_auth1@test.com", "password": "pass123"},
+    )
+    token = login_resp.json()["access_token"]
+
+    resp = await client.get(
+        "/api/rate-limit/status",
+        headers={
+            "Fly-Client-IP": "5.5.5.5",
+            "Authorization": f"Bearer {token}",
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["limit"] == 20
+    assert data["used"] == 0
+    assert data["remaining"] == 20
+
+
+async def test_status_authenticated_user_reflects_account_usage(client):
+    """Logged-in user's status reflects their account usage, not their IP usage."""
+    await client.post("/api/auth/register", json={"email": "status_auth2@test.com", "password": "pass123"})
+    login_resp = await client.post(
+        "/api/auth/jwt/login",
+        data={"username": "status_auth2@test.com", "password": "pass123"},
+    )
+    token = login_resp.json()["access_token"]
+    user_id = (await client.get("/api/users/me", headers={"Authorization": f"Bearer {token}"})).json()["id"]
+
+    # Seed 7 entries against the account identifier (not the IP)
+    await _seed_entries_for_identifier(user_id, count=7)
+    # Seed 3 entries against the IP — should be ignored for authenticated status
+    await _seed_entries("5.5.5.6", count=3)
+
+    resp = await client.get(
+        "/api/rate-limit/status",
+        headers={
+            "Fly-Client-IP": "5.5.5.6",
+            "Authorization": f"Bearer {token}",
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["used"] == 7
+    assert data["limit"] == 20
+    assert data["remaining"] == 13
