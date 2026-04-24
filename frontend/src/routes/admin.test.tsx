@@ -9,49 +9,34 @@ vi.mock("@tanstack/react-router", () => ({
 
 import { AdminPage } from "./admin";
 
+const PAGE_SIZE = 25;
+
 function renderAdmin() {
   return render(<AdminPage />);
 }
 
-const USERS_RESPONSE = [
+function pagedResponse<T>(items: T[], total = items.length, page = 1, pages = 1) {
+  return new Response(
+    JSON.stringify({ items, total, page, page_size: PAGE_SIZE, pages }),
+    { status: 200, headers: { "Content-Type": "application/json" } }
+  );
+}
+
+const USERS = [
+  { id: "uuid-1", email: "alice@example.com", display_name: null, is_active: true, is_verified: false, is_superuser: false },
+];
+const ANALYSES = [
   {
-    id: "uuid-1",
-    email: "alice@example.com",
-    display_name: null,
-    is_active: true,
-    is_verified: false,
-    is_superuser: false,
+    id: 1, address: "123 Main St, San Francisco, CA", user_id: "uuid-1",
+    offer_low: 800000, offer_high: 950000, offer_recommended: 870000,
+    risk_level: "medium", investment_rating: "good", created_at: "2026-04-24T00:00:00",
   },
 ];
 
-const ANALYSES_RESPONSE = [
-  {
-    id: 1,
-    address: "123 Main St, San Francisco, CA",
-    user_id: "uuid-1",
-    offer_low: 800000,
-    offer_high: 950000,
-    offer_recommended: 870000,
-    risk_level: "medium",
-    investment_rating: "good",
-    created_at: "2026-04-24T00:00:00",
-  },
-];
-
-function mockSuccess() {
+function mockSuccess(usersPages = 1, analysesPages = 1) {
   vi.mocked(fetch)
-    .mockResolvedValueOnce(
-      new Response(JSON.stringify(USERS_RESPONSE), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      })
-    )
-    .mockResolvedValueOnce(
-      new Response(JSON.stringify(ANALYSES_RESPONSE), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      })
-    );
+    .mockResolvedValueOnce(pagedResponse(USERS, USERS.length, 1, usersPages))
+    .mockResolvedValueOnce(pagedResponse(ANALYSES, ANALYSES.length, 1, analysesPages));
 }
 
 function mockUnauthorized() {
@@ -63,15 +48,17 @@ function mockUnauthorized() {
   );
 }
 
-describe("AdminPage", () => {
-  beforeEach(() => {
-    vi.spyOn(global, "fetch");
-  });
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
+async function loginAs(user: ReturnType<typeof userEvent.setup>) {
+  await user.type(screen.getByLabelText(/username/i), "admin");
+  await user.type(screen.getByLabelText(/password/i), "testpass");
+  await user.click(screen.getByRole("button", { name: /sign in/i }));
+}
 
-  it("shows a login form initially", () => {
+describe("AdminPage — login form", () => {
+  beforeEach(() => { vi.spyOn(global, "fetch"); });
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  it("shows username and password fields with a Sign in button", () => {
     renderAdmin();
     expect(screen.getByLabelText(/username/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
@@ -83,13 +70,11 @@ describe("AdminPage", () => {
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
 
-  it("fetches users and analyses with Basic Auth header on submit", async () => {
+  it("sends Basic Auth header on submit", async () => {
     const user = userEvent.setup();
     mockSuccess();
     renderAdmin();
-    await user.type(screen.getByLabelText(/username/i), "admin");
-    await user.type(screen.getByLabelText(/password/i), "testpass");
-    await user.click(screen.getByRole("button", { name: /sign in/i }));
+    await loginAs(user);
     await waitFor(() =>
       expect(vi.mocked(fetch)).toHaveBeenCalledWith(
         expect.stringContaining("/api/admin/users"),
@@ -100,52 +85,107 @@ describe("AdminPage", () => {
     );
   });
 
-  it("shows user data in a table after successful login", async () => {
+  it("shows user and analysis data after successful login", async () => {
     const user = userEvent.setup();
     mockSuccess();
     renderAdmin();
-    await user.type(screen.getByLabelText(/username/i), "admin");
-    await user.type(screen.getByLabelText(/password/i), "testpass");
-    await user.click(screen.getByRole("button", { name: /sign in/i }));
-    await waitFor(() =>
-      expect(screen.getByText("alice@example.com")).toBeInTheDocument()
-    );
+    await loginAs(user);
+    await waitFor(() => expect(screen.getByText("alice@example.com")).toBeInTheDocument());
+    expect(screen.getByText("123 Main St, San Francisco, CA")).toBeInTheDocument();
   });
 
-  it("shows analysis data in a table after successful login", async () => {
-    const user = userEvent.setup();
-    mockSuccess();
-    renderAdmin();
-    await user.type(screen.getByLabelText(/username/i), "admin");
-    await user.type(screen.getByLabelText(/password/i), "testpass");
-    await user.click(screen.getByRole("button", { name: /sign in/i }));
-    await waitFor(() =>
-      expect(
-        screen.getByText("123 Main St, San Francisco, CA")
-      ).toBeInTheDocument()
-    );
-  });
-
-  it("shows an error message on 401 response", async () => {
+  it("shows an error message on 401", async () => {
     const user = userEvent.setup();
     mockUnauthorized();
     renderAdmin();
-    await user.type(screen.getByLabelText(/username/i), "admin");
-    await user.type(screen.getByLabelText(/password/i), "wrong");
-    await user.click(screen.getByRole("button", { name: /sign in/i }));
-    await waitFor(() =>
-      expect(screen.getByText(/incorrect/i)).toBeInTheDocument()
-    );
+    await loginAs(user);
+    await waitFor(() => expect(screen.getByText(/incorrect/i)).toBeInTheDocument());
   });
 
   it("keeps the login form visible after a failed login", async () => {
     const user = userEvent.setup();
     mockUnauthorized();
     renderAdmin();
-    await user.type(screen.getByLabelText(/username/i), "admin");
-    await user.type(screen.getByLabelText(/password/i), "wrong");
-    await user.click(screen.getByRole("button", { name: /sign in/i }));
+    await loginAs(user);
     await waitFor(() => expect(screen.getByText(/incorrect/i)).toBeInTheDocument());
     expect(screen.getByLabelText(/username/i)).toBeInTheDocument();
+  });
+});
+
+describe("AdminPage — pagination", () => {
+  beforeEach(() => { vi.spyOn(global, "fetch"); });
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  it("includes page and page_size in the initial fetch URL", async () => {
+    const user = userEvent.setup();
+    mockSuccess();
+    renderAdmin();
+    await loginAs(user);
+    await waitFor(() => expect(screen.getByText("alice@example.com")).toBeInTheDocument());
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      expect.stringMatching(/page=1/),
+      expect.anything()
+    );
+  });
+
+  it("hides pagination controls when there is only one page", async () => {
+    const user = userEvent.setup();
+    mockSuccess(1, 1);
+    renderAdmin();
+    await loginAs(user);
+    await waitFor(() => expect(screen.getByText("alice@example.com")).toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: /prev/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /next/i })).not.toBeInTheDocument();
+  });
+
+  it("shows Prev/Next controls when there are multiple pages", async () => {
+    const user = userEvent.setup();
+    mockSuccess(3, 1); // users has 3 pages
+    renderAdmin();
+    await loginAs(user);
+    await waitFor(() => expect(screen.getByText("alice@example.com")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: /prev/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /next/i })).toBeInTheDocument();
+  });
+
+  it("Prev is disabled on page 1", async () => {
+    const user = userEvent.setup();
+    mockSuccess(3, 1);
+    renderAdmin();
+    await loginAs(user);
+    await waitFor(() => expect(screen.getByText("alice@example.com")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: /prev/i })).toBeDisabled();
+  });
+
+  it("Next is enabled on page 1 of 3", async () => {
+    const user = userEvent.setup();
+    mockSuccess(3, 1);
+    renderAdmin();
+    await loginAs(user);
+    await waitFor(() => expect(screen.getByText("alice@example.com")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: /next/i })).not.toBeDisabled();
+  });
+
+  it("clicking Next fetches page 2", async () => {
+    const user = userEvent.setup();
+    // Login: users p1 + analyses p1; then Next click: users p2
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(pagedResponse(USERS, 50, 1, 2))     // users page 1
+      .mockResolvedValueOnce(pagedResponse(ANALYSES, 1, 1, 1))   // analyses page 1
+      .mockResolvedValueOnce(pagedResponse([], 50, 2, 2));        // users page 2
+
+    renderAdmin();
+    await loginAs(user);
+    await waitFor(() => expect(screen.getByText("alice@example.com")).toBeInTheDocument());
+
+    const nextBtns = screen.getAllByRole("button", { name: /next/i });
+    await user.click(nextBtns[0]); // first Next = users section
+
+    await waitFor(() =>
+      expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+        expect.stringMatching(/admin\/users.*page=2/),
+        expect.anything()
+      )
+    );
   });
 });
