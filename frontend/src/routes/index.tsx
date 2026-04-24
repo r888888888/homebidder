@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { AnalysisForm } from "../components/AnalysisForm";
 import { apiBase } from "../lib/api";
+import { authHeaders } from "../lib/auth";
 
 export const Route = createFileRoute("/")({
   component: HomePage,
@@ -67,7 +68,7 @@ export function HomePage() {
   const [rateLimitInfo, setRateLimitInfo] = useState<RateLimitInfo | null>(null);
 
   useEffect(() => {
-    fetch(`${apiBase}/api/rate-limit/status`)
+    fetch(`${apiBase}/api/rate-limit/status`, { headers: authHeaders() })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => data && setRateLimitInfo(data))
       .catch(() => {});

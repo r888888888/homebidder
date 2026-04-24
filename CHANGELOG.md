@@ -5,6 +5,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-04-24
+
+### Added
+- HTTP Basic Auth protected admin portal at `/admin` — tables of all users and analyses, credentials from `ADMIN_USERNAME`/`ADMIN_PASSWORD` env vars
+- Paginated admin portal with `page`/`page_size` query params and Prev/Next controls
+- Permalink for saved analyses — `/analysis/$id` route loads a saved analysis without re-running; "Copy permalink" button in the analysis stream; History "View" links updated to permalink
+
+### Fixed
+- Admin analyses table shows user email instead of truncated UUID
+- Admin analyses table removes redundant Low/High/Rating columns; formats price as M/k
+- Rate-limit status fetch now sends Authorization header for authenticated users
+
 ## [1.5.0] - 2026-04-24
 
 ### Added

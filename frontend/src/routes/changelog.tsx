@@ -15,6 +15,18 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "1.6.0",
+    date: "2026-04-24",
+    entries: [
+      { category: "Added", text: "HTTP Basic Auth protected admin portal at /admin — tables of all users and analyses, credentials from ADMIN_USERNAME/ADMIN_PASSWORD env vars" },
+      { category: "Added", text: "Paginated admin portal with page/page_size query params and Prev/Next controls" },
+      { category: "Added", text: "Permalink for saved analyses — /analysis/:id loads a saved analysis without re-running; Copy permalink button; History View links updated" },
+      { category: "Fixed", text: "Admin analyses table shows user email instead of truncated UUID" },
+      { category: "Fixed", text: "Admin analyses table removes redundant Low/High/Rating columns; formats price as M/k" },
+      { category: "Fixed", text: "Rate-limit status fetch now sends Authorization header for authenticated users" },
+    ],
+  },
+  {
     version: "1.5.0",
     date: "2026-04-24",
     entries: [

@@ -80,4 +80,35 @@ describe("HomePage rate limit indicator", () => {
     renderHomePage();
     expect(screen.queryByText(/analyses remaining/i)).not.toBeInTheDocument();
   });
+
+  it("sends Authorization header when a token is stored", async () => {
+    localStorage.setItem("hb_token", "test.jwt.token");
+    mockRateLimitStatus(15, 5, 20);
+    renderHomePage();
+    await waitFor(() =>
+      expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+        expect.stringContaining("/api/rate-limit/status"),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: "Bearer test.jwt.token",
+          }),
+        })
+      )
+    );
+    localStorage.removeItem("hb_token");
+  });
+
+  it("sends no Authorization header when no token is stored", async () => {
+    localStorage.removeItem("hb_token");
+    mockRateLimitStatus(5, 0, 5);
+    renderHomePage();
+    await waitFor(() =>
+      expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+        expect.stringContaining("/api/rate-limit/status"),
+        expect.not.objectContaining({
+          headers: expect.objectContaining({ Authorization: expect.anything() }),
+        })
+      )
+    );
+  });
 });
