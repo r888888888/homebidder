@@ -106,6 +106,14 @@ function PanelSkeleton({ label }: { label: string }) {
 
 export function AnalysisStream({ events, isRunning }: Props) {
   const [activeTab, setActiveTab] = useState<TabId>("decision");
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopyPermalink(id: number) {
+    const url = `${window.location.origin}/analysis/${id}`;
+    await navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
 
   const textBlocks = events.filter((e) => e.type === "text");
   const toolCalls = events.filter((e) => e.type === "tool_call");
@@ -340,13 +348,36 @@ export function AnalysisStream({ events, isRunning }: Props) {
         )}
       </div>
 
-      {/* Saved link */}
+      {/* Saved link + permalink */}
       {analysisIdEvent?.id && (
-        <div className="mt-2 text-sm text-[var(--ink-soft)]">
-          Saved &mdash;{" "}
-          <Link to="/history" className="underline">
-            view history
-          </Link>
+        <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-[var(--ink-soft)]">
+          <span>
+            Saved &mdash;{" "}
+            <Link to="/history" className="underline">
+              view history
+            </Link>
+          </span>
+          <button
+            type="button"
+            onClick={() => handleCopyPermalink(analysisIdEvent.id as number)}
+            className="inline-flex items-center gap-1 rounded-lg border border-[var(--line)] bg-[var(--card)] px-2.5 py-1 text-xs font-medium text-[var(--ink-soft)] hover:text-[var(--ink)]"
+          >
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+            </svg>
+            {copied ? "Copied!" : "Copy permalink"}
+          </button>
         </div>
       )}
     </div>

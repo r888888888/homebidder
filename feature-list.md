@@ -1,11 +1,11 @@
 # TODO
 
-- Provide a permalink that users can copy for an analysis
 - Dedupe photos based on the URL.
 - Let's update the badges used on the front page (the comp radius, hazard zones, etc) and use ones that are more indicative of the current app.
 - Add a risk factor for properties that are Tenancy-in-Common or TICs. Adjust the Fair Value estimate accordingly. Look for signals in the property description.
 - The rents used for comparison feel out of date. Consider pulling in more realistic rent values from Zillow and scraping Craigslist, based on neighborhood and bedroom/bathroom count rather than just city-wide medians.
 - Investigate alternative services for permits, schools, and transit for properties in Daly City, CA.
+- Update the admin portal so that only superusers can access it, instead of relying HTTP basic auth. Update the first created user in the sqlite database to be the superuser.
 - I want to plan a new feature: payments for user accounts. User accounts should have two tiers: Basic and Plus. Basic accounts will be free. Investigate what a reasonable price for plus accounts might be, based on running costs and a +30% profit margin. Strategize a good daily analysis limit, or other models for rationing usage (tokens, unlimited for X amounf of time, etc). Research what payment providers make sense to integrate with (Stripe, Square, etc). Existing users should be grandfathered into plus accounts.
 - Support inspection reports
 - Support pest inspection reports
@@ -15,6 +15,8 @@
 - Plan this new feature: a validation mode. The app should look at recently sold properties in SF and run analysis on each property. Then it should grade its performance. For poorly scoring analyses, use the LLM to hypothesize what caused the discrepancy.
 
 # DONE
+
+- Provide a permalink that users can copy for an analysis. New route `/analysis/$id` (`analysis_.$id.tsx`) loads a saved analysis by ID — no re-run. `AnalysisStream` shows a "Copy permalink" button once the `analysis_id` event fires. History page "View" link updated to go to the permalink instead of re-running the analysis. 6 new frontend tests.
 
 - Add a HTTP basic auth protected admin portal at `/admin` that shows all users and all analyses. `GET /api/admin/users` and `GET /api/admin/analyses` return JSON protected by HTTP Basic Auth (FastAPI `HTTPBasic` scheme). Credentials read from `ADMIN_USERNAME` (default: `admin`) and `ADMIN_PASSWORD` env vars; 503 returned when `ADMIN_PASSWORD` is not configured. Frontend React page at `/admin` shows a login form, then renders paginated tables of users (email, status flags, ID) and analyses (address, offer range, risk, date, user). Both endpoints tested with 9 backend tests; frontend tested with 7 component tests.
 

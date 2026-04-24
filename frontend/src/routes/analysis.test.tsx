@@ -234,6 +234,21 @@ describe("AnalysisPage", () => {
     expect(body2.force_refresh).toBe(true);
   });
 
+  it("shows Copy permalink button after analysis completes with an analysis_id", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      mockSseStream([
+        `data: ${JSON.stringify({ type: "analysis_id", id: 42 })}\n\n`,
+        `data: ${JSON.stringify({ type: "done" })}\n\n`,
+      ])
+    );
+    renderAnalysisPage("450 Sanchez St, San Francisco, CA 94114");
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /copy permalink/i })
+      ).toBeInTheDocument()
+    );
+  });
+
   it("passes an AbortSignal to fetch and aborts it on unmount", async () => {
     const abortSpy = vi.fn();
     const mockSignal = {} as AbortSignal;

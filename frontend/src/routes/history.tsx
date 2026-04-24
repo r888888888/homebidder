@@ -129,8 +129,8 @@ export function HistoryPage() {
                     <td className="py-3" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-3">
                         <Link
-                          to="/analysis"
-                          search={{ address: a.address, buyerContext: "" }}
+                          to="/analysis_/$id"
+                          params={{ id: String(a.id) }}
                           className="text-xs text-[var(--navy)] underline"
                         >
                           View

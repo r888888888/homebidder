@@ -10,15 +10,21 @@ vi.mock("@tanstack/react-router", () => ({
     children,
     to,
     search,
+    params,
   }: {
     children: React.ReactNode;
     to: string;
     search?: Record<string, string>;
+    params?: Record<string, string>;
   }) => {
-    const qs = search
-      ? "?" + new URLSearchParams(search).toString()
-      : "";
-    return <a href={`${to}${qs}`}>{children}</a>;
+    // Strip trailing underscores from path segments (TanStack Router non-nesting convention)
+    let href = to.replace(/_\//g, "/");
+    // Interpolate dynamic params (e.g. $id → 1)
+    if (params) {
+      href = href.replace(/\$(\w+)/g, (_, key) => params[key] ?? `$${key}`);
+    }
+    const qs = search ? "?" + new URLSearchParams(search).toString() : "";
+    return <a href={`${href}${qs}`}>{children}</a>;
   },
 }));
 
@@ -126,7 +132,7 @@ describe("HistoryPage", () => {
     expect(screen.getByText("—")).toBeInTheDocument();
   });
 
-  it("each row has a link to the analysis page for that address", async () => {
+  it("each row has a permalink link to the saved analysis", async () => {
     vi.mocked(fetch).mockResolvedValue(
       new Response(JSON.stringify(ANALYSES_LIST), { status: 200 })
     );
@@ -136,10 +142,7 @@ describe("HistoryPage", () => {
     );
     const links = screen.getAllByRole("link", { name: /view/i });
     expect(links.length).toBeGreaterThanOrEqual(1);
-    expect(links[0]).toHaveAttribute(
-      "href",
-      expect.stringContaining("/analysis")
-    );
+    expect(links[0]).toHaveAttribute("href", "/analysis/1");
   });
 
   it("clicking a row fetches detail and renders offer card", async () => {
