@@ -28,8 +28,8 @@ const USERS = [
 const ANALYSES = [
   {
     id: 1, address: "123 Main St, San Francisco, CA", user_id: "uuid-1", user_email: "alice@example.com",
-    offer_low: 800000, offer_high: 950000, offer_recommended: 870000,
-    risk_level: "medium", investment_rating: "good", created_at: "2026-04-24T00:00:00",
+    offer_recommended: 1250000,
+    risk_level: "medium", created_at: "2026-04-24T00:00:00",
   },
 ];
 
@@ -92,6 +92,14 @@ describe("AdminPage — login form", () => {
     await loginAs(user);
     await waitFor(() => expect(screen.getAllByText("alice@example.com")[0]).toBeInTheDocument());
     expect(screen.getByText("123 Main St, San Francisco, CA")).toBeInTheDocument();
+  });
+
+  it("formats offer price in millions when >= $1M", async () => {
+    const user = userEvent.setup();
+    mockSuccess();
+    renderAdmin();
+    await loginAs(user);
+    await waitFor(() => expect(screen.getByText("$1.25M")).toBeInTheDocument());
   });
 
   it("shows an error message on 401", async () => {

@@ -144,8 +144,11 @@ export function AdminPage() {
     }
   }
 
-  const fmt$ = (n: number | null) =>
-    n != null ? `$${(n / 1000).toFixed(0)}k` : "—";
+  const fmt$ = (n: number | null) => {
+    if (n == null) return "—";
+    if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`;
+    return `$${(n / 1000).toFixed(0)}k`;
+  };
 
   const fmtDate = (s: string | null) =>
     s ? new Date(s).toLocaleDateString() : "—";
@@ -271,11 +274,8 @@ export function AdminPage() {
                 <th className="px-4 py-2 font-medium">ID</th>
                 <th className="px-4 py-2 font-medium">Address</th>
                 <th className="px-4 py-2 font-medium">User</th>
-                <th className="px-4 py-2 font-medium">Low</th>
                 <th className="px-4 py-2 font-medium">Recommended</th>
-                <th className="px-4 py-2 font-medium">High</th>
                 <th className="px-4 py-2 font-medium">Risk</th>
-                <th className="px-4 py-2 font-medium">Rating</th>
                 <th className="px-4 py-2 font-medium">Date</th>
               </tr>
             </thead>
@@ -287,17 +287,14 @@ export function AdminPage() {
                   <td className="px-4 py-2">
                     {a.user_email ?? <span className="text-amber-600">anon</span>}
                   </td>
-                  <td className="px-4 py-2">{fmt$(a.offer_low)}</td>
                   <td className="px-4 py-2 font-medium">{fmt$(a.offer_recommended)}</td>
-                  <td className="px-4 py-2">{fmt$(a.offer_high)}</td>
                   <td className="px-4 py-2">{a.risk_level ?? "—"}</td>
-                  <td className="px-4 py-2">{a.investment_rating ?? "—"}</td>
                   <td className="px-4 py-2 text-(--slate)">{fmtDate(a.created_at)}</td>
                 </tr>
               ))}
               {analyses.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-4 text-center text-(--slate)">
+                  <td colSpan={6} className="px-4 py-4 text-center text-(--slate)">
                     No analyses yet
                   </td>
                 </tr>
