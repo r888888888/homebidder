@@ -1,3 +1,5 @@
+import { Link } from '@tanstack/react-router'
+
 export default function Footer() {
   const year = new Date().getFullYear()
 
@@ -20,6 +22,15 @@ export default function Footer() {
         </div>
 
         <p className="m-0 text-xs text-[var(--ink-muted)]">&copy; {year} HomeBidder</p>
+
+        <nav className="flex items-center gap-4">
+          <Link
+            to="/changelog"
+            className="text-xs text-[var(--ink-muted)] no-underline hover:text-[var(--ink-soft)]"
+          >
+            Changelog
+          </Link>
+        </nav>
 
         <p className="m-0 max-w-md text-xs leading-relaxed text-[var(--ink-muted)]">
           For informational purposes only. Not a substitute for professional real estate advice.

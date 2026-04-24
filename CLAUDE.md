@@ -43,3 +43,7 @@ python3 -m pytest tests/ -v
 npm test          # single run
 npm run test:watch  # watch mode
 ```
+
+## Releases
+
+Run `/deploy` to cut a release and deploy. The command handles version bumping, `CHANGELOG.md`, the frontend changelog page at `frontend/src/routes/changelog.tsx`, git tagging, and `fly deploy` for both the backend and frontend services.

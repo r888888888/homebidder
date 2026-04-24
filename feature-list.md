@@ -1,5 +1,13 @@
 # TODO
 
+- Add a HTTP basic auth protected admin portal that shows: all analyses, all users.
+- I want to plan a new feature: payments for user accounts. User accounts should have two tiers: Basic and Plus. Basic accounts will be free. Investigate what a reasonable price for plus accounts might be, based on running costs and a +30% profit margin. Strategize a good daily analysis limit, or other models for rationing usage (tokens, unlimited for X amounf of time, etc). Research what payment providers make sense to integrate with (Stripe, Square, etc). Existing users should be grandfathered into plus accounts.
+- Let's update the badges used on the front page (the comp radius, hazard zones, etc) and use ones that are more indicative of the current app.
+- Add a risk factor for properties that are Tenancy-in-Common or TICs. Adjust the Fair Value estimate accordingly. Look for signals in the property description.
+- The rents used for comparison feel out of date. Consider pulling in more realistic rent values from Zillow and scraping Craigslist, based on neighborhood and bedroom/bathroom count rather than just city-wide medians.
+- Investigate alternative services for permits, schools, and transit for properties in Daly City, CA.
+- Provide a permalink that users can copy for an analysis
+- Dedupe photos based on the URL.
 - Support inspection reports
 - Support pest inspection reports
 - Support disclosures
@@ -8,6 +16,8 @@
 - Plan this new feature: a validation mode. The app should look at recently sold properties in SF and run analysis on each property. Then it should grade its performance. For poorly scoring analyses, use the LLM to hypothesize what caused the discrepancy.
 
 # DONE
+
+- Add release versions and a changelog. `CHANGELOG.md` at project root (Keep-a-Changelog format, 6 retroactive releases v1.0.0–v1.5.0). `/changelog` page (`frontend/src/routes/changelog.tsx`) with inline TypeScript `RELEASES` data, grouped by Added/Changed/Fixed with coral dot bullets. "Changelog" link added to Footer. `/deploy` slash command at `.claude/commands/deploy.md` guides version bump → CHANGELOG.md → frontend data → commit/tag → `fly deploy` for both services. `CLAUDE.md` updated with a Releases section pointing to `/deploy`.
 
 - Support Sign Up with Apple account. `GET /api/auth/apple/authorize` returns an authorization URL; `GET /api/auth/apple/callback` exchanges the code via Apple's token endpoint, decodes the `id_token` to extract email, and finds-or-creates a user. `client_secret` is a per-request ES256 JWT generated from the Apple private key. "Continue with Apple" button on login + register pages; `/auth/callback/apple` frontend route mirrors the Google pattern.
 
