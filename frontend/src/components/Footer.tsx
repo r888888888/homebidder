@@ -2,12 +2,26 @@ export default function Footer() {
   const year = new Date().getFullYear()
 
   return (
-    <footer className="mt-20 border-t border-[var(--line)] px-4 pb-14 pt-10">
+    <footer
+      className="mt-20 border-t border-[var(--line)] px-4 pb-12 pt-10"
+      style={{ background: 'linear-gradient(to bottom, rgba(15,32,53,0.025) 0%, transparent 60%)' }}
+    >
       <div className="page-wrap flex flex-col items-center gap-3 text-center">
-        <p className="m-0 text-sm text-[var(--ink-soft)]">
-          &copy; {year} HomeBidder
-        </p>
-        <p className="m-0 max-w-md text-xs text-[var(--ink-muted)] leading-relaxed">
+        {/* Logomark */}
+        <div className="flex items-center gap-2 text-[var(--ink-soft)]">
+          <svg width="20" height="20" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+            <path
+              d="M14 3L2 13h3v11h7v-7h4v7h7V13h3L14 3z"
+              fill="currentColor"
+            />
+            <circle cx="14" cy="16" r="2.5" fill="var(--coral)" />
+          </svg>
+          <span className="text-sm font-semibold tracking-tight">HomeBidder</span>
+        </div>
+
+        <p className="m-0 text-xs text-[var(--ink-muted)]">&copy; {year} HomeBidder</p>
+
+        <p className="m-0 max-w-md text-xs leading-relaxed text-[var(--ink-muted)]">
           For informational purposes only. Not a substitute for professional real estate advice.
           Always consult a licensed agent before making an offer.
         </p>

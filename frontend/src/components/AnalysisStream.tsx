@@ -93,9 +93,13 @@ function TabBar({
 
 function PanelSkeleton({ label }: { label: string }) {
   return (
-    <div className="card flex items-center gap-3 p-5">
-      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 border-[var(--coral)] border-t-transparent animate-spin" />
-      <span className="text-sm text-[var(--ink-soft)]">{label}</span>
+    <div className="card p-5">
+      <div className="mb-4 space-y-3">
+        <div className="skeleton h-4 w-3/4" />
+        <div className="skeleton h-3 w-full" />
+        <div className="skeleton h-3 w-2/3" />
+      </div>
+      <p className="text-xs text-[var(--ink-muted)]">{label}</p>
     </div>
   );
 }
@@ -180,7 +184,7 @@ export function AnalysisStream({ events, isRunning }: Props) {
         hidden={activeTab !== "decision"}
       >
         {activeTab === "decision" && (
-          <div className="space-y-4">
+          <div key="decision" className="tab-enter space-y-4">
             {offerData ? (
               <OfferRecommendationCard offer={offerData} />
             ) : (
@@ -206,7 +210,7 @@ export function AnalysisStream({ events, isRunning }: Props) {
         hidden={activeTab !== "property"}
       >
         {activeTab === "property" && (
-          <div className="space-y-4">
+          <div key="property" className="tab-enter space-y-4">
             {propertyData ? (
               <PropertySummaryCard property={propertyData} />
             ) : (
@@ -230,7 +234,7 @@ export function AnalysisStream({ events, isRunning }: Props) {
         hidden={activeTab !== "market"}
       >
         {activeTab === "market" && (
-          <div className="space-y-4">
+          <div key="market" className="tab-enter space-y-4">
             {compsData ? (
               <CompsCard comps={compsData} />
             ) : (
@@ -249,7 +253,7 @@ export function AnalysisStream({ events, isRunning }: Props) {
         hidden={activeTab !== "risk"}
       >
         {activeTab === "risk" && (
-          <div className="space-y-4">
+          <div key="risk" className="tab-enter space-y-4">
             {riskData ? (
               <RiskAnalysisCard risk={riskData} />
             ) : (
@@ -269,7 +273,7 @@ export function AnalysisStream({ events, isRunning }: Props) {
         hidden={activeTab !== "analysis"}
       >
         {activeTab === "analysis" && (
-          <div className="space-y-4">
+          <div key="analysis" className="tab-enter space-y-4">
             {/* Agent step progress — hidden once analysis completes */}
             {toolCalls.length > 0 && isRunning && (
               <div className="card p-5">

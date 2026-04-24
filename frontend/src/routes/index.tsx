@@ -92,25 +92,25 @@ export function HomePage() {
         }}
       >
         <div className="content-wrap relative z-10 flex flex-col items-center text-center">
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-medium text-white/60 backdrop-blur-sm">
+          <div className="fade-up mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-medium text-white/60 backdrop-blur-sm">
             <span className="h-1.5 w-1.5 rounded-full bg-[var(--coral)]" />
             SF Bay Area
           </div>
 
-          <h1 className="display-title mb-5 text-4xl font-bold leading-tight text-white sm:text-5xl">
+          <h1 className="display-title fade-up stagger-1 mb-5 text-4xl font-bold leading-tight text-white sm:text-5xl">
             Know exactly what to offer{" "}
             <span className="text-[var(--coral)]">
               before you walk in the door.
             </span>
           </h1>
 
-          <p className="mb-10 max-w-lg text-base text-white/60 sm:text-lg">
+          <p className="fade-up stagger-2 mb-10 max-w-lg text-base text-white/60 sm:text-lg">
             AI-powered offer analysis backed by real comp data, CA hazard zones,
             and live market trends.
           </p>
 
           {/* Form card */}
-          <div className="card w-full p-6 sm:p-8">
+          <div className="fade-up stagger-3 card w-full p-6 sm:p-8">
             <AnalysisForm
               onSubmit={handleSubmit}
               isRunning={false}
@@ -152,10 +152,10 @@ export function HomePage() {
 
           {/* Feature chips */}
           <div className="mt-6 flex flex-wrap justify-center gap-2">
-            {FEATURES.map((f) => (
+            {FEATURES.map((f, i) => (
               <span
                 key={f}
-                className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/50"
+                className={`fade-up stagger-${Math.min(i + 1, 5)} rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/50`}
               >
                 {f}
               </span>
@@ -166,13 +166,19 @@ export function HomePage() {
 
       <div className="page-wrap py-14">
         <section>
-          <h2 className="display-title mb-8 text-center text-2xl font-bold text-[var(--ink)] sm:text-3xl">
+          <h2 className="display-title fade-up mb-8 text-center text-2xl font-bold text-[var(--ink)] sm:text-3xl">
             How it works
           </h2>
           <div className="grid gap-4 sm:grid-cols-3">
-            {HOW_IT_WORKS.map(({ step, title, body }) => (
-              <div key={step} className="card p-6">
-                <div className="mb-4 flex h-9 w-9 items-center justify-center rounded-full bg-[var(--navy)] text-sm font-bold text-white">
+            {HOW_IT_WORKS.map(({ step, title, body }, i) => (
+              <div key={step} className={`card card-hover p-6 fade-up stagger-${i + 1}`}>
+                <div
+                  className="mb-4 flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold text-white"
+                  style={{
+                    background: `linear-gradient(135deg, var(--navy-mid), var(--navy))`,
+                    boxShadow: `0 0 0 3px rgba(221,95,59,0.15)`,
+                  }}
+                >
                   {step}
                 </div>
                 <h3 className="mb-2 text-base font-semibold text-[var(--ink)]">

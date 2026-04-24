@@ -8,6 +8,7 @@ vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
     <a href={to}>{children}</a>
   ),
+  useMatchRoute: () => () => null,
 }));
 
 beforeEach(() => {
@@ -33,15 +34,15 @@ describe("Header (unauthenticated)", () => {
     expect(homeLink).toHaveAttribute("href", "/");
   });
 
-  it("renders a History nav link to /history", async () => {
+  it("does not show History link when not authenticated", async () => {
     renderHeader();
     await waitFor(() => {
-      const historyLink = screen.getByRole("link", { name: /history/i });
-      expect(historyLink).toHaveAttribute("href", "/history");
+      expect(screen.queryByRole("link", { name: /log in/i })).toBeInTheDocument();
     });
+    expect(screen.queryByRole("link", { name: /history/i })).not.toBeInTheDocument();
   });
 
-  it("shows Login and Sign up links when not authenticated", async () => {
+  it("shows Log in and Sign up links when not authenticated", async () => {
     renderHeader();
     await waitFor(() => {
       expect(screen.getByRole("link", { name: /log in/i })).toHaveAttribute("href", "/login");
@@ -51,7 +52,7 @@ describe("Header (unauthenticated)", () => {
 });
 
 describe("Header (authenticated)", () => {
-  it("shows user email abbreviation and a logout button when authenticated", async () => {
+  it("shows History link and account avatar when authenticated", async () => {
     localStorage.setItem("hb_token", "valid.jwt");
     vi.stubGlobal(
       "fetch",
@@ -64,14 +65,13 @@ describe("Header (authenticated)", () => {
     renderHeader();
 
     await waitFor(() => {
-      // Email abbreviation (first part before @) or full email shown in nav
-      expect(screen.getByText(/alice/i)).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /history/i })).toHaveAttribute("href", "/history");
     });
-    expect(screen.getByRole("button", { name: /log out/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /account menu/i })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /log in/i })).not.toBeInTheDocument();
   });
 
-  it("shows display_name instead of email prefix when available", async () => {
+  it("shows initials from display_name in avatar", async () => {
     localStorage.setItem("hb_token", "valid.jwt");
     vi.stubGlobal(
       "fetch",
@@ -89,13 +89,11 @@ describe("Header (authenticated)", () => {
     renderHeader();
 
     await waitFor(() => {
-      expect(screen.getByText("Alice")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /account menu/i })).toHaveTextContent("AS");
     });
-    expect(screen.queryByText("Alice Smith")).not.toBeInTheDocument();
-    expect(screen.queryByText("alice")).not.toBeInTheDocument();
   });
 
-  it("clears auth state after clicking logout", async () => {
+  it("opens dropdown with user info on avatar click", async () => {
     localStorage.setItem("hb_token", "valid.jwt");
     vi.stubGlobal(
       "fetch",
@@ -108,10 +106,37 @@ describe("Header (authenticated)", () => {
     renderHeader();
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /log out/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /account menu/i })).toBeInTheDocument();
     });
 
-    await userEvent.click(screen.getByRole("button", { name: /log out/i }));
+    await userEvent.click(screen.getByRole("button", { name: /account menu/i }));
+
+    expect(screen.getByText("alice@example.com")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /sign out/i })).toBeInTheDocument();
+  });
+
+  it("clears auth state after clicking sign out", async () => {
+    localStorage.setItem("hb_token", "valid.jwt");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ id: "uuid-1", email: "alice@example.com", is_active: true }),
+      })
+    );
+
+    renderHeader();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /account menu/i })).toBeInTheDocument();
+    });
+
+    // Open dropdown then click sign out
+    await userEvent.click(screen.getByRole("button", { name: /account menu/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /sign out/i })).toBeInTheDocument();
+    });
+    await userEvent.click(screen.getByRole("button", { name: /sign out/i }));
 
     await waitFor(() => {
       expect(screen.getByRole("link", { name: /log in/i })).toBeInTheDocument();

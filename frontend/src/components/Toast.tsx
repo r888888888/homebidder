@@ -61,7 +61,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           <div
             key={t.id}
             role="alert"
-            className="pointer-events-auto flex items-start gap-3 rounded-xl border border-[var(--amber)]/30 bg-white px-4 py-3 shadow-lg"
+            className="toast-enter pointer-events-auto flex items-start gap-3 rounded-xl border border-[var(--amber)]/30 bg-white px-4 py-3 shadow-lg"
           >
             {/* Warning icon */}
             <svg
