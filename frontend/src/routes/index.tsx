@@ -27,11 +27,11 @@ export interface AnalysisEvent {
 }
 
 const FEATURES = [
-  "0.3-mile comp radius",
-  "CA hazard zones",
-  "Overbid trend analysis",
-  "BART proximity",
-  "ADU potential",
+  "Comparable sales analysis",
+  "Fire, flood & seismic risk",
+  "School & crime ratings",
+  "BART, MUNI & Caltrain proximity",
+  "Fixer renovation estimate",
 ];
 
 const HOW_IT_WORKS = [

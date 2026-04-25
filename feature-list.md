@@ -1,6 +1,5 @@
 # TODO
 
-- Let's update the badges used on the front page (the comp radius, hazard zones, etc) and use ones that are more indicative of the current app.
 - Add a risk factor for properties that are Tenancy-in-Common or TICs. Adjust the Fair Value estimate accordingly. Look for signals in the property description.
 - The rents used for comparison feel out of date. Consider pulling in more realistic rent values from Zillow and scraping Craigslist, based on neighborhood and bedroom/bathroom count rather than just city-wide medians.
 - Investigate alternative services for permits, schools, and transit for properties in Daly City, CA.
@@ -15,6 +14,8 @@
 - Plan this new feature: a validation mode. The app should look at recently sold properties in SF and run analysis on each property. Then it should grade its performance. For poorly scoring analyses, use the LLM to hypothesize what caused the discrepancy.
 
 # DONE
+
+- Update front page feature badges to reflect the current app. Replaced "0.3-mile comp radius" → "Comparable sales analysis", "CA hazard zones" → "Fire, flood & seismic risk", "BART proximity" → "BART, MUNI & Caltrain proximity", "ADU potential" → "Fixer renovation estimate". Added "School & crime ratings" for the two major features added since the original badges were written.
 
 - Dedupe photos based on the URL. `_extract_photo_urls` now tracks seen URLs in a set; the primary photo is deduplicated against alt_photos, and duplicate URLs within alt_photos are dropped (first occurrence preserved). Two new backend tests cover both cases.
 
