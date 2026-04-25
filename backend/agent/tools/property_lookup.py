@@ -488,18 +488,23 @@ def _extract_photo_urls(row: Any) -> list[str]:
     - primary_photo: a single URL string
     - alt_photos: a comma-separated string of URL strings
     """
+    seen: set[str] = set()
     urls: list[str] = []
 
+    def _add(url: str) -> None:
+        url = url.strip()
+        if url and url not in seen:
+            seen.add(url)
+            urls.append(url)
+
     primary = _safe(row, "primary_photo")
-    if primary and isinstance(primary, str) and primary.strip():
-        urls.append(primary.strip())
+    if primary and isinstance(primary, str):
+        _add(primary)
 
     alt_raw = _safe(row, "alt_photos")
     if alt_raw and isinstance(alt_raw, str):
         for url in alt_raw.split(", "):
-            url = url.strip()
-            if url:
-                urls.append(url)
+            _add(url)
 
     return urls
 

@@ -1324,6 +1324,52 @@ class TestPhotosExtraction:
 
         assert result["photos"] == []
 
+    async def test_photos_deduped_when_primary_appears_in_alt(self):
+        """Primary photo URL that also appears in alt_photos is not duplicated."""
+        from agent.tools.property_lookup import _homeharvest_listing
+
+        url = "https://ap.rdcpix.com/abc123/primary.webp"
+        row = {
+            **HOMEHARVEST_ROW,
+            "primary_photo": url,
+            "alt_photos": f"{url}, https://ap.rdcpix.com/abc123/img2.webp",
+        }
+        df = _make_homeharvest_df([row])
+
+        with patch("agent.tools.property_lookup.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+            result = await _homeharvest_listing("450 SANCHEZ ST, SAN FRANCISCO, CA, 94114")
+
+        assert result["photos"] == [
+            "https://ap.rdcpix.com/abc123/primary.webp",
+            "https://ap.rdcpix.com/abc123/img2.webp",
+        ]
+
+    async def test_photos_deduped_within_alt_photos(self):
+        """Duplicate URLs within alt_photos are removed, preserving first occurrence order."""
+        from agent.tools.property_lookup import _homeharvest_listing
+
+        row = {
+            **HOMEHARVEST_ROW,
+            "primary_photo": "https://ap.rdcpix.com/abc123/p1.webp",
+            "alt_photos": (
+                "https://ap.rdcpix.com/abc123/img1.webp, "
+                "https://ap.rdcpix.com/abc123/img2.webp, "
+                "https://ap.rdcpix.com/abc123/img1.webp"
+            ),
+        }
+        df = _make_homeharvest_df([row])
+
+        with patch("agent.tools.property_lookup.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+            result = await _homeharvest_listing("450 SANCHEZ ST, SAN FRANCISCO, CA, 94114")
+
+        assert result["photos"] == [
+            "https://ap.rdcpix.com/abc123/p1.webp",
+            "https://ap.rdcpix.com/abc123/img1.webp",
+            "https://ap.rdcpix.com/abc123/img2.webp",
+        ]
+
 
 # ---------------------------------------------------------------------------
 # Redfin autocomplete URL tests
