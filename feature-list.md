@@ -1,6 +1,5 @@
 # TODO
 
-- Add a risk factor for properties that are Tenancy-in-Common or TICs. Adjust the Fair Value estimate accordingly. Look for signals in the property description.
 - The rents used for comparison feel out of date. Consider pulling in more realistic rent values from Zillow and scraping Craigslist, based on neighborhood and bedroom/bathroom count rather than just city-wide medians.
 - Investigate alternative services for permits, schools, and transit for properties in Daly City, CA.
 - Update the admin portal so that only superusers can access it, instead of relying HTTP basic auth. Update the first created user in the sqlite database to be the superuser.
@@ -14,6 +13,8 @@
 - Plan this new feature: a validation mode. The app should look at recently sold properties in SF and run analysis on each property. Then it should grade its performance. For poorly scoring analyses, use the LLM to hypothesize what caused the discrepancy.
 
 # DONE
+
+- Add a risk factor for properties that are Tenancy-in-Common or TICs. Detect TIC signals (`tenancy-in-common`, `tenants in common`, `TIC`) in the listing description via a new `ownership_tic` signal rule. Apply a −7% fair value discount in `recommend_offer()` (surfaced as `tic_adjustment_pct` in `fair_value_breakdown`). Surface a `tic_ownership` moderate risk factor in `assess_risk()` with financing and liquidity warnings. 17 new backend tests.
 
 - Update front page feature badges to reflect the current app. Replaced "0.3-mile comp radius" → "Comparable sales analysis", "CA hazard zones" → "Fire, flood & seismic risk", "BART proximity" → "BART, MUNI & Caltrain proximity", "ADU potential" → "Fixer renovation estimate". Added "School & crime ratings" for the two major features added since the original badges were written.
 

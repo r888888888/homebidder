@@ -665,3 +665,52 @@ class TestFairValueCI:
         result = recommend_offer(BASE_LISTING, stats)
         assert "ppsf_fallback" in result["fair_value_confidence_interval"]["factors"]
 
+
+TIC_SIGNAL = {
+    "label": "Tenancy-in-Common (TIC)",
+    "category": "ownership_tic",
+    "direction": "negative",
+    "weight_pct": -2.0,
+    "matched_phrases": [r"\bTIC\b"],
+}
+
+
+class TestTICFairValueDiscount:
+    def test_tic_signal_reduces_fair_value_vs_no_tic(self):
+        listing_no_tic = {**BASE_LISTING, "sqft": 1000}
+        listing_tic = {
+            **BASE_LISTING,
+            "sqft": 1000,
+            "description_signals": {"detected_signals": [TIC_SIGNAL]},
+        }
+        stats = {**BASE_STATS, "median_sale_price": 1_000_000, "median_pct_over_asking": 0.0}
+        result_no_tic = recommend_offer(listing_no_tic, stats)
+        result_tic = recommend_offer(listing_tic, stats)
+        assert result_tic["fair_value_estimate"] < result_no_tic["fair_value_estimate"]
+
+    def test_tic_adjustment_appears_in_breakdown(self):
+        listing_tic = {
+            **BASE_LISTING,
+            "description_signals": {"detected_signals": [TIC_SIGNAL]},
+        }
+        result = recommend_offer(listing_tic, BASE_STATS)
+        breakdown = result["fair_value_breakdown"]
+        assert breakdown.get("tic_adjustment_pct") is not None
+        assert breakdown["tic_adjustment_pct"] < 0
+
+    def test_non_tic_listing_has_null_tic_adjustment_in_breakdown(self):
+        result = recommend_offer(BASE_LISTING, BASE_STATS)
+        breakdown = result["fair_value_breakdown"]
+        assert breakdown.get("tic_adjustment_pct") is None
+
+    def test_tic_discount_is_applied_to_comp_anchor(self):
+        listing_tic = {
+            **BASE_LISTING,
+            "sqft": 1000,
+            "description_signals": {"detected_signals": [TIC_SIGNAL]},
+        }
+        stats = {**BASE_STATS, "median_sale_price": 1_000_000, "median_pct_over_asking": 0.0}
+        result = recommend_offer(listing_tic, stats)
+        # Fair value must be strictly below the anchor (no lot/sqft offsets in this listing)
+        assert result["fair_value_estimate"] < 1_000_000
+

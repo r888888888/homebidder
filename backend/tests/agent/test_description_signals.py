@@ -151,3 +151,62 @@ class TestExtractDescriptionSignals:
         result = extract_description_signals(text)
         # Only occupancy_negative (-1.5) should remain
         assert result["net_adjustment_pct"] == -1.5
+
+
+class TestTICSignal:
+    def test_detects_tenancy_in_common_phrase(self):
+        text = "This is a tenancy-in-common unit in a Victorian 4-plex."
+        result = extract_description_signals(text)
+        labels = {s["label"] for s in result["detected_signals"]}
+        assert "Tenancy-in-Common (TIC)" in labels
+
+    def test_detects_tenancy_in_common_spaced(self):
+        text = "Offered as tenancy in common with separate agreements."
+        result = extract_description_signals(text)
+        labels = {s["label"] for s in result["detected_signals"]}
+        assert "Tenancy-in-Common (TIC)" in labels
+
+    def test_detects_tic_abbreviation(self):
+        text = "TIC unit with fractional financing available."
+        result = extract_description_signals(text)
+        labels = {s["label"] for s in result["detected_signals"]}
+        assert "Tenancy-in-Common (TIC)" in labels
+
+    def test_detects_tenants_in_common(self):
+        text = "Sold as tenants in common — each party holds an undivided interest."
+        result = extract_description_signals(text)
+        labels = {s["label"] for s in result["detected_signals"]}
+        assert "Tenancy-in-Common (TIC)" in labels
+
+    def test_tic_signal_has_ownership_tic_category(self):
+        text = "TIC property in desirable Noe Valley."
+        result = extract_description_signals(text)
+        categories = {s["category"] for s in result["detected_signals"]}
+        assert "ownership_tic" in categories
+
+    def test_tic_signal_has_negative_direction(self):
+        text = "TIC unit in Noe Valley."
+        result = extract_description_signals(text)
+        tic = next(s for s in result["detected_signals"] if s["category"] == "ownership_tic")
+        assert tic["direction"] == "negative"
+
+    def test_tic_applies_negative_net_adjustment(self):
+        text = "TIC unit in Noe Valley."
+        result = extract_description_signals(text)
+        assert result["net_adjustment_pct"] < 0
+
+    def test_tic_does_not_conflict_with_fixer(self):
+        # TIC is a separate category — should not suppress fixer signals
+        text = "Fixer TIC unit — bring your contractor."
+        result = extract_description_signals(text)
+        labels = {s["label"] for s in result["detected_signals"]}
+        assert "Fixer / Contractor Special" in labels
+        assert "Tenancy-in-Common (TIC)" in labels
+
+    def test_tic_does_not_conflict_with_renovated(self):
+        # TIC is a separate category — should not suppress renovated signals
+        text = "Beautifully remodeled TIC unit — turn-key."
+        result = extract_description_signals(text)
+        labels = {s["label"] for s in result["detected_signals"]}
+        assert "Renovated / Updated" in labels
+        assert "Tenancy-in-Common (TIC)" in labels

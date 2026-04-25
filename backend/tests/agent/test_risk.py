@@ -858,3 +858,81 @@ class TestCesCensusTract:
             offer_result=make_offer_result(),
         )
         assert result.get("ces_census_tract") is None
+
+
+TIC_DESCRIPTION_SIGNALS = {
+    "detected_signals": [
+        {
+            "label": "Tenancy-in-Common (TIC)",
+            "category": "ownership_tic",
+            "direction": "negative",
+            "weight_pct": -2.0,
+            "matched_phrases": [r"\bTIC\b"],
+        }
+    ]
+}
+
+EMPTY_DESCRIPTION_SIGNALS = {"detected_signals": []}
+
+
+class TestTICOwnershipRiskFactor:
+    def test_tic_signal_produces_moderate_risk_factor(self):
+        from agent.tools.risk import assess_risk
+
+        listing = make_listing(description_signals=TIC_DESCRIPTION_SIGNALS)
+        result = assess_risk(
+            listing=listing,
+            market_stats=make_market_stats(),
+            offer_result=make_offer_result(),
+        )
+        tic_factor = next(
+            (f for f in result["factors"] if f["name"] == "tic_ownership"), None
+        )
+        assert tic_factor is not None
+        assert tic_factor["level"] == "moderate"
+
+    def test_description_present_but_no_tic_produces_low_risk_factor(self):
+        from agent.tools.risk import assess_risk
+
+        listing = make_listing(description_signals=EMPTY_DESCRIPTION_SIGNALS)
+        result = assess_risk(
+            listing=listing,
+            market_stats=make_market_stats(),
+            offer_result=make_offer_result(),
+        )
+        tic_factor = next(
+            (f for f in result["factors"] if f["name"] == "tic_ownership"), None
+        )
+        assert tic_factor is not None
+        assert tic_factor["level"] == "low"
+
+    def test_no_description_signals_returns_na_risk_factor(self):
+        from agent.tools.risk import assess_risk
+
+        # make_listing() has no description_signals key — cannot assess
+        result = assess_risk(
+            listing=make_listing(),
+            market_stats=make_market_stats(),
+            offer_result=make_offer_result(),
+        )
+        tic_factor = next(
+            (f for f in result["factors"] if f["name"] == "tic_ownership"), None
+        )
+        assert tic_factor is not None
+        assert tic_factor["level"] == "n/a"
+
+    def test_tic_description_signals_passed_explicitly_overrides_listing(self):
+        from agent.tools.risk import assess_risk
+
+        # Explicit description_signals kwarg should take priority over listing key
+        result = assess_risk(
+            listing=make_listing(),
+            market_stats=make_market_stats(),
+            offer_result=make_offer_result(),
+            description_signals=TIC_DESCRIPTION_SIGNALS,
+        )
+        tic_factor = next(
+            (f for f in result["factors"] if f["name"] == "tic_ownership"), None
+        )
+        assert tic_factor is not None
+        assert tic_factor["level"] == "moderate"

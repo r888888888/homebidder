@@ -233,11 +233,18 @@ def recommend_offer(
     property_type_raw = (listing.get("property_type") or "").lower()
     is_condo = "condo" in property_type_raw
 
+    is_tic = any(
+        s.get("category") == "ownership_tic"
+        for s in condition_signals
+    )
+    TIC_DISCOUNT = -0.07  # TIC properties trade at ~7% discount vs. comparable fee-simple
+
     if median_comp:
         fair_value = median_comp
 
         lot_adjustment_pct: float | None = None
         sqft_adjustment_pct: float | None = None
+        tic_adjustment_pct: float | None = None
 
         if not is_condo and lot_size and median_lot_size:
             lot_delta = (lot_size - median_lot_size) / median_lot_size
@@ -249,30 +256,39 @@ def recommend_offer(
             sqft_adjustment_pct = _clamp(sqft_delta * 0.25, -0.10, 0.12)
             total_adjustment += sqft_adjustment_pct
 
+        if is_tic:
+            tic_adjustment_pct = TIC_DISCOUNT
+            total_adjustment += tic_adjustment_pct
+
         fair_value = round(fair_value * (1 + total_adjustment))
         fair_value_breakdown = {
             "method": "median_comp_anchor",
             "base_comp_median": median_comp,
             "lot_adjustment_pct": round(lot_adjustment_pct * 100, 2) if lot_adjustment_pct is not None else None,
             "sqft_adjustment_pct": round(sqft_adjustment_pct * 100, 2) if sqft_adjustment_pct is not None else None,
+            "tic_adjustment_pct": round(tic_adjustment_pct * 100, 2) if tic_adjustment_pct is not None else None,
         }
     elif ppsf and sqft:
-        fair_value = round(ppsf * sqft)
+        tic_adjustment_pct = TIC_DISCOUNT if is_tic else None
+        fair_value = round(ppsf * sqft * (1 + (tic_adjustment_pct or 0.0)))
         total_adjustment = 0.0
         fair_value_breakdown = {
             "method": "ppsf_fallback",
             "base_comp_median": None,
             "lot_adjustment_pct": None,
             "sqft_adjustment_pct": None,
+            "tic_adjustment_pct": round(tic_adjustment_pct * 100, 2) if tic_adjustment_pct is not None else None,
         }
     else:
-        fair_value = round(list_price)
+        tic_adjustment_pct = TIC_DISCOUNT if is_tic else None
+        fair_value = round(list_price * (1 + (tic_adjustment_pct or 0.0)))
         total_adjustment = 0.0
         fair_value_breakdown = {
             "method": "list_price_fallback",
             "base_comp_median": None,
             "lot_adjustment_pct": None,
             "sqft_adjustment_pct": None,
+            "tic_adjustment_pct": round(tic_adjustment_pct * 100, 2) if tic_adjustment_pct is not None else None,
         }
 
     # --- Fair value confidence interval ---

@@ -197,6 +197,24 @@ def _assess_tenant_occupied(description_signals: dict | None) -> dict:
     return _factor("tenant_occupied", "low", "No tenant-occupancy indicators detected in the listing description.")
 
 
+def _assess_tic_ownership(description_signals: dict | None) -> dict:
+    if description_signals is None:
+        return _factor("tic_ownership", "n/a", "No listing description available to assess ownership structure.")
+    signals = description_signals.get("detected_signals") or []
+    is_tic = any(s.get("category") == "ownership_tic" for s in signals)
+    if is_tic:
+        return _factor(
+            "tic_ownership", "moderate",
+            "Property appears to be a Tenancy-in-Common (TIC). TIC units cannot be financed with "
+            "conventional Fannie/Freddie loans — buyers must use portfolio or fractional financing, "
+            "which typically carries a higher rate and stricter underwriting. "
+            "The smaller buyer pool reduces future resale liquidity. "
+            "Consult a real estate attorney before making an offer and factor in a "
+            "~5–15% discount vs. comparable fee-simple properties."
+        )
+    return _factor("tic_ownership", "low", "No Tenancy-in-Common (TIC) indicators detected in the listing description.")
+
+
 def _assess_highway_proximity(ces: dict | None) -> dict:
     if ces is None:
         return _factor("highway_proximity", "n/a", "No CalEnviroScreen data available.")
@@ -326,6 +344,7 @@ def assess_risk(
     """
     _desc_signals = description_signals or listing.get("description_signals")
     factors = [
+        _assess_tic_ownership(_desc_signals),
         _assess_tenant_occupied(_desc_signals),
         _assess_fault_zone(hazard_zones),
         _assess_flood_zone(hazard_zones),

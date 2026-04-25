@@ -79,6 +79,17 @@ SIGNAL_RULES: list[_SignalRule] = [
             r"\boccupied\s+by\s+tenant(?:s)?\b",
         ],
     },
+    {
+        "label": "Tenancy-in-Common (TIC)",
+        "category": "ownership_tic",
+        "direction": "negative",
+        "weight_pct": -2.0,
+        "phrases": [
+            r"\btenancy[-\s]in[-\s]common\b",
+            r"\btenants?\s+in\s+common\b",
+            r"\bTIC\b",
+        ],
+    },
 ]
 
 
