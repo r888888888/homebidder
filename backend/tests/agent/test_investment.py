@@ -383,3 +383,50 @@ class TestComputeInvestmentMetrics:
 
         assert result["nearest_muni_stop"] is None
         assert result["muni_distance_miles"] is None
+
+    def test_rent_estimate_source_passed_through(self):
+        from agent.tools.investment import compute_investment_metrics
+
+        result = compute_investment_metrics(
+            property={"price": 1_200_000},
+            mortgage_rates={"rate_30yr_fixed": 6.5, "as_of_date": "2026-03-26"},
+            hpi_trend={"yoy_change_pct": 3.0},
+            ba_value_drivers={
+                "zip_median_rent": 3500.0,
+                "rent_estimate_source": "rentcast",
+            },
+        )
+
+        assert result["rent_estimate_source"] == "rentcast"
+
+    def test_rent_range_fields_passed_through(self):
+        from agent.tools.investment import compute_investment_metrics
+
+        result = compute_investment_metrics(
+            property={"price": 1_200_000},
+            mortgage_rates={"rate_30yr_fixed": 6.5, "as_of_date": "2026-03-26"},
+            hpi_trend={"yoy_change_pct": 3.0},
+            ba_value_drivers={
+                "zip_median_rent": 3500.0,
+                "rent_range_low": 3000.0,
+                "rent_range_high": 4000.0,
+            },
+        )
+
+        assert result["rent_range_low"] == 3000.0
+        assert result["rent_range_high"] == 4000.0
+
+    def test_rent_fields_are_none_when_absent(self):
+        from agent.tools.investment import compute_investment_metrics
+
+        result = compute_investment_metrics(
+            property={"price": 1_000_000},
+            mortgage_rates={"rate_30yr_fixed": 6.5},
+            hpi_trend={},
+            ba_value_drivers={},
+        )
+
+        assert result["rent_estimate_source"] is None
+        assert result["rent_range_low"] is None
+        assert result["rent_range_high"] is None
+

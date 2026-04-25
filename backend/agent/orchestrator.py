@@ -555,6 +555,7 @@ async def _run_phase8_investment(
     phase6_fhfa: dict | None,
     offer_result: dict,
     state: dict,
+    user_id=None,
 ) -> AsyncIterator[str]:
     """
     Phase 8 — fetch mortgage rates + BA value drivers in parallel, then compute
@@ -569,7 +570,7 @@ async def _run_phase8_investment(
 
     phase8_results = await asyncio.gather(
         fetch_mortgage_rates(),
-        fetch_ba_value_drivers(listing, listing_zip),
+        fetch_ba_value_drivers(listing, listing_zip, user_id=user_id),
         return_exceptions=True,
     )
 
@@ -902,7 +903,7 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
 
                 # Phase 8: investment analysis
                 phase8_state: dict = {}
-                async for chunk in _run_phase8_investment(listing, phase6_fhfa, offer_result, phase8_state):
+                async for chunk in _run_phase8_investment(listing, phase6_fhfa, offer_result, phase8_state, user_id=user_id):
                     yield chunk
                 phase8_investment = phase8_state.get("investment")
 

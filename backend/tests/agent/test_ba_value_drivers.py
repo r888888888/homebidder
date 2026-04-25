@@ -669,3 +669,96 @@ class TestSchools:
             result = await fetch_ba_value_drivers(property_data, "94110")
 
         assert result["nearby_schools"] == []
+
+
+class TestRentSourcePriority:
+    _BASE_PROPERTY = {
+        "property_type": "SINGLE_FAMILY",
+        "lot_size": 4000,
+        "city": "San Francisco",
+        "year_built": 1960,
+        "latitude": None,
+        "longitude": None,
+        "address_matched": "450 SANCHEZ ST, SAN FRANCISCO, CA, 94114",
+        "bedrooms": 3,
+        "bathrooms": 2.0,
+        "sqft": 1400,
+    }
+
+    async def test_uses_rentcast_rent_when_user_is_authenticated(self):
+        from agent.tools.ba_value_drivers import fetch_ba_value_drivers
+
+        rc_result = {"rent": 4000.0, "rentRangeLow": 3500.0, "rentRangeHigh": 4500.0}
+
+        with patch("agent.tools.ba_value_drivers._load_caltrain_stations", return_value=[]), \
+             patch("agent.tools.ba_value_drivers._fetch_bart_stations", new=AsyncMock(return_value=[])), \
+             patch("agent.tools.ba_value_drivers.fetch_rentcast_rent_estimate", new=AsyncMock(return_value=rc_result)), \
+             patch("agent.tools.ba_value_drivers._fetch_zip_median_rent", side_effect=AssertionError("should not be called")):
+            result = await fetch_ba_value_drivers(self._BASE_PROPERTY, "94114", user_id="some-uuid")
+
+        assert result["zip_median_rent"] == 4000.0
+        assert result["rent_estimate_source"] == "rentcast"
+
+    async def test_falls_back_to_census_when_rentcast_returns_none(self):
+        from agent.tools.ba_value_drivers import fetch_ba_value_drivers
+
+        with patch("agent.tools.ba_value_drivers._load_caltrain_stations", return_value=[]), \
+             patch("agent.tools.ba_value_drivers._fetch_bart_stations", new=AsyncMock(return_value=[])), \
+             patch("agent.tools.ba_value_drivers.fetch_rentcast_rent_estimate", new=AsyncMock(return_value=None)), \
+             patch("agent.tools.ba_value_drivers._fetch_zip_median_rent", new=AsyncMock(return_value=3200.0)):
+            result = await fetch_ba_value_drivers(self._BASE_PROPERTY, "94114", user_id="some-uuid")
+
+        assert result["zip_median_rent"] == 3200.0
+        assert result["rent_estimate_source"] == "census"
+
+    async def test_uses_census_when_user_is_anonymous(self):
+        from agent.tools.ba_value_drivers import fetch_ba_value_drivers
+
+        mock_rentcast = AsyncMock(side_effect=AssertionError("should not be called for anonymous users"))
+
+        with patch("agent.tools.ba_value_drivers._load_caltrain_stations", return_value=[]), \
+             patch("agent.tools.ba_value_drivers._fetch_bart_stations", new=AsyncMock(return_value=[])), \
+             patch("agent.tools.ba_value_drivers.fetch_rentcast_rent_estimate", mock_rentcast), \
+             patch("agent.tools.ba_value_drivers._fetch_zip_median_rent", new=AsyncMock(return_value=3500.0)):
+            result = await fetch_ba_value_drivers(self._BASE_PROPERTY, "94114", user_id=None)
+
+        assert result["zip_median_rent"] == 3500.0
+        assert result["rent_estimate_source"] == "census"
+        mock_rentcast.assert_not_awaited()
+
+    async def test_rent_estimate_source_is_none_when_both_fail(self):
+        from agent.tools.ba_value_drivers import fetch_ba_value_drivers
+
+        with patch("agent.tools.ba_value_drivers._load_caltrain_stations", return_value=[]), \
+             patch("agent.tools.ba_value_drivers._fetch_bart_stations", new=AsyncMock(return_value=[])), \
+             patch("agent.tools.ba_value_drivers.fetch_rentcast_rent_estimate", new=AsyncMock(return_value=None)), \
+             patch("agent.tools.ba_value_drivers._fetch_zip_median_rent", new=AsyncMock(return_value=None)):
+            result = await fetch_ba_value_drivers(self._BASE_PROPERTY, "94114", user_id="some-uuid")
+
+        assert result["zip_median_rent"] is None
+        assert result["rent_estimate_source"] is None
+
+    async def test_rent_range_fields_present_when_rentcast_used(self):
+        from agent.tools.ba_value_drivers import fetch_ba_value_drivers
+
+        rc_result = {"rent": 4000.0, "rentRangeLow": 3500.0, "rentRangeHigh": 4500.0}
+
+        with patch("agent.tools.ba_value_drivers._load_caltrain_stations", return_value=[]), \
+             patch("agent.tools.ba_value_drivers._fetch_bart_stations", new=AsyncMock(return_value=[])), \
+             patch("agent.tools.ba_value_drivers.fetch_rentcast_rent_estimate", new=AsyncMock(return_value=rc_result)), \
+             patch("agent.tools.ba_value_drivers._fetch_zip_median_rent", new=AsyncMock(return_value=None)):
+            result = await fetch_ba_value_drivers(self._BASE_PROPERTY, "94114", user_id="some-uuid")
+
+        assert result["rent_range_low"] == 3500.0
+        assert result["rent_range_high"] == 4500.0
+
+    async def test_rent_range_fields_are_none_when_census_used(self):
+        from agent.tools.ba_value_drivers import fetch_ba_value_drivers
+
+        with patch("agent.tools.ba_value_drivers._load_caltrain_stations", return_value=[]), \
+             patch("agent.tools.ba_value_drivers._fetch_bart_stations", new=AsyncMock(return_value=[])), \
+             patch("agent.tools.ba_value_drivers._fetch_zip_median_rent", new=AsyncMock(return_value=3500.0)):
+            result = await fetch_ba_value_drivers(self._BASE_PROPERTY, "94114", user_id=None)
+
+        assert result["rent_range_low"] is None
+        assert result["rent_range_high"] is None

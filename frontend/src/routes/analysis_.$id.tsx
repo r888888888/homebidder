@@ -1,5 +1,7 @@
-import { createFileRoute, Link, useParams } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { PropertySummaryCard, type PropertyData } from "../components/PropertySummaryCard";
 import { OfferRecommendationCard, type OfferData } from "../components/OfferRecommendationCard";
 import { RiskAnalysisCard, type RiskData } from "../components/RiskAnalysisCard";
@@ -33,6 +35,7 @@ interface AnalysisDetail {
 
 export function PermalinkPage() {
   const { id } = useParams({ from: "/analysis_/$id" });
+  const navigate = useNavigate();
   const [analysis, setAnalysis] = useState<AnalysisDetail | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -119,6 +122,31 @@ export function PermalinkPage() {
             </svg>
             {copied ? "Copied!" : "Copy permalink"}
           </button>
+          <button
+            type="button"
+            onClick={() =>
+              navigate({ to: "/analysis", search: { address: analysis.address, buyerContext: "" } })
+            }
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-[var(--card-border)] bg-white px-4 py-2 text-sm font-semibold text-[var(--ink)] shadow-sm hover:bg-[var(--bg)]"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+              <path d="M21 3v5h-5" />
+              <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+              <path d="M8 16H3v5" />
+            </svg>
+            Refresh analysis
+          </button>
           <Link
             to="/"
             className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-[var(--card-border)] bg-white px-4 py-2 text-sm font-semibold text-[var(--ink)] shadow-sm no-underline hover:bg-[var(--bg)]"
@@ -149,6 +177,40 @@ export function PermalinkPage() {
               analysis.renovation_data.disabled_indices ?? []
             }
           />
+        )}
+        {analysis.rationale && (
+          <div className="card overflow-hidden">
+            <div className="border-b border-[var(--line)] px-6 py-4">
+              <p className="text-xs font-semibold uppercase tracking-widest text-[var(--ink-muted)]">
+                Analysis
+              </p>
+            </div>
+            <div className="prose prose-sm max-w-none px-6 py-5 text-[var(--ink)]">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  h1: ({ node: _node, ...props }) => (
+                    <h1 className="display-title mt-0 text-xl font-semibold" {...props} />
+                  ),
+                  h2: ({ node: _node, ...props }) => (
+                    <h2 className="mt-4 text-base font-semibold" {...props} />
+                  ),
+                  h3: ({ node: _node, ...props }) => (
+                    <h3 className="mt-4 text-sm font-semibold" {...props} />
+                  ),
+                  p: ({ node: _node, ...props }) => <p className="my-1" {...props} />,
+                  ul: ({ node: _node, ...props }) => (
+                    <ul className="my-2 list-disc pl-5" {...props} />
+                  ),
+                  ol: ({ node: _node, ...props }) => (
+                    <ol className="my-2 list-decimal pl-5" {...props} />
+                  ),
+                }}
+              >
+                {analysis.rationale}
+              </ReactMarkdown>
+            </div>
+          </div>
         )}
       </div>
     </main>

@@ -5,6 +5,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-04-25
+
+### Added
+- RentCast property-specific rent AVM for authenticated users in Bay Area value drivers — more accurate than Census zip-code median; falls back to Census for anonymous users
+- Rent range (low/high) and estimate source surfaced in investment metrics
+- Saved analysis page: "Refresh analysis" button re-runs the full analysis pipeline for the saved address
+- Saved analysis page: final AI analysis text (rationale) now displayed in a styled markdown card
+
+### Fixed
+- TIC risk factor and fair value discount applied correctly in offer recommendation
+- Deduplicated photo URLs in property lookup
+- Front page feature badges updated to reflect current app capabilities
+- History page "View" link navigated to wrong URL
+
 ## [1.6.0] - 2026-04-24
 
 ### Added

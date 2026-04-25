@@ -11,6 +11,7 @@ from urllib.parse import quote as _url_quote
 import httpx
 
 from config import settings
+from .rentcast_avm import fetch_rentcast_rent_estimate
 
 BART_CACHE_PATH = str(Path(__file__).parent.parent.parent / "data" / "bart_stations.json")
 BART_CACHE_TTL = 30 * 86_400  # 30 days
@@ -467,12 +468,39 @@ def _rent_control(city: str | None, year_built: int | None) -> dict[str, Any]:
 async def fetch_ba_value_drivers(
     property: dict[str, Any],
     zip_code: str,
+    user_id=None,
 ) -> dict[str, Any]:
     """Compute Bay Area-specific value drivers with no external paid APIs."""
     lot_size = property.get("lot_size")
     is_adu_candidate = bool(lot_size and float(lot_size) >= 3000 and _is_sfr(property.get("property_type")))
 
-    zip_median_rent = await _fetch_zip_median_rent(zip_code, beds=property.get("bedrooms"))
+    rent_estimate_source: str | None = None
+    rent_range_low: float | None = None
+    rent_range_high: float | None = None
+
+    if user_id is not None:
+        # Registered users: try RentCast property-specific rent AVM first
+        # (neighborhood-aware, tuned to bed/bath/sqft)
+        rc_rent = await fetch_rentcast_rent_estimate(
+            address=property.get("address_matched") or property.get("address_input") or "",
+            beds=property.get("bedrooms"),
+            baths=property.get("bathrooms"),
+            sqft=property.get("sqft"),
+            property_type=property.get("property_type"),
+        )
+        if rc_rent is not None:
+            zip_median_rent = rc_rent["rent"]
+            rent_range_low = rc_rent["rentRangeLow"]
+            rent_range_high = rc_rent["rentRangeHigh"]
+            rent_estimate_source = "rentcast"
+        else:
+            zip_median_rent = await _fetch_zip_median_rent(zip_code, beds=property.get("bedrooms"))
+            rent_estimate_source = "census" if zip_median_rent is not None else None
+    else:
+        # Anonymous users: Census ACS zip-code median only
+        zip_median_rent = await _fetch_zip_median_rent(zip_code, beds=property.get("bedrooms"))
+        rent_estimate_source = "census" if zip_median_rent is not None else None
+
     adu_rent_estimate = round(zip_median_rent * 0.65, 2) if (is_adu_candidate and zip_median_rent is not None) else None
 
     rent_control = _rent_control(property.get("city"), property.get("year_built"))
@@ -509,6 +537,9 @@ async def fetch_ba_value_drivers(
         "adu_potential": is_adu_candidate,
         "adu_rent_estimate": adu_rent_estimate,
         "zip_median_rent": zip_median_rent,
+        "rent_estimate_source": rent_estimate_source,
+        "rent_range_low": rent_range_low,
+        "rent_range_high": rent_range_high,
         "rent_controlled": rent_control["rent_controlled"],
         "rent_control_city": rent_control["rent_control_city"],
         "implications": rent_control["implications"],

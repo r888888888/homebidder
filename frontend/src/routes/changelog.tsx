@@ -15,6 +15,20 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "1.7.0",
+    date: "2026-04-25",
+    entries: [
+      { category: "Added", text: "RentCast property-specific rent AVM for authenticated users in Bay Area value drivers — more accurate than Census zip-code median; falls back to Census for anonymous users" },
+      { category: "Added", text: "Rent range (low/high) and estimate source surfaced in investment metrics" },
+      { category: "Added", text: "Saved analysis page: Refresh analysis button re-runs the full analysis pipeline for the saved address" },
+      { category: "Added", text: "Saved analysis page: final AI analysis text now displayed in a styled markdown card" },
+      { category: "Fixed", text: "TIC risk factor and fair value discount applied correctly in offer recommendation" },
+      { category: "Fixed", text: "Deduplicated photo URLs in property lookup" },
+      { category: "Fixed", text: "Front page feature badges updated to reflect current app capabilities" },
+      { category: "Fixed", text: "History page View link navigated to wrong URL" },
+    ],
+  },
+  {
     version: "1.6.0",
     date: "2026-04-24",
     entries: [
