@@ -1,7 +1,6 @@
 import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useAuth } from "../../../lib/AuthContext";
-import { apiBase } from "../../../lib/api";
 
 export const Route = createFileRoute("/auth/callback/apple")({ component: AppleCallbackPage });
 
@@ -9,27 +8,24 @@ export default function AppleCallbackPage() {
   const navigate = useNavigate();
   const { loginWithToken } = useAuth();
   const search = useSearch({ from: "/auth/callback/apple" }) as {
-    code?: string;
-    state?: string;
+    access_token?: string;
+    error?: string;
   };
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const { code, state } = search;
-    if (!code) return;
+    const { access_token, error: errorParam } = search;
+
+    if (errorParam) {
+      setError(decodeURIComponent(errorParam.replace(/\+/g, " ")));
+      return;
+    }
+
+    if (!access_token) return;
 
     (async () => {
       try {
-        const params = new URLSearchParams({ code, ...(state ? { state } : {}) });
-        const resp = await fetch(
-          `${apiBase}/api/auth/apple/callback?${params.toString()}`
-        );
-        if (!resp.ok) {
-          const body = await resp.json().catch(() => ({}));
-          throw new Error(body.detail ?? "Apple sign-in failed");
-        }
-        const data = await resp.json();
-        await loginWithToken(data.access_token);
+        await loginWithToken(access_token);
         navigate({ to: "/" });
       } catch (err) {
         setError(err instanceof Error ? err.message : "Apple sign-in failed");

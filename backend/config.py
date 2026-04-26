@@ -149,7 +149,11 @@ class _Settings:
 
     @property
     def apple_redirect_url(self) -> str:
-        return os.getenv("APPLE_REDIRECT_URL", "http://localhost:3000/auth/callback/apple")
+        return os.getenv("APPLE_REDIRECT_URL", "http://localhost:8000/api/auth/apple/callback")
+
+    @property
+    def frontend_url(self) -> str:
+        return os.getenv("FRONTEND_URL", "http://localhost:3000")
 
     # ------------------------------------------------------------------ #
     # Admin portal                                                         #

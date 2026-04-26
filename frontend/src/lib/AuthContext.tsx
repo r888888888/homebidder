@@ -28,12 +28,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      const hadToken = Boolean(getToken());
       const u = await fetchCurrentUser();
       if (!cancelled) {
         if (u) {
           setUser(u);
-        } else {
-          // Stale or absent token — clear it.
+        } else if (hadToken) {
+          // Had a token but it was invalid/expired — clear it.
           clearToken();
         }
         setIsLoading(false);

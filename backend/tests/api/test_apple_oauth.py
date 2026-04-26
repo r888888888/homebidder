@@ -61,12 +61,12 @@ async def test_apple_authorize_returns_authorization_url(client):
     assert "authorization_url" in data
     url = data["authorization_url"]
     assert url.startswith("https://appleid.apple.com/auth/authorize")
-    assert "response_mode=query" in url
+    assert "response_mode=form_post" in url  # must be form_post when email scope is requested
     assert "scope=email" in url
 
 
 # ---------------------------------------------------------------------------
-# GET /api/auth/apple/callback
+# POST /api/auth/apple/callback
 # ---------------------------------------------------------------------------
 
 def _patch_callback(mock_client):
@@ -79,17 +79,16 @@ def _patch_callback(mock_client):
 
 
 async def test_apple_callback_creates_user_on_first_login(client):
-    """GET /api/auth/apple/callback with a valid code creates a new user and returns JWT."""
+    """POST /api/auth/apple/callback with a valid code redirects to frontend with access_token."""
     with _patch_callback(_make_apple_token_mock(FAKE_APPLE_TOKEN_RESPONSE)):
-        resp = await client.get(
+        resp = await client.post(
             "/api/auth/apple/callback",
-            params={"code": "fake-code", "state": "fake-state"},
+            data={"code": "fake-code", "state": "fake-state"},
         )
 
-    assert resp.status_code == 200
-    data = resp.json()
-    assert "access_token" in data
-    assert data["token_type"] == "bearer"
+    assert resp.status_code == 303
+    location = resp.headers["location"]
+    assert "access_token=" in location
 
 
 async def test_apple_callback_sets_email_from_id_token(client):
@@ -101,12 +100,12 @@ async def test_apple_callback_sets_email_from_id_token(client):
     from sqlalchemy.orm import sessionmaker
 
     with _patch_callback(_make_apple_token_mock(FAKE_APPLE_TOKEN_RESPONSE)):
-        resp = await client.get(
+        resp = await client.post(
             "/api/auth/apple/callback",
-            params={"code": "fake-code", "state": "fake-state"},
+            data={"code": "fake-code", "state": "fake-state"},
         )
 
-    assert resp.status_code == 200
+    assert resp.status_code == 303
 
     async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     async with async_session() as session:
@@ -122,30 +121,31 @@ async def test_apple_callback_sets_email_from_id_token(client):
 async def test_apple_callback_returning_user_gets_token(client):
     """A returning Apple user gets a fresh JWT without creating a duplicate account."""
     with _patch_callback(_make_apple_token_mock(FAKE_APPLE_TOKEN_RESPONSE)):
-        r1 = await client.get(
+        r1 = await client.post(
             "/api/auth/apple/callback",
-            params={"code": "code1", "state": "s1"},
+            data={"code": "code1", "state": "s1"},
         )
 
     with _patch_callback(_make_apple_token_mock(FAKE_APPLE_TOKEN_RESPONSE)):
-        r2 = await client.get(
+        r2 = await client.post(
             "/api/auth/apple/callback",
-            params={"code": "code2", "state": "s2"},
+            data={"code": "code2", "state": "s2"},
         )
 
-    assert r1.status_code == 200
-    assert r2.status_code == 200
-    # Both calls return a token — no duplicate user error
-    assert "access_token" in r1.json()
-    assert "access_token" in r2.json()
+    assert r1.status_code == 303
+    assert r2.status_code == 303
+    # Both calls redirect with a token — no duplicate user error
+    assert "access_token=" in r1.headers["location"]
+    assert "access_token=" in r2.headers["location"]
 
 
-async def test_apple_callback_with_invalid_code_returns_4xx(client):
-    """GET /api/auth/apple/callback with a bad code returns 400 or similar."""
+async def test_apple_callback_with_invalid_code_redirects_with_error(client):
+    """POST /api/auth/apple/callback with a bad code redirects to frontend with error param."""
     with _patch_callback(_make_apple_token_mock({}, status_code=400)):
-        resp = await client.get(
+        resp = await client.post(
             "/api/auth/apple/callback",
-            params={"code": "bad-code", "state": "some-state"},
+            data={"code": "bad-code", "state": "some-state"},
         )
 
-    assert resp.status_code in (400, 422, 500)
+    assert resp.status_code == 303
+    assert "error=" in resp.headers["location"]

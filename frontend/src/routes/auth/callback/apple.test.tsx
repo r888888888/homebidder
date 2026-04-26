@@ -4,7 +4,9 @@ import { AuthProvider } from "../../../lib/AuthContext";
 import AppleCallbackPage from "./apple";
 
 const mockNavigate = vi.fn();
-const mockSearch = { code: "fake-code", state: "fake-state" };
+// Apple POSTs to the backend; backend redirects to frontend with access_token in URL.
+// The page reads access_token directly from search params — no backend fetch needed.
+let mockSearch: Record<string, string> = { access_token: "apple-tok" };
 
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (opts: unknown) => opts,
@@ -16,21 +18,18 @@ beforeEach(() => {
   localStorage.clear();
   vi.restoreAllMocks();
   mockNavigate.mockReset();
+  mockSearch = { access_token: "apple-tok" };
 });
 
 describe("AppleCallbackPage", () => {
   it("shows a loading state while processing", () => {
+    // No /api/users/me mock yet — just check the initial render
     vi.stubGlobal(
       "fetch",
-      vi.fn()
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ access_token: "apple-tok", token_type: "bearer" }),
-        })
-        .mockResolvedValue({
-          ok: true,
-          json: async () => ({ id: "uuid-2", email: "a@example.com", is_active: true }),
-        })
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ id: "uuid-2", email: "a@example.com", is_active: true }),
+      })
     );
     render(
       <AuthProvider>
@@ -41,21 +40,18 @@ describe("AppleCallbackPage", () => {
   });
 
   it("stores token and navigates to / on successful callback", async () => {
-    // No token in localStorage, so AuthProvider skips /api/users/me on mount.
-    // Sequence: apple callback → /api/users/me (from loginWithToken).
+    // access_token arrives in the URL from the backend redirect.
+    // loginWithToken stores it then calls /api/users/me.
+    // Two mock responses: React runs child effects before parent, so both
+    // loginWithToken's fetchCurrentUser and AuthProvider's fetchCurrentUser
+    // can each consume one response without racing.
+    const userResponse = {
+      ok: true,
+      json: async () => ({ id: "uuid-2", email: "a@example.com", is_active: true }),
+    };
     vi.stubGlobal(
       "fetch",
-      vi.fn()
-        // /api/auth/apple/callback
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ access_token: "apple-tok", token_type: "bearer" }),
-        })
-        // /api/users/me after token stored via loginWithToken
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ id: "uuid-2", email: "a@example.com", is_active: true }),
-        })
+      vi.fn().mockResolvedValueOnce(userResponse).mockResolvedValueOnce(userResponse)
     );
 
     render(
@@ -70,17 +66,8 @@ describe("AppleCallbackPage", () => {
     expect(localStorage.getItem("hb_token")).toBe("apple-tok");
   });
 
-  it("shows an error message when the callback API fails", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn()
-        // callback fails (no initial /api/users/me because no token)
-        .mockResolvedValueOnce({
-          ok: false,
-          status: 400,
-          json: async () => ({ detail: "OAuth token exchange failed" }),
-        })
-    );
+  it("shows an error message when backend redirects with error param", async () => {
+    mockSearch = { error: "OAuth+token+exchange+failed" };
 
     render(
       <AuthProvider>

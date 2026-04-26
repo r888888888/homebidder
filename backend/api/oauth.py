@@ -15,11 +15,12 @@ import base64
 import json
 import secrets
 import time
-from urllib.parse import urlencode
+from urllib.parse import quote_plus, urlencode
 
 import httpx
 import jwt  # PyJWT
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Form, HTTPException, Query
+from fastapi.responses import RedirectResponse
 from httpx_oauth.clients.google import GoogleOAuth2
 
 from api.auth import auth_backend
@@ -172,30 +173,39 @@ async def apple_authorize():
         "redirect_uri": settings.apple_redirect_url,
         "state": state,
         "scope": "email",
-        "response_mode": "query",
+        "response_mode": "form_post",
     }
     return {"authorization_url": "https://appleid.apple.com/auth/authorize?" + urlencode(params)}
 
 
 # ---------------------------------------------------------------------------
-# GET /api/auth/apple/callback
+# POST /api/auth/apple/callback
+# Apple uses response_mode=form_post so it POSTs code+state as form fields.
 # ---------------------------------------------------------------------------
 
-@oauth_router.get("/auth/apple/callback")
+def _apple_error_redirect(message: str) -> RedirectResponse:
+    """Redirect to the frontend callback page with an error query param."""
+    url = f"{settings.frontend_url}/auth/callback/apple?error={quote_plus(message)}"
+    return RedirectResponse(url=url, status_code=303)
+
+
+@oauth_router.post("/auth/apple/callback")
 async def apple_callback(
-    code: str = Query(...),
-    state: str = Query(...),
+    code: str = Form(...),
+    state: str = Form(None),
     user_manager=Depends(get_user_manager),
 ):
-    """Handle the Apple Sign In callback.
+    """Handle the Apple Sign In callback (form_post mode).
 
-    Exchanges the authorization code for Apple tokens, extracts the email from
-    the id_token, then finds-or-creates a HomeBidder user account and issues a JWT.
+    Apple POSTs the authorization code and state as form fields. This endpoint
+    exchanges the code for Apple tokens, extracts the email from the id_token,
+    finds-or-creates a HomeBidder user account, issues a JWT, then redirects the
+    browser back to the frontend callback page with the token in the URL.
     """
     try:
         client_secret = _build_apple_client_secret()
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Failed to build Apple client secret: {exc}") from exc
+        return _apple_error_redirect(f"Failed to build Apple client secret: {exc}")
 
     try:
         async with httpx.AsyncClient() as http:
@@ -213,18 +223,18 @@ async def apple_callback(
             response.raise_for_status()
             token_data = response.json()
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Apple token exchange failed: {exc}") from exc
+        return _apple_error_redirect(f"Apple token exchange failed: {exc}")
 
     try:
         email = _decode_apple_id_token_email(token_data.get("id_token", ""))
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Failed to extract email from Apple token: {exc}") from exc
+        return _apple_error_redirect(f"Failed to extract email from Apple token: {exc}")
 
     # Find existing user or create one.
     existing = await user_manager.user_db.get_by_email(email)
     if existing is None:
         # Create a new verified user without a password (OAuth-only login).
-        # display_name is None — Apple does not include name in id_token for response_mode=query.
+        # display_name is None — Apple does not include name in id_token for form_post mode.
         user = await user_manager.user_db.create({
             "email": email,
             "hashed_password": "",
@@ -236,7 +246,8 @@ async def apple_callback(
     else:
         user = existing
 
-    # Issue a JWT via the auth backend.
+    # Issue a JWT and redirect the browser to the frontend callback page.
     strategy = auth_backend.get_strategy()
     token = await strategy.write_token(user)
-    return {"access_token": token, "token_type": "bearer"}
+    url = f"{settings.frontend_url}/auth/callback/apple?access_token={quote_plus(token)}"
+    return RedirectResponse(url=url, status_code=303)
