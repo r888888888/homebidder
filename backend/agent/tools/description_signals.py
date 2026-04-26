@@ -90,6 +90,24 @@ SIGNAL_RULES: list[_SignalRule] = [
             r"\bTIC\b",
         ],
     },
+    {
+        "label": "Duplex / Triplex / Multi-Family",
+        "category": "structure_multifamily",
+        "direction": "negative",
+        "weight_pct": -0.5,
+        "phrases": [
+            r"\bduplex\b",
+            r"\btriplex\b",
+            r"\bhalf[-\s]duplex\b",
+            r"\bmulti[-\s]family\b",
+            r"\b(?:upper|lower)\s+(?:unit|flat|level)\b",
+            r"\bone\s+of\s+(?:two|three|\d+)\s+units?\b",
+            r"\btwo[-\s]?unit\b",
+            r"\bthree[-\s]?unit\b",
+            r"\btwo\s+flats?\b",
+            r"\bthree\s+flats?\b",
+        ],
+    },
 ]
 
 

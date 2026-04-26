@@ -936,3 +936,121 @@ class TestTICOwnershipRiskFactor:
         )
         assert tic_factor is not None
         assert tic_factor["level"] == "moderate"
+
+
+MULTIFAMILY_DESCRIPTION_SIGNALS = {
+    "detected_signals": [
+        {
+            "label": "Duplex / Triplex / Multi-Family",
+            "category": "structure_multifamily",
+            "direction": "negative",
+            "weight_pct": -0.5,
+            "matched_phrases": [r"\bduplex\b"],
+        }
+    ]
+}
+
+
+class TestMultifamilyStructureRiskFactor:
+    def test_duplex_property_type_produces_low_risk_factor(self):
+        from agent.tools.risk import assess_risk
+
+        listing = make_listing(property_type="DUPLEX")
+        result = assess_risk(
+            listing=listing,
+            market_stats=make_market_stats(),
+            offer_result=make_offer_result(),
+            description_signals=EMPTY_DESCRIPTION_SIGNALS,
+        )
+        factor = next((f for f in result["factors"] if f["name"] == "multifamily_structure"), None)
+        assert factor is not None
+        assert factor["level"] == "low"
+        desc = factor["description"].lower()
+        assert "duplex" in desc or "multi" in desc or "unit" in desc
+
+    def test_triplex_property_type_produces_low_risk_factor(self):
+        from agent.tools.risk import assess_risk
+
+        listing = make_listing(property_type="TRIPLEX")
+        result = assess_risk(
+            listing=listing,
+            market_stats=make_market_stats(),
+            offer_result=make_offer_result(),
+            description_signals=EMPTY_DESCRIPTION_SIGNALS,
+        )
+        factor = next((f for f in result["factors"] if f["name"] == "multifamily_structure"), None)
+        assert factor is not None
+        assert factor["level"] == "low"
+
+    def test_multi_family_property_type_produces_low_risk_factor(self):
+        from agent.tools.risk import assess_risk
+
+        listing = make_listing(property_type="MULTI_FAMILY")
+        result = assess_risk(
+            listing=listing,
+            market_stats=make_market_stats(),
+            offer_result=make_offer_result(),
+            description_signals=EMPTY_DESCRIPTION_SIGNALS,
+        )
+        factor = next((f for f in result["factors"] if f["name"] == "multifamily_structure"), None)
+        assert factor is not None
+        assert factor["level"] == "low"
+
+    def test_sfh_no_signals_produces_low_risk_no_concern(self):
+        from agent.tools.risk import assess_risk
+
+        listing = make_listing(property_type="SINGLE_FAMILY")
+        result = assess_risk(
+            listing=listing,
+            market_stats=make_market_stats(),
+            offer_result=make_offer_result(),
+            description_signals=EMPTY_DESCRIPTION_SIGNALS,
+        )
+        factor = next((f for f in result["factors"] if f["name"] == "multifamily_structure"), None)
+        assert factor is not None
+        assert factor["level"] == "low"
+        # Description should indicate no concern detected
+        assert "no" in factor["description"].lower()
+
+    def test_description_signal_alone_produces_low_risk_factor(self):
+        from agent.tools.risk import assess_risk
+
+        listing = make_listing(property_type="SINGLE_FAMILY")
+        result = assess_risk(
+            listing=listing,
+            market_stats=make_market_stats(),
+            offer_result=make_offer_result(),
+            description_signals=MULTIFAMILY_DESCRIPTION_SIGNALS,
+        )
+        factor = next((f for f in result["factors"] if f["name"] == "multifamily_structure"), None)
+        assert factor is not None
+        assert factor["level"] == "low"
+        # Description should mention duplex/multi-family context
+        desc = factor["description"].lower()
+        assert "duplex" in desc or "multi" in desc or "unit" in desc
+
+    def test_duplex_with_unit_number_notes_unit_in_building(self):
+        from agent.tools.risk import assess_risk
+
+        listing = make_listing(property_type="DUPLEX", unit="2")
+        result = assess_risk(
+            listing=listing,
+            market_stats=make_market_stats(),
+            offer_result=make_offer_result(),
+            description_signals=EMPTY_DESCRIPTION_SIGNALS,
+        )
+        factor = next((f for f in result["factors"] if f["name"] == "multifamily_structure"), None)
+        assert factor is not None
+        assert factor["level"] == "low"
+        assert "unit" in factor["description"].lower()
+
+    def test_multifamily_factor_is_present_in_factors_list(self):
+        from agent.tools.risk import assess_risk
+
+        result = assess_risk(
+            listing=make_listing(),
+            market_stats=make_market_stats(),
+            offer_result=make_offer_result(),
+        )
+        names = {f["name"] for f in result["factors"]}
+        assert "multifamily_structure" in names

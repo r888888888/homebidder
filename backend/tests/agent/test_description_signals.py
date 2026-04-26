@@ -210,3 +210,73 @@ class TestTICSignal:
         labels = {s["label"] for s in result["detected_signals"]}
         assert "Renovated / Updated" in labels
         assert "Tenancy-in-Common (TIC)" in labels
+
+
+class TestMultifamilySignal:
+    def test_detects_duplex(self):
+        text = "Beautiful upper unit in a Victorian duplex."
+        result = extract_description_signals(text)
+        labels = {s["label"] for s in result["detected_signals"]}
+        assert "Duplex / Triplex / Multi-Family" in labels
+
+    def test_detects_triplex(self):
+        text = "Charming lower flat in a classic triplex."
+        result = extract_description_signals(text)
+        labels = {s["label"] for s in result["detected_signals"]}
+        assert "Duplex / Triplex / Multi-Family" in labels
+
+    def test_detects_half_duplex(self):
+        text = "Own one half of this half-duplex in the Sunset."
+        result = extract_description_signals(text)
+        labels = {s["label"] for s in result["detected_signals"]}
+        assert "Duplex / Triplex / Multi-Family" in labels
+
+    def test_detects_multi_family(self):
+        text = "Multi-family investment opportunity — two separate units."
+        result = extract_description_signals(text)
+        labels = {s["label"] for s in result["detected_signals"]}
+        assert "Duplex / Triplex / Multi-Family" in labels
+
+    def test_detects_upper_unit(self):
+        text = "Spacious upper unit in a two-story building."
+        result = extract_description_signals(text)
+        labels = {s["label"] for s in result["detected_signals"]}
+        assert "Duplex / Triplex / Multi-Family" in labels
+
+    def test_detects_lower_flat(self):
+        text = "Sunny lower flat with garden access."
+        result = extract_description_signals(text)
+        labels = {s["label"] for s in result["detected_signals"]}
+        assert "Duplex / Triplex / Multi-Family" in labels
+
+    def test_signal_category_is_structure_multifamily(self):
+        text = "Classic duplex in Noe Valley."
+        result = extract_description_signals(text)
+        categories = {s["category"] for s in result["detected_signals"]}
+        assert "structure_multifamily" in categories
+
+    def test_signal_direction_is_negative(self):
+        text = "Duplex in the Mission District."
+        result = extract_description_signals(text)
+        sig = next(s for s in result["detected_signals"] if s["category"] == "structure_multifamily")
+        assert sig["direction"] == "negative"
+
+    def test_applies_negative_net_adjustment(self):
+        text = "Classic duplex in Noe Valley."
+        result = extract_description_signals(text)
+        assert result["net_adjustment_pct"] < 0
+
+    def test_does_not_conflict_with_tic_signal(self):
+        # Both structure and ownership signals can fire independently
+        text = "TIC duplex in the Castro."
+        result = extract_description_signals(text)
+        categories = {s["category"] for s in result["detected_signals"]}
+        assert "ownership_tic" in categories
+        assert "structure_multifamily" in categories
+
+    def test_does_not_conflict_with_fixer_signal(self):
+        text = "Fixer duplex — bring your contractor."
+        result = extract_description_signals(text)
+        categories = {s["category"] for s in result["detected_signals"]}
+        assert "condition_negative" in categories
+        assert "structure_multifamily" in categories

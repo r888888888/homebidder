@@ -215,6 +215,49 @@ def _assess_tic_ownership(description_signals: dict | None) -> dict:
     return _factor("tic_ownership", "low", "No Tenancy-in-Common (TIC) indicators detected in the listing description.")
 
 
+_MULTIFAMILY_TYPES = {"DUPLEX", "TRIPLEX", "MULTI_FAMILY", "MULTI-FAMILY", "2_FAMILY", "3_FAMILY"}
+
+
+def _assess_multifamily_structure(listing: dict, description_signals: dict | None) -> dict:
+    property_type = (listing.get("property_type") or "").upper()
+    has_unit = bool(listing.get("unit"))
+
+    is_multifamily_type = any(t in property_type for t in _MULTIFAMILY_TYPES)
+
+    signals = (description_signals or {}).get("detected_signals") or []
+    has_multifamily_signal = any(s.get("category") == "structure_multifamily" for s in signals)
+
+    if is_multifamily_type and has_unit:
+        return _factor(
+            "multifamily_structure", "low",
+            f"Property type ({property_type}) and unit number suggest this is one unit within a "
+            "multi-unit building — similar to a condo or TIC arrangement. "
+            "Verify financing options, shared structural expenses, and any co-ownership agreements "
+            "before making an offer."
+        )
+
+    if is_multifamily_type:
+        return _factor(
+            "multifamily_structure", "low",
+            f"Property is listed as {property_type}. If this is a multi-unit investment property, "
+            "standard owner-occupant financing may not apply — confirm with your lender. "
+            "Factor in potential rental income and shared maintenance obligations."
+        )
+
+    if has_multifamily_signal:
+        return _factor(
+            "multifamily_structure", "low",
+            "Listing description suggests this may be part of a duplex, triplex, or multi-family structure. "
+            "Verify the ownership type (whole building vs. individual unit), financing options, "
+            "and any shared expenses or co-ownership agreements."
+        )
+
+    return _factor(
+        "multifamily_structure", "low",
+        "No multi-family structure indicators detected in the property type or listing description."
+    )
+
+
 def _assess_highway_proximity(ces: dict | None) -> dict:
     if ces is None:
         return _factor("highway_proximity", "n/a", "No CalEnviroScreen data available.")
@@ -346,6 +389,7 @@ def assess_risk(
     factors = [
         _assess_tic_ownership(_desc_signals),
         _assess_tenant_occupied(_desc_signals),
+        _assess_multifamily_structure(listing, _desc_signals),
         _assess_fault_zone(hazard_zones),
         _assess_flood_zone(hazard_zones),
         _assess_fire_hazard(hazard_zones),
