@@ -1,38 +1,28 @@
-"""HTTP Basic Auth protected admin portal endpoints."""
+"""Superuser-protected admin portal endpoints."""
 import math
-import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
-from config import settings
 from db import get_db
 from db.models import User, Analysis, Listing
+from api.auth import current_active_user
 
 admin_router = APIRouter(prefix="/admin", tags=["admin"])
-_security = HTTPBasic()
 
 _PAGE_SIZE_DEFAULT = 25
 _PAGE_SIZE_MAX = 100
 
 
-async def _require_admin(credentials: HTTPBasicCredentials = Depends(_security)):
-    admin_password = settings.admin_password
-    if not admin_password:
+async def _require_superuser(user: User = Depends(current_active_user)) -> User:
+    """Raise 403 if the authenticated user is not a superuser."""
+    if not user.is_superuser:
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Admin portal not configured. Set ADMIN_PASSWORD environment variable.",
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Superuser access required.",
         )
-    correct_username = secrets.compare_digest(credentials.username, settings.admin_username)
-    correct_password = secrets.compare_digest(credentials.password, admin_password)
-    if not (correct_username and correct_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Basic"},
-        )
+    return user
 
 
 def _paginate(items: list, total: int, page: int, page_size: int) -> dict:
@@ -45,7 +35,7 @@ def _paginate(items: list, total: int, page: int, page_size: int) -> dict:
     }
 
 
-@admin_router.get("/users", dependencies=[Depends(_require_admin)])
+@admin_router.get("/users", dependencies=[Depends(_require_superuser)])
 async def admin_list_users(
     db: AsyncSession = Depends(get_db),
     page: int = Query(default=1, ge=1),
@@ -73,7 +63,7 @@ async def admin_list_users(
     return _paginate(items, total, page, page_size)
 
 
-@admin_router.get("/analyses", dependencies=[Depends(_require_admin)])
+@admin_router.get("/analyses", dependencies=[Depends(_require_superuser)])
 async def admin_list_analyses(
     db: AsyncSession = Depends(get_db),
     page: int = Query(default=1, ge=1),

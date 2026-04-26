@@ -23,6 +23,7 @@ export interface UserRead {
   id: string;
   email: string;
   is_active: boolean;
+  is_superuser: boolean;
   display_name?: string | null;
 }
 

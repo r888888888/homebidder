@@ -18,9 +18,6 @@ os.environ.setdefault("APPLE_TEAM_ID", "TESTTEAMID1")
 os.environ.setdefault("APPLE_KEY_ID", "TESTKEYID1")
 os.environ.setdefault("APPLE_PRIVATE_KEY", "")
 os.environ.setdefault("APPLE_REDIRECT_URL", "http://localhost:3000/auth/callback/apple")
-# Admin portal — test credentials
-os.environ.setdefault("ADMIN_USERNAME", "admin")
-os.environ.setdefault("ADMIN_PASSWORD", "testadminpass")
 
 import pytest
 from httpx import AsyncClient, ASGITransport

@@ -82,11 +82,31 @@ async def _migrate_comps(conn) -> None:
             log.info("Migration: added comps.%s", col_name)
 
 
+async def _promote_first_user_to_superuser(conn) -> None:
+    """If no superuser exists, promote the first-created user (by rowid) to superuser.
+
+    Runs at every startup; idempotent — exits immediately when a superuser already exists.
+    """
+    result = await conn.execute(text("SELECT COUNT(*) FROM users WHERE is_superuser = 1"))
+    if result.scalar_one() > 0:
+        return  # superuser already exists
+
+    result = await conn.execute(text("SELECT id FROM users ORDER BY rowid LIMIT 1"))
+    row = result.fetchone()
+    if row:
+        await conn.execute(
+            text("UPDATE users SET is_superuser = 1 WHERE id = :id"),
+            {"id": row[0]},
+        )
+        log.info("Promoted first user to superuser: %s", row[0])
+
+
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await _migrate_analyses(conn)
         await _migrate_comps(conn)
+        await _promote_first_user_to_superuser(conn)
 
 
 async def get_db():

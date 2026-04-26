@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { apiBase } from "../lib/api";
+import { useAuth } from "../lib/AuthContext";
+import { authHeaders } from "../lib/auth";
 
 export const Route = createFileRoute("/admin")({
   component: AdminPage,
@@ -74,55 +76,44 @@ function Pagination({
 }
 
 export function AdminPage() {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [loginError, setLoginError] = useState<string | null>(null);
-  const [loginLoading, setLoginLoading] = useState(false);
-
-  // Stored after first successful auth to re-use on page navigation
-  const [authHeader, setAuthHeader] = useState<string | null>(null);
+  const { user, isLoading } = useAuth();
 
   const [usersData, setUsersData] = useState<PagedResult<AdminUser> | null>(null);
   const [analysesData, setAnalysesData] = useState<PagedResult<AdminAnalysis> | null>(null);
   const [usersLoading, setUsersLoading] = useState(false);
   const [analysesLoading, setAnalysesLoading] = useState(false);
 
-  async function handleLogin(e: React.FormEvent) {
-    e.preventDefault();
-    setLoginError(null);
-    setLoginLoading(true);
-    const header = `Basic ${btoa(`${username}:${password}`)}`;
-    try {
-      const [usersResp, analysesResp] = await Promise.all([
-        fetch(`${apiBase}/api/admin/users?page=1&page_size=${PAGE_SIZE}`, {
-          headers: { Authorization: header },
-        }),
-        fetch(`${apiBase}/api/admin/analyses?page=1&page_size=${PAGE_SIZE}`, {
-          headers: { Authorization: header },
-        }),
-      ]);
-      if (!usersResp.ok) {
-        const body = await usersResp.json().catch(() => ({}));
-        setLoginError(body.detail ?? "Incorrect username or password");
-        return;
+  // Load data automatically once we know the user is a superuser.
+  useEffect(() => {
+    if (!user?.is_superuser) return;
+    async function load() {
+      setUsersLoading(true);
+      setAnalysesLoading(true);
+      try {
+        const [usersResp, analysesResp] = await Promise.all([
+          fetch(`${apiBase}/api/admin/users?page=1&page_size=${PAGE_SIZE}`, {
+            headers: authHeaders(),
+          }),
+          fetch(`${apiBase}/api/admin/analyses?page=1&page_size=${PAGE_SIZE}`, {
+            headers: authHeaders(),
+          }),
+        ]);
+        if (usersResp.ok) setUsersData(await usersResp.json());
+        if (analysesResp.ok) setAnalysesData(await analysesResp.json());
+      } finally {
+        setUsersLoading(false);
+        setAnalysesLoading(false);
       }
-      setAuthHeader(header);
-      setUsersData(await usersResp.json());
-      setAnalysesData(await analysesResp.json());
-    } catch {
-      setLoginError("Network error. Please try again.");
-    } finally {
-      setLoginLoading(false);
     }
-  }
+    load();
+  }, [user]);
 
   async function goUsersPage(page: number) {
-    if (!authHeader) return;
     setUsersLoading(true);
     try {
       const resp = await fetch(
         `${apiBase}/api/admin/users?page=${page}&page_size=${PAGE_SIZE}`,
-        { headers: { Authorization: authHeader } }
+        { headers: authHeaders() }
       );
       if (resp.ok) setUsersData(await resp.json());
     } finally {
@@ -131,12 +122,11 @@ export function AdminPage() {
   }
 
   async function goAnalysesPage(page: number) {
-    if (!authHeader) return;
     setAnalysesLoading(true);
     try {
       const resp = await fetch(
         `${apiBase}/api/admin/analyses?page=${page}&page_size=${PAGE_SIZE}`,
-        { headers: { Authorization: authHeader } }
+        { headers: authHeaders() }
       );
       if (resp.ok) setAnalysesData(await resp.json());
     } finally {
@@ -153,63 +143,39 @@ export function AdminPage() {
   const fmtDate = (s: string | null) =>
     s ? new Date(s).toLocaleDateString() : "—";
 
-  // ── Login form ──────────────────────────────────────────────────────────
-  if (usersData === null) {
+  // ── Auth check ───────────────────────────────────────────────────────────
+  if (isLoading) {
+    return (
+      <main className="min-h-screen flex items-center justify-center bg-(--cream)">
+        <p className="text-(--slate)">Loading…</p>
+      </main>
+    );
+  }
+
+  if (!user) {
     return (
       <main className="min-h-screen flex items-center justify-center bg-(--cream) px-4">
-        <div className="bg-white rounded-2xl shadow-md p-8 w-full max-w-sm">
-          <h1 className="text-xl font-semibold text-(--ink) mb-6">Admin Portal</h1>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label
-                htmlFor="admin-username"
-                className="block text-sm font-medium text-(--ink) mb-1"
-              >
-                Username
-              </label>
-              <input
-                id="admin-username"
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-                autoComplete="username"
-                className="w-full border border-(--mist) rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-(--coral)"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="admin-password"
-                className="block text-sm font-medium text-(--ink) mb-1"
-              >
-                Password
-              </label>
-              <input
-                id="admin-password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                autoComplete="current-password"
-                className="w-full border border-(--mist) rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-(--coral)"
-              />
-            </div>
-            {loginError && <p className="text-red-600 text-sm">{loginError}</p>}
-            <button
-              type="submit"
-              disabled={loginLoading}
-              className="w-full bg-(--coral) text-white font-medium rounded-lg py-2 text-sm disabled:opacity-50 hover:opacity-90 transition-opacity"
-            >
-              {loginLoading ? "Signing in…" : "Sign in"}
-            </button>
-          </form>
+        <div className="bg-white rounded-2xl shadow-md p-8 w-full max-w-sm text-center">
+          <h1 className="text-xl font-semibold text-(--ink) mb-3">Admin Portal</h1>
+          <p className="text-(--slate) text-sm">Please log in to access the admin portal.</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (!user.is_superuser) {
+    return (
+      <main className="min-h-screen flex items-center justify-center bg-(--cream) px-4">
+        <div className="bg-white rounded-2xl shadow-md p-8 w-full max-w-sm text-center">
+          <h1 className="text-xl font-semibold text-(--ink) mb-3">Admin Portal</h1>
+          <p className="text-red-600 text-sm">Access denied. Superuser account required.</p>
         </div>
       </main>
     );
   }
 
   // ── Admin dashboard ──────────────────────────────────────────────────────
-  const users = usersData.items;
+  const users = usersData?.items ?? [];
   const analyses = analysesData?.items ?? [];
 
   return (
@@ -219,7 +185,7 @@ export function AdminPage() {
       {/* ── Users table ── */}
       <section>
         <h2 className="text-lg font-medium text-(--ink) mb-3">
-          Users ({usersData.total})
+          Users ({usersData?.total ?? 0})
         </h2>
         <div className={`overflow-x-auto rounded-xl border border-(--mist) ${usersLoading ? "opacity-60" : ""}`}>
           <table className="w-full text-sm">
@@ -254,12 +220,14 @@ export function AdminPage() {
             </tbody>
           </table>
         </div>
-        <Pagination
-          page={usersData.page}
-          pages={usersData.pages}
-          loading={usersLoading}
-          onPage={goUsersPage}
-        />
+        {usersData && (
+          <Pagination
+            page={usersData.page}
+            pages={usersData.pages}
+            loading={usersLoading}
+            onPage={goUsersPage}
+          />
+        )}
       </section>
 
       {/* ── Analyses table ── */}

@@ -1,7 +1,6 @@
 # TODO
 
-- Update the admin portal so that only superusers can access it, instead of relying HTTP basic auth. Update the first created user in the sqlite database to be the superuser.
-- Look for signals that a property is part of a duplex or triplex. These are probably condos or TICs.
+- Look for signals that a property is part of a duplex or triplex. These are probably condos or TICs. Some properties may also be multi-family buildings and include two or more units in one. These are probably not condos or TICs, but this fact should be highlighted as well as a minor risk.
 - I want to plan a new feature: payments for user accounts. User accounts should have two tiers: Basic and Plus. Basic accounts will be free. Investigate what a reasonable price for plus accounts might be, based on running costs and a +30% profit margin. Strategize a good daily analysis limit, or other models for rationing usage (tokens, unlimited for X amounf of time, etc). Research what payment providers make sense to integrate with (Stripe, Square, etc). Existing users should be grandfathered into plus accounts.
 - Support inspection reports
 - Support pest inspection reports
@@ -11,6 +10,8 @@
 - Plan this new feature: a validation mode. The app should look at recently sold properties in SF and run analysis on each property. Then it should grade its performance. For poorly scoring analyses, use the LLM to hypothesize what caused the discrepancy.
 
 # DONE
+
+- Admin portal superuser auth: replaced HTTP Basic Auth on `/api/admin/users` and `/api/admin/analyses` with JWT Bearer + `is_superuser` check (returns 403 for non-superusers). At startup, `_promote_first_user_to_superuser()` in `init_db()` automatically promotes the first-registered user (by rowid) to superuser if none exists yet. Frontend `admin.tsx` uses `useAuth()` context — shows "Please log in" when unauthenticated, "Access denied" when not a superuser, and auto-loads data for superusers. `is_superuser` added to `UserRead` interface in `auth.ts`. 16 backend tests, 10 frontend tests.
 
 - Alternative services for Daly City: Schools — added 4 Daly City schools to `_BAY_AREA_SCHOOLS` (Serramonte Elementary, Benjamin Franklin Intermediate, Westmoor High, Jefferson High) with CAASPP 2022-23 proficiency rates. Previously the nearest SF schools (Lowell, Aptos) were shown for Daly City properties despite Daly City students attending Jefferson Elementary SD / Jefferson Union HS District. Transit — Daly City BART station was already present; SamTrans bus doesn't drive a transit premium signal. Permits — Daly City uses Accela (no public REST API); the existing graceful empty-return for non-SF counties is the correct fallback.
 
