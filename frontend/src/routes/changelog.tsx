@@ -15,6 +15,16 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "1.8.0",
+    date: "2026-04-25",
+    entries: [
+      { category: "Added", text: "Duplex / triplex / multi-family structure detection — new signal fires on duplex, triplex, half-duplex, multi-family, upper/lower unit/flat, two-unit, and related phrases; risk factor distinguishes one unit within a multi-unit building from a whole investment property" },
+      { category: "Added", text: "Daly City school data — Serramonte Elementary, Benjamin Franklin Intermediate, Westmoor High, and Jefferson High added with CAASPP 2022–23 proficiency rates" },
+      { category: "Changed", text: "Admin portal authentication upgraded from HTTP Basic Auth to JWT Bearer + superuser check; first registered user automatically promoted to superuser on startup" },
+      { category: "Fixed", text: "Permalink page tests: added missing useNavigate to router mock" },
+    ],
+  },
+  {
     version: "1.7.0",
     date: "2026-04-25",
     entries: [

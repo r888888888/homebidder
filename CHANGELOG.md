@@ -5,6 +5,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-04-25
+
+### Added
+- Duplex / triplex / multi-family structure detection — new `structure_multifamily` description signal fires on "duplex", "triplex", "half-duplex", "multi-family", "upper/lower unit/flat", "two-unit", and related phrases; new risk factor distinguishes one unit within a multi-unit building from a whole investment property
+- Daly City school data — Serramonte Elementary, Benjamin Franklin Intermediate, Westmoor High, and Jefferson High added to the Bay Area school dataset with CAASPP 2022–23 proficiency rates
+
+### Changed
+- Admin portal authentication upgraded from HTTP Basic Auth to JWT Bearer + `is_superuser` check; first registered user is automatically promoted to superuser on startup
+
+### Fixed
+- Permalink page tests: added missing `useNavigate` to router mock
+
 ## [1.7.0] - 2026-04-25
 
 ### Added
