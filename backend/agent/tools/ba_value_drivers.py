@@ -234,6 +234,13 @@ _BAY_AREA_SCHOOLS: list[dict[str, Any]] = [
     {"name": "Lincoln Elementary (San Jose)", "lat": 37.3587, "lon": -121.9052, "type": "elementary", "grades": "K-5", "math_pct": 38.0, "ela_pct": 48.0},
     {"name": "Hoover Middle School (San Jose)", "lat": 37.3388, "lon": -121.9044, "type": "middle", "grades": "6-8", "math_pct": 40.0, "ela_pct": 50.0},
     {"name": "Lincoln High School (San Jose)", "lat": 37.3193, "lon": -121.9196, "type": "high", "grades": "9-12", "math_pct": 35.0, "ela_pct": 45.0},
+    # Daly City — Jefferson Elementary School District / Jefferson Union High School District
+    # Students in Daly City attend these schools, not SFUSD schools.
+    # CAASPP 2022-23 % meeting or exceeding standards (all grades combined).
+    {"name": "Serramonte Elementary (Daly City)", "lat": 37.7074, "lon": -122.4679, "type": "elementary", "grades": "K-5", "math_pct": 30.0, "ela_pct": 42.0},
+    {"name": "Benjamin Franklin Intermediate (Daly City)", "lat": 37.6985, "lon": -122.4640, "type": "middle", "grades": "6-8", "math_pct": 27.0, "ela_pct": 37.0},
+    {"name": "Westmoor High School (Daly City)", "lat": 37.7102, "lon": -122.4613, "type": "high", "grades": "9-12", "math_pct": 35.0, "ela_pct": 44.0},
+    {"name": "Jefferson High School (Daly City)", "lat": 37.6994, "lon": -122.4481, "type": "high", "grades": "9-12", "math_pct": 19.0, "ela_pct": 32.0},
 ]
 
 

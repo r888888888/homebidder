@@ -762,3 +762,68 @@ class TestRentSourcePriority:
 
         assert result["rent_range_low"] is None
         assert result["rent_range_high"] is None
+
+
+class TestDalyCitySchoolCoverage:
+    """
+    Daly City school data must be in _BAY_AREA_SCHOOLS.
+
+    Daly City students attend Jefferson Elementary School District and Jefferson
+    Union High School District — not SFUSD. The nearest SF schools (Lowell,
+    Aptos, etc.) are 1.6–2.3 miles away and don't serve Daly City residents.
+    We need actual Daly City schools in the dataset so that nearby_schools
+    returns the right schools at the default 2-mile radius.
+    """
+
+    # Daly City coordinates: near the BART station / downtown area (94014/94015 border)
+    _DALY_CITY_LAT = 37.706
+    _DALY_CITY_LON = -122.469
+
+    # Daly City bounding box (approximate)
+    _LAT_MIN, _LAT_MAX = 37.68, 37.72
+    _LON_MIN, _LON_MAX = -122.50, -122.44
+
+    def _is_daly_city_school(self, school: dict) -> bool:
+        lat = school.get("lat", 0)
+        lon = school.get("lon", 0)
+        return (
+            self._LAT_MIN <= lat <= self._LAT_MAX
+            and self._LON_MIN <= lon <= self._LON_MAX
+        )
+
+    def test_builtin_list_has_daly_city_elementary(self):
+        from agent.tools.ba_value_drivers import _BAY_AREA_SCHOOLS
+
+        dc_schools = [s for s in _BAY_AREA_SCHOOLS if self._is_daly_city_school(s)]
+        types = {s["type"] for s in dc_schools}
+        assert "elementary" in types, "No elementary school with Daly City coordinates in _BAY_AREA_SCHOOLS"
+
+    def test_builtin_list_has_daly_city_middle(self):
+        from agent.tools.ba_value_drivers import _BAY_AREA_SCHOOLS
+
+        dc_schools = [s for s in _BAY_AREA_SCHOOLS if self._is_daly_city_school(s)]
+        types = {s["type"] for s in dc_schools}
+        assert "middle" in types, "No middle school with Daly City coordinates in _BAY_AREA_SCHOOLS"
+
+    def test_builtin_list_has_daly_city_high(self):
+        from agent.tools.ba_value_drivers import _BAY_AREA_SCHOOLS
+
+        dc_schools = [s for s in _BAY_AREA_SCHOOLS if self._is_daly_city_school(s)]
+        types = {s["type"] for s in dc_schools}
+        assert "high" in types, "No high school with Daly City coordinates in _BAY_AREA_SCHOOLS"
+
+    def test_find_nearby_schools_returns_daly_city_elementary_at_default_radius(self):
+        from agent.tools.ba_value_drivers import _BAY_AREA_SCHOOLS, find_nearby_schools
+
+        result = find_nearby_schools(
+            self._DALY_CITY_LAT, self._DALY_CITY_LON,
+            _BAY_AREA_SCHOOLS,
+            # default max_miles=2.0
+        )
+        elementary = [s for s in result if s["type"] == "elementary"]
+        assert elementary, "find_nearby_schools returned no elementary school for Daly City at default 2-mile radius"
+        # The returned school should be a Daly City school (name contains "Daly City"), not an SF school
+        school = elementary[0]
+        assert "Daly City" in school["name"], (
+            f"Nearest elementary for Daly City is '{school['name']}' — expected a Daly City school"
+        )

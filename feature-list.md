@@ -1,6 +1,5 @@
 # TODO
 
-- Investigate alternative services for permits, schools, and transit for properties in Daly City, CA.
 - Update the admin portal so that only superusers can access it, instead of relying HTTP basic auth. Update the first created user in the sqlite database to be the superuser.
 - Look for signals that a property is part of a duplex or triplex. These are probably condos or TICs.
 - I want to plan a new feature: payments for user accounts. User accounts should have two tiers: Basic and Plus. Basic accounts will be free. Investigate what a reasonable price for plus accounts might be, based on running costs and a +30% profit margin. Strategize a good daily analysis limit, or other models for rationing usage (tokens, unlimited for X amounf of time, etc). Research what payment providers make sense to integrate with (Stripe, Square, etc). Existing users should be grandfathered into plus accounts.
@@ -12,6 +11,8 @@
 - Plan this new feature: a validation mode. The app should look at recently sold properties in SF and run analysis on each property. Then it should grade its performance. For poorly scoring analyses, use the LLM to hypothesize what caused the discrepancy.
 
 # DONE
+
+- Alternative services for Daly City: Schools — added 4 Daly City schools to `_BAY_AREA_SCHOOLS` (Serramonte Elementary, Benjamin Franklin Intermediate, Westmoor High, Jefferson High) with CAASPP 2022-23 proficiency rates. Previously the nearest SF schools (Lowell, Aptos) were shown for Daly City properties despite Daly City students attending Jefferson Elementary SD / Jefferson Union HS District. Transit — Daly City BART station was already present; SamTrans bus doesn't drive a transit premium signal. Permits — Daly City uses Accela (no public REST API); the existing graceful empty-return for non-SF counties is the correct fallback.
 
 - Rent comparison data: registered users now get property-specific rent estimates from RentCast's `/v1/avm/rent` endpoint (neighborhood-aware, tuned to beds/baths/sqft/property type) instead of Census ACS zip-code medians. Anonymous users continue using Census data. New fields: `rent_estimate_source`, `rent_range_low`, `rent_range_high` in ba_value_drivers and investment metrics output. `user_id` threaded through `_run_phase8_investment` to `fetch_ba_value_drivers`. 19 new backend tests.
 
