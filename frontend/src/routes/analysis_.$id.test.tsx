@@ -6,6 +6,7 @@ import { ToastProvider } from "../components/Toast";
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (config: unknown) => config,
   useParams: vi.fn(),
+  useNavigate: vi.fn(() => vi.fn()),
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
     <a href={to}>{children}</a>
   ),
