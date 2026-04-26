@@ -11,14 +11,36 @@ function getInitials(displayName: string | null | undefined, email: string): str
   return email[0].toUpperCase()
 }
 
+function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
+  const matchRoute = useMatchRoute()
+  const isActive = !!matchRoute({ to, fuzzy: false })
+  return (
+    <Link
+      to={to}
+      className={[
+        'text-sm no-underline transition-colors',
+        isActive ? 'font-semibold text-[var(--ink)]' : 'text-[var(--ink-soft)] hover:text-[var(--ink)]',
+      ].join(' ')}
+    >
+      <span
+        className={[
+          'relative pb-0.5',
+          isActive
+            ? 'after:absolute after:inset-x-0 after:-bottom-0.5 after:h-[2px] after:rounded-full after:bg-[var(--coral)]'
+            : '',
+        ].join(' ')}
+      >
+        {children}
+      </span>
+    </Link>
+  )
+}
+
 export default function Header() {
   const { user, isLoading, logout } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
-  const matchRoute = useMatchRoute()
-
-  const isOnHistory = !!matchRoute({ to: '/history', fuzzy: false })
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -66,28 +88,12 @@ export default function Header() {
 
         {/* Right-side nav */}
         <div className="ml-auto flex items-center gap-x-3">
+          {/* Pricing — always visible */}
+          <NavLink to="/pricing">Pricing</NavLink>
+
           {/* History — only shown when logged in */}
           {!isLoading && user && (
-            <Link
-              to="/history"
-              className={[
-                'text-sm no-underline transition-colors',
-                isOnHistory
-                  ? 'font-semibold text-[var(--ink)]'
-                  : 'text-[var(--ink-soft)] hover:text-[var(--ink)]',
-              ].join(' ')}
-            >
-              <span
-                className={[
-                  'relative pb-0.5',
-                  isOnHistory
-                    ? 'after:absolute after:inset-x-0 after:-bottom-0.5 after:h-[2px] after:rounded-full after:bg-[var(--coral)]'
-                    : '',
-                ].join(' ')}
-              >
-                History
-              </span>
-            </Link>
+            <NavLink to="/history">History</NavLink>
           )}
 
           {/* Auth controls */}

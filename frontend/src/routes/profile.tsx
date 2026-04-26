@@ -4,6 +4,15 @@ import { useAuth } from "../lib/AuthContext";
 import { authHeaders, clearToken } from "../lib/auth";
 import { apiBase } from "../lib/api";
 
+interface RateLimitStatus {
+  used: number;
+  limit: number;
+  remaining: number;
+  tier: string;
+  window: string;
+  is_grandfathered: boolean;
+}
+
 export const Route = createFileRoute("/profile")({ component: ProfilePage });
 
 export default function ProfilePage() {
@@ -19,12 +28,33 @@ export default function ProfilePage() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
 
+  const [rateLimitStatus, setRateLimitStatus] = useState<RateLimitStatus | null>(null);
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [billingError, setBillingError] = useState<string | null>(null);
+
   // Redirect to login if not authenticated once loading is done.
   useEffect(() => {
     if (!isLoading && !user) {
       navigate({ to: "/login" });
     }
   }, [isLoading, user, navigate]);
+
+  // Fetch monthly usage when user is loaded.
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      try {
+        const resp = await fetch(`${apiBase}/api/rate-limit/status`, {
+          headers: authHeaders(),
+        });
+        if (resp.ok) {
+          setRateLimitStatus(await resp.json());
+        }
+      } catch {
+        // non-critical — leave null
+      }
+    })();
+  }, [user]);
 
   async function handleChangePassword(e: FormEvent) {
     e.preventDefault();
@@ -70,6 +100,43 @@ export default function ProfilePage() {
     }
   }
 
+  async function handleManageBilling() {
+    setBillingError(null);
+    setBillingLoading(true);
+    try {
+      const resp = await fetch(`${apiBase}/api/payments/customer-portal`, {
+        headers: authHeaders(),
+      });
+      if (!resp.ok) {
+        const body = await resp.json().catch(() => ({}));
+        throw new Error(body.detail ?? "Failed to open billing portal");
+      }
+      const data = await resp.json();
+      window.location.href = data.url;
+    } catch (err) {
+      setBillingError(err instanceof Error ? err.message : "Something went wrong");
+      setBillingLoading(false);
+    }
+  }
+
+  async function handleUpgrade(priceId: string) {
+    try {
+      const resp = await fetch(`${apiBase}/api/payments/create-checkout-session`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ price_id: priceId }),
+      });
+      if (!resp.ok) {
+        const body = await resp.json().catch(() => ({}));
+        throw new Error(body.detail ?? "Failed to start checkout");
+      }
+      const data = await resp.json();
+      window.location.href = data.url;
+    } catch (err) {
+      setBillingError(err instanceof Error ? err.message : "Something went wrong");
+    }
+  }
+
   if (isLoading || !user) return null;
 
   return (
@@ -81,6 +148,77 @@ export default function ProfilePage() {
         <section className="space-y-2">
           <h2 className="text-base font-semibold text-[var(--ink)]">Account</h2>
           <p className="text-sm text-[var(--ink-soft)]">{user.email}</p>
+        </section>
+
+        {/* Subscription */}
+        <section className="space-y-4">
+          <h2 className="text-base font-semibold text-[var(--ink)]">Subscription</h2>
+
+          <div className="flex items-center gap-2">
+            <span
+              className={[
+                "rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                user.subscription_tier === "buyer"
+                  ? "bg-[var(--line)] text-[var(--ink-soft)]"
+                  : "bg-[var(--coral)] text-white",
+              ].join(" ")}
+            >
+              {user.subscription_tier.charAt(0).toUpperCase() + user.subscription_tier.slice(1)}
+            </span>
+            {user.is_grandfathered && (
+              <span className="text-xs text-[var(--ink-muted)]">(grandfathered)</span>
+            )}
+          </div>
+
+          {rateLimitStatus && (
+            <p className="text-sm text-[var(--ink-soft)]">
+              {rateLimitStatus.used} of {rateLimitStatus.limit} analyses used this month
+            </p>
+          )}
+
+          {billingError && (
+            <p role="alert" className="text-sm text-red-600">{billingError}</p>
+          )}
+
+          <div className="flex flex-wrap gap-2">
+            {user.subscription_tier === "buyer" && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => handleUpgrade(import.meta.env.VITE_STRIPE_INVESTOR_PRICE_ID ?? "")}
+                  className="rounded bg-[var(--coral)] px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90"
+                >
+                  Upgrade to Investor
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleUpgrade(import.meta.env.VITE_STRIPE_AGENT_PRICE_ID ?? "")}
+                  className="rounded bg-[var(--coral)] px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90"
+                >
+                  Upgrade to Agent
+                </button>
+              </>
+            )}
+            {user.subscription_tier === "investor" && (
+              <button
+                type="button"
+                onClick={() => handleUpgrade(import.meta.env.VITE_STRIPE_AGENT_PRICE_ID ?? "")}
+                className="rounded bg-[var(--coral)] px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90"
+              >
+                Upgrade to Agent
+              </button>
+            )}
+            {user.subscription_tier !== "buyer" && (
+              <button
+                type="button"
+                onClick={handleManageBilling}
+                disabled={billingLoading}
+                className="rounded border border-[var(--line)] px-3 py-1.5 text-sm font-semibold text-[var(--ink-soft)] hover:text-[var(--ink)] disabled:opacity-50"
+              >
+                {billingLoading ? "Loading…" : "Manage billing"}
+              </button>
+            )}
+          </div>
         </section>
 
         {/* Change password */}

@@ -68,6 +68,9 @@ app.include_router(admin_router, prefix="/api")
 from api.oauth import oauth_router
 app.include_router(oauth_router, prefix="/api")
 
+from api.payments import payments_router
+app.include_router(payments_router, prefix="/api")
+
 # Auth routers (fastapi-users)
 from api.auth import fastapi_users, auth_backend
 from db.models import UserRead, UserCreate, UserUpdate

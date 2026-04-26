@@ -6,6 +6,12 @@ import { apiBase } from "../lib/api";
 import { authHeaders } from "../lib/auth";
 import type { AnalysisEvent } from "./index";
 
+interface LimitReachedInfo {
+  tier: string;
+  limit: number;
+  used: number;
+}
+
 export const Route = createFileRoute("/analysis")({
   component: AnalysisPage,
   validateSearch: (search: Record<string, unknown>) => ({
@@ -19,6 +25,7 @@ export function AnalysisPage() {
   const [events, setEvents] = useState<AnalysisEvent[]>([]);
   const [isRunning, setIsRunning] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [limitReached, setLimitReached] = useState<LimitReachedInfo | null>(null);
   const toast = useToast();
   const abortRef = useRef<AbortController | null>(null);
 
@@ -31,6 +38,7 @@ export function AnalysisPage() {
 
     setEvents([]);
     setIsRunning(true);
+    setLimitReached(null);
 
     let cancelled = false;
 
@@ -53,7 +61,17 @@ export function AnalysisPage() {
 
       if (res.status === 429) {
         if (!cancelled) {
-          toast.error("Daily analysis limit reached. Please try again tomorrow.");
+          try {
+            const body = await res.json();
+            const detail = body?.detail;
+            if (detail?.code === "MONTHLY_LIMIT_REACHED") {
+              setLimitReached({ tier: detail.tier, limit: detail.limit, used: detail.used });
+            } else {
+              toast.error("Monthly analysis limit reached.");
+            }
+          } catch {
+            toast.error("Monthly analysis limit reached.");
+          }
           setIsRunning(false);
         }
         return;
@@ -152,6 +170,29 @@ export function AnalysisPage() {
       </div>
 
       <AnalysisStream events={events} isRunning={isRunning} />
+
+      {limitReached && (
+        <div className="mt-8 rounded-lg border border-[var(--coral)] bg-red-50 p-4 text-sm">
+          <p className="font-semibold text-red-700">
+            Monthly limit reached ({limitReached.used} of {limitReached.limit} analyses used).
+          </p>
+          {limitReached.tier === "anonymous" ? (
+            <p className="mt-1 text-red-600">
+              <a href="/register" className="font-semibold underline hover:text-red-800">
+                Sign up
+              </a>{" "}
+              for a free account to get more analyses each month.
+            </p>
+          ) : (
+            <p className="mt-1 text-red-600">
+              <a href="/pricing" className="font-semibold underline hover:text-red-800">
+                Upgrade your plan
+              </a>{" "}
+              to get more analyses each month.
+            </p>
+          )}
+        </div>
+      )}
     </main>
   );
 }

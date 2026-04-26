@@ -57,6 +57,15 @@ _COMPS_MIGRATIONS: list[tuple[str, str]] = [
     ("pct_over_asking", "FLOAT"),
 ]
 
+_USERS_MIGRATIONS: list[tuple[str, str]] = [
+    ("display_name",         "VARCHAR(128)"),
+    ("subscription_tier",    "VARCHAR(16) NOT NULL DEFAULT 'buyer'"),
+    ("stripe_customer_id",   "VARCHAR(128)"),
+    ("stripe_subscription_id", "VARCHAR(128)"),
+    ("subscription_status",  "VARCHAR(32)"),
+    ("is_grandfathered",     "INTEGER NOT NULL DEFAULT 0"),
+]
+
 
 async def _migrate_analyses(conn) -> None:
     """Add any missing columns to the analyses table (SQLite-compatible)."""
@@ -80,6 +89,32 @@ async def _migrate_comps(conn) -> None:
                 text(f"ALTER TABLE comps ADD COLUMN {col_name} {col_type}")
             )
             log.info("Migration: added comps.%s", col_name)
+
+
+async def _migrate_users(conn) -> None:
+    """Add subscription/Stripe columns to the users table; grandfather pre-existing users."""
+    result = await conn.execute(text("PRAGMA table_info(users)"))
+    existing = {row[1] for row in result.fetchall()}
+    # Track whether this is the first time we add the is_grandfathered column so
+    # we know to run the one-time grandfathering UPDATE only on this deploy.
+    is_first_migration = "is_grandfathered" not in existing
+    for col_name, col_type in _USERS_MIGRATIONS:
+        if col_name not in existing:
+            await conn.execute(
+                text(f"ALTER TABLE users ADD COLUMN {col_name} {col_type}")
+            )
+            log.info("Migration: added users.%s", col_name)
+    if is_first_migration:
+        # Promote every user who existed before the payment system (no Stripe
+        # subscription yet) to the Investor tier for free, permanently.
+        await conn.execute(
+            text(
+                "UPDATE users "
+                "SET subscription_tier = 'investor', is_grandfathered = 1 "
+                "WHERE stripe_subscription_id IS NULL"
+            )
+        )
+        log.info("Grandfathering: promoted all pre-Stripe users to Investor tier")
 
 
 async def _promote_first_user_to_superuser(conn) -> None:
@@ -106,6 +141,7 @@ async def init_db():
         await conn.run_sync(Base.metadata.create_all)
         await _migrate_analyses(conn)
         await _migrate_comps(conn)
+        await _migrate_users(conn)
         await _promote_first_user_to_superuser(conn)
 
 

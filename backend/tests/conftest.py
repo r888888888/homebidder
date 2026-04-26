@@ -9,6 +9,17 @@ os.environ.setdefault("JWT_SECRET", "test-secret-key-for-testing-only-32chars!!"
 # Use canonical default values for rate-limit settings regardless of .env overrides.
 os.environ.setdefault("RATE_LIMIT_ANALYSES_PER_DAY", "5")
 os.environ.setdefault("RATE_LIMIT_AUTHENTICATED_PER_DAY", "20")
+# Subscription tier monthly limits
+os.environ.setdefault("RATE_LIMIT_ANONYMOUS_PER_MONTH", "3")
+os.environ.setdefault("RATE_LIMIT_BUYER_PER_MONTH", "5")
+os.environ.setdefault("RATE_LIMIT_INVESTOR_PER_MONTH", "30")
+os.environ.setdefault("RATE_LIMIT_AGENT_PER_MONTH", "100")
+# Stripe — empty keys disable payment features; webhook secret used by mock tests
+os.environ.setdefault("STRIPE_SECRET_KEY", "")
+os.environ.setdefault("STRIPE_PUBLISHABLE_KEY", "")
+os.environ.setdefault("STRIPE_WEBHOOK_SECRET", "whsec_test_secret")
+os.environ.setdefault("STRIPE_INVESTOR_PRICE_ID", "price_investor_test_123")
+os.environ.setdefault("STRIPE_AGENT_PRICE_ID", "price_agent_test_456")
 # Google OAuth — empty in tests (endpoints use mocked client)
 os.environ.setdefault("GOOGLE_CLIENT_ID", "test-google-client-id")
 os.environ.setdefault("GOOGLE_CLIENT_SECRET", "test-google-client-secret")

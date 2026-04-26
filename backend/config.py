@@ -169,6 +169,52 @@ class _Settings:
         return os.getenv("ADMIN_PASSWORD") or None
 
     # ------------------------------------------------------------------ #
+    # Stripe (optional — features disabled when keys are absent)          #
+    # ------------------------------------------------------------------ #
+
+    @property
+    def stripe_secret_key(self) -> str | None:
+        return os.getenv("STRIPE_SECRET_KEY") or None
+
+    @property
+    def stripe_publishable_key(self) -> str | None:
+        return os.getenv("STRIPE_PUBLISHABLE_KEY") or None
+
+    @property
+    def stripe_webhook_secret(self) -> str | None:
+        return os.getenv("STRIPE_WEBHOOK_SECRET") or None
+
+    @property
+    def stripe_investor_price_id(self) -> str | None:
+        """Stripe Price ID for the Investor tier subscription."""
+        return os.getenv("STRIPE_INVESTOR_PRICE_ID") or None
+
+    @property
+    def stripe_agent_price_id(self) -> str | None:
+        """Stripe Price ID for the Agent tier subscription."""
+        return os.getenv("STRIPE_AGENT_PRICE_ID") or None
+
+    # ------------------------------------------------------------------ #
+    # Subscription tier monthly analysis limits                           #
+    # ------------------------------------------------------------------ #
+
+    @property
+    def rate_limit_anonymous_per_month(self) -> int:
+        return int(os.getenv("RATE_LIMIT_ANONYMOUS_PER_MONTH", "3"))
+
+    @property
+    def rate_limit_buyer_per_month(self) -> int:
+        return int(os.getenv("RATE_LIMIT_BUYER_PER_MONTH", "5"))
+
+    @property
+    def rate_limit_investor_per_month(self) -> int:
+        return int(os.getenv("RATE_LIMIT_INVESTOR_PER_MONTH", "30"))
+
+    @property
+    def rate_limit_agent_per_month(self) -> int:
+        return int(os.getenv("RATE_LIMIT_AGENT_PER_MONTH", "100"))
+
+    # ------------------------------------------------------------------ #
     # Server / logging                                                     #
     # ------------------------------------------------------------------ #
 

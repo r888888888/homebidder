@@ -1,6 +1,5 @@
 # TODO
 
-- I want to plan a new feature: payments for user accounts. User accounts should have two tiers: Basic and Plus. Basic accounts will be free. Investigate what a reasonable price for plus accounts might be, based on running costs and a +30% profit margin. Strategize a good daily analysis limit, or other models for rationing usage (tokens, unlimited for X amounf of time, etc). Research what payment providers make sense to integrate with (Stripe, Square, etc). Existing users should be grandfathered into plus accounts.
 - Support inspection reports
 - Support pest inspection reports
 - Support disclosures
@@ -9,6 +8,8 @@
 - Plan this new feature: a validation mode. The app should look at recently sold properties in SF and run analysis on each property. Then it should grade its performance. For poorly scoring analyses, use the LLM to hypothesize what caused the discrepancy.
 
 # DONE
+
+- Payments & subscription tiers (4 phases). Three tiers: Buyer (free, 5/month), Investor ($10/month, 30/month), Agent ($30/month, 100/month). Anonymous users get 3/month (IP-based, monthly window). Superusers unlimited. Pre-existing users grandfathered to Investor tier. Stripe Checkout (hosted redirect, no embedded JS) for upgrades; webhook handles checkout.session.completed / subscription.updated / subscription.deleted. Customer billing portal via Stripe. New pricing page with plan cards; subscription section on profile page with tier badge, monthly usage meter, upgrade/manage billing buttons; structured 429 handling in analysis page (register prompt for anonymous, upgrade prompt for authenticated). 32 new backend tests, 26 new frontend tests.
 
 - Duplex / triplex / multi-family detection: new `structure_multifamily` description signal fires on "duplex", "triplex", "half-duplex", "multi-family", "upper/lower unit/flat", "two-unit", "three-unit", and related phrases (weight −0.5%). New `_assess_multifamily_structure()` risk factor checks property_type (DUPLEX, TRIPLEX, MULTI_FAMILY, etc.) and description signals; flags a "low" risk factor with tailored descriptions for: one unit in a multi-unit building (unit number present), whole multi-family building (investment type), or description-only signals. 18 new backend tests.
 

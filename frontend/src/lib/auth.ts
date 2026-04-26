@@ -25,6 +25,8 @@ export interface UserRead {
   is_active: boolean;
   is_superuser: boolean;
   display_name?: string | null;
+  subscription_tier: "buyer" | "investor" | "agent";
+  is_grandfathered: boolean;
 }
 
 export async function fetchCurrentUser(): Promise<UserRead | null> {

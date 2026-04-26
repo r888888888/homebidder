@@ -249,6 +249,32 @@ describe("AnalysisPage", () => {
     );
   });
 
+  it("shows register prompt when anonymous user hits monthly limit", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({ detail: { code: "MONTHLY_LIMIT_REACHED", tier: "anonymous", limit: 3, used: 3 } }),
+        { status: 429 }
+      )
+    );
+    renderAnalysisPage("450 Sanchez St, San Francisco, CA 94114");
+    await waitFor(() => {
+      expect(screen.getByText(/sign up/i)).toBeInTheDocument();
+    });
+  });
+
+  it("shows upgrade prompt when authenticated user hits monthly limit", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({ detail: { code: "MONTHLY_LIMIT_REACHED", tier: "buyer", limit: 5, used: 5 } }),
+        { status: 429 }
+      )
+    );
+    renderAnalysisPage("450 Sanchez St, San Francisco, CA 94114");
+    await waitFor(() => {
+      expect(screen.getByText(/upgrade/i)).toBeInTheDocument();
+    });
+  });
+
   it("passes an AbortSignal to fetch and aborts it on unmount", async () => {
     const abortSpy = vi.fn();
     const mockSignal = {} as AbortSignal;

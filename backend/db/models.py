@@ -19,12 +19,21 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
     __tablename__ = "users"
 
     display_name: Mapped[str | None] = mapped_column(String(128))
+    subscription_tier: Mapped[str] = mapped_column(
+        String(16), default="buyer", server_default="buyer", nullable=False
+    )
+    stripe_customer_id: Mapped[str | None] = mapped_column(String(128), nullable=True, unique=True)
+    stripe_subscription_id: Mapped[str | None] = mapped_column(String(128), nullable=True, unique=True)
+    subscription_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    is_grandfathered: Mapped[bool] = mapped_column(default=False, server_default="0", nullable=False)
 
 
 # fastapi-users Pydantic schemas (required for router registration in main.py)
 
 class UserRead(schemas.BaseUser[uuid.UUID]):
     display_name: str | None = None
+    subscription_tier: str = "buyer"
+    is_grandfathered: bool = False
 
 
 class UserCreate(schemas.BaseUserCreate):

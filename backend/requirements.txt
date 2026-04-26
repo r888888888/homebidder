@@ -17,3 +17,4 @@ pyproj>=3.6.0
 fastapi-users[sqlalchemy]>=12.1
 httpx-oauth>=0.14
 python-multipart>=0.0.9
+stripe>=7.0.0
