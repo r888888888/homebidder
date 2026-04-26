@@ -5,6 +5,28 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-04-26
+
+### Added
+- Subscription tiers — Buyer (free, 5 analyses/month), Investor ($10/month, 30 analyses/month), Agent ($30/month, 100 analyses/month); anonymous users get 3 analyses/month; superusers are unlimited
+- Stripe Checkout integration — hosted redirect flow for upgrading to Investor or Agent; no embedded Stripe.js required
+- Stripe billing portal — authenticated users can manage or cancel their subscription from the profile page
+- Stripe webhook handler — `checkout.session.completed` upgrades the user tier; `customer.subscription.updated` syncs status; `customer.subscription.deleted` downgrades to Buyer
+- Pricing page at `/pricing` — three plan cards with limits, prices, Current Plan badge, and upgrade CTAs
+- Subscription section on profile page — tier badge, monthly usage meter, upgrade buttons, and Manage billing link
+- Pricing nav link in header — visible to all users
+- Grandfathering migration — all pre-existing users automatically promoted to Investor tier on first startup after upgrade
+- `stripe-listen.sh` helper script for forwarding Stripe webhooks to the local backend during development
+
+### Changed
+- Rate limiting switched from rolling 24-hour window to calendar-month window for all users
+- Authenticated users counted against their tier's monthly limit via the analyses table (no longer via RateLimitEntry)
+- Anonymous rate limit changed from daily to monthly (3/month) so free registration is clearly more valuable
+- 429 responses on the analysis page now show a contextual prompt — register link for anonymous users, upgrade link for authenticated users
+
+### Fixed
+- Apple Sign In switched to `form_post` response mode for compatibility with stricter browser redirect policies
+
 ## [1.8.0] - 2026-04-25
 
 ### Added

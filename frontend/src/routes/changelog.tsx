@@ -15,6 +15,26 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "1.9.0",
+    date: "2026-04-26",
+    entries: [
+      { category: "Added", text: "Subscription tiers — Buyer (free, 5 analyses/month), Investor ($10/month, 30 analyses/month), Agent ($30/month, 100 analyses/month); anonymous users get 3 analyses/month; superusers are unlimited" },
+      { category: "Added", text: "Stripe Checkout integration — hosted redirect flow for upgrading to Investor or Agent; no embedded Stripe.js required" },
+      { category: "Added", text: "Stripe billing portal — authenticated users can manage or cancel their subscription from the profile page" },
+      { category: "Added", text: "Stripe webhook handler — checkout.session.completed upgrades the user tier; customer.subscription.updated syncs status; customer.subscription.deleted downgrades to Buyer" },
+      { category: "Added", text: "Pricing page at /pricing — three plan cards with limits, prices, Current Plan badge, and upgrade CTAs" },
+      { category: "Added", text: "Subscription section on profile page — tier badge, monthly usage meter, upgrade buttons, and Manage billing link" },
+      { category: "Added", text: "Pricing nav link in header — visible to all users" },
+      { category: "Added", text: "Grandfathering migration — all pre-existing users automatically promoted to Investor tier on first startup after upgrade" },
+      { category: "Added", text: "stripe-listen.sh helper script for forwarding Stripe webhooks to the local backend during development" },
+      { category: "Changed", text: "Rate limiting switched from rolling 24-hour window to calendar-month window for all users" },
+      { category: "Changed", text: "Authenticated users counted against their tier's monthly limit via the analyses table (no longer via RateLimitEntry)" },
+      { category: "Changed", text: "Anonymous rate limit changed from daily to monthly (3/month) so free registration is clearly more valuable" },
+      { category: "Changed", text: "429 responses on the analysis page now show a contextual prompt — register link for anonymous users, upgrade link for authenticated users" },
+      { category: "Fixed", text: "Apple Sign In switched to form_post response mode for compatibility with stricter browser redirect policies" },
+    ],
+  },
+  {
     version: "1.8.0",
     date: "2026-04-25",
     entries: [
