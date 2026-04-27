@@ -6,7 +6,16 @@ export interface FairValueCI {
   factors: string[];
 }
 
+export interface FairValueBreakdown {
+  method: "median_comp_anchor" | "ppsf_fallback" | "list_price_fallback";
+  base_comp_median: number | null;
+  lot_adjustment_pct: number | null;
+  sqft_adjustment_pct: number | null;
+  tic_adjustment_pct: number | null;
+}
+
 export interface OfferData {
+  fair_value_breakdown?: FairValueBreakdown | null;
   list_price: number | null;
   fair_value_estimate: number | null;
   fair_value_confidence_interval?: FairValueCI | null;
@@ -74,6 +83,26 @@ const POSTURE_STYLES: Record<string, { bg: string; text: string; label: string }
     label: "Negotiating",
   },
 };
+
+const METHOD_LABELS: Record<string, string> = {
+  median_comp_anchor: "Comparable sales",
+  ppsf_fallback: "Price per sq ft (fallback)",
+  list_price_fallback: "List price (fallback)",
+};
+
+const CI_FACTOR_LABELS: Record<string, string> = {
+  few_comps: "Few comparable sales",
+  high_dispersion: "High price dispersion among comps",
+  skewed_comps: "Comp prices are skewed higher",
+  large_adjustment: "Large size adjustment applied",
+  ppsf_fallback: "No comps available — using price per sq ft",
+  list_price_fallback: "No comps or sq ft data — using list price",
+};
+
+function fmtAdj(n: number): string {
+  const sign = n > 0 ? "+" : "";
+  return `${sign}${n.toFixed(1)}%`;
+}
 
 function fmtUsd(n: number | null): string {
   if (n == null) return "—";
@@ -183,6 +212,21 @@ export function OfferRecommendationCard({ offer }: Props) {
                   <span className={`inline-block mt-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${style.badge}`}>
                     {style.label}
                   </span>
+                  {ci.factors.length > 0 && (
+                    <div className="mt-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink-muted)] mb-1">
+                        Why the range is wider
+                      </p>
+                      <ul className="space-y-0.5">
+                        {ci.factors.map((f) => (
+                          <li key={f} className="flex items-start gap-1 text-[10px] text-[var(--ink-muted)]">
+                            <span className="mt-0.5 shrink-0">•</span>
+                            <span>{CI_FACTOR_LABELS[f] ?? f}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </>
               );
             })()}
@@ -192,6 +236,55 @@ export function OfferRecommendationCard({ offer }: Props) {
             <p className="font-semibold text-[var(--ink)]">{fmtUsd(offer.list_price)}</p>
           </div>
         </div>
+
+        {/* Valuation breakdown */}
+        {offer.fair_value_breakdown && (() => {
+          const fvb = offer.fair_value_breakdown!;
+          const adjustments: { label: string; value: number }[] = [];
+          if (fvb.lot_adjustment_pct !== null) adjustments.push({ label: "Lot size", value: fvb.lot_adjustment_pct });
+          if (fvb.sqft_adjustment_pct !== null) adjustments.push({ label: "Sq footage", value: fvb.sqft_adjustment_pct });
+          if (fvb.tic_adjustment_pct !== null) adjustments.push({ label: "TIC discount", value: fvb.tic_adjustment_pct });
+          return (
+            <details className="group rounded-xl border border-[var(--line)] text-sm">
+              <summary className="flex cursor-pointer select-none items-center justify-between px-4 py-3 text-xs font-semibold text-[var(--coral)] hover:bg-[var(--bg)]">
+                <span>How was this calculated?</span>
+                <svg
+                  width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                  className="transition-transform group-open:rotate-180"
+                  aria-hidden="true"
+                >
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </summary>
+              <div className="border-t border-[var(--line)] px-4 py-3 space-y-2 text-xs text-[var(--ink-muted)]">
+                <div className="flex items-center justify-between">
+                  <span>Method</span>
+                  <span className="font-medium text-[var(--ink)]">{METHOD_LABELS[fvb.method] ?? fvb.method}</span>
+                </div>
+                {fvb.base_comp_median !== null && (
+                  <div className="flex items-center justify-between">
+                    <span>Comp anchor</span>
+                    <span className="font-medium text-[var(--ink)]">{fmtUsd(fvb.base_comp_median)} median</span>
+                  </div>
+                )}
+                {adjustments.length > 0 && (
+                  <div className="pt-1">
+                    <p className="font-semibold uppercase tracking-wider text-[10px] mb-1">Adjustments</p>
+                    {adjustments.map(({ label, value }) => (
+                      <div key={label} className="flex items-center justify-between py-0.5">
+                        <span>{label}</span>
+                        <span className={`font-medium ${value >= 0 ? "text-emerald-700" : "text-red-700"}`}>
+                          {fmtAdj(value)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </details>
+          );
+        })()}
 
         {/* Overbid stats */}
         {hasOverbidStats && (

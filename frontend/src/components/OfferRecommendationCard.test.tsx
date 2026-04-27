@@ -3,6 +3,13 @@ import { render, screen } from "@testing-library/react";
 import { OfferRecommendationCard, type OfferData } from "./OfferRecommendationCard";
 
 const BASE: OfferData = {
+  fair_value_breakdown: {
+    method: "median_comp_anchor",
+    base_comp_median: 1_090_000,
+    lot_adjustment_pct: 3.2,
+    sqft_adjustment_pct: -1.5,
+    tic_adjustment_pct: null,
+  },
   list_price: 1_250_000,
   fair_value_estimate: 1_099_500,
   fair_value_confidence_interval: {
@@ -166,6 +173,117 @@ describe("OfferRecommendationCard", () => {
   it("does not render no-HOA SFH equivalent section when absent", () => {
     render(<OfferRecommendationCard offer={{ ...BASE, hoa_equivalent_sfh_value: null }} />);
     expect(screen.queryByText(/no-hoa sfh equivalent/i)).not.toBeInTheDocument();
+  });
+
+  // --- Valuation breakdown section ---
+
+  it("renders valuation breakdown section when fair_value_breakdown is present", () => {
+    render(<OfferRecommendationCard offer={BASE} />);
+    expect(screen.getByText(/how was this calculated/i)).toBeInTheDocument();
+  });
+
+  it("renders 'Comparable sales' label for median_comp_anchor method", () => {
+    render(<OfferRecommendationCard offer={BASE} />);
+    expect(screen.getByText("Comparable sales")).toBeInTheDocument();
+  });
+
+  it("renders 'Price per sq ft' label for ppsf_fallback method", () => {
+    render(
+      <OfferRecommendationCard
+        offer={{
+          ...BASE,
+          fair_value_breakdown: {
+            method: "ppsf_fallback",
+            base_comp_median: null,
+            lot_adjustment_pct: null,
+            sqft_adjustment_pct: null,
+            tic_adjustment_pct: null,
+          },
+        }}
+      />
+    );
+    expect(screen.getByText(/price per sq ft/i)).toBeInTheDocument();
+  });
+
+  it("renders 'List price' label for list_price_fallback method", () => {
+    render(
+      <OfferRecommendationCard
+        offer={{
+          ...BASE,
+          fair_value_breakdown: {
+            method: "list_price_fallback",
+            base_comp_median: null,
+            lot_adjustment_pct: null,
+            sqft_adjustment_pct: null,
+            tic_adjustment_pct: null,
+          },
+        }}
+      />
+    );
+    expect(screen.getByText(/list price \(fallback\)/i)).toBeInTheDocument();
+  });
+
+  it("renders base comp median value when present", () => {
+    render(<OfferRecommendationCard offer={BASE} />);
+    // BASE has base_comp_median: 1_090_000
+    expect(screen.getByText(/1,090,000/)).toBeInTheDocument();
+  });
+
+  it("renders lot adjustment percentage when non-null", () => {
+    render(<OfferRecommendationCard offer={BASE} />);
+    // BASE has lot_adjustment_pct: 3.2
+    expect(screen.getByText(/\+3\.2%/)).toBeInTheDocument();
+  });
+
+  it("renders sqft adjustment percentage when non-null", () => {
+    render(<OfferRecommendationCard offer={BASE} />);
+    // BASE has sqft_adjustment_pct: -1.5
+    expect(screen.getByText(/-1\.5%/)).toBeInTheDocument();
+  });
+
+  it("renders TIC discount when tic_adjustment_pct is non-null", () => {
+    render(
+      <OfferRecommendationCard
+        offer={{
+          ...BASE,
+          fair_value_breakdown: {
+            ...BASE.fair_value_breakdown!,
+            tic_adjustment_pct: -7.0,
+          },
+        }}
+      />
+    );
+    expect(screen.getByText(/tic/i)).toBeInTheDocument();
+    expect(screen.getByText(/-7\.0%/)).toBeInTheDocument();
+  });
+
+  it("omits breakdown section when fair_value_breakdown is null", () => {
+    render(
+      <OfferRecommendationCard offer={{ ...BASE, fair_value_breakdown: null }} />
+    );
+    expect(screen.queryByText(/how was this calculated/i)).not.toBeInTheDocument();
+  });
+
+  it("renders confidence factors as human-readable text", () => {
+    render(<OfferRecommendationCard offer={BASE} />);
+    // BASE has factors: ["few_comps"]
+    expect(screen.getByText(/few comparable sales/i)).toBeInTheDocument();
+  });
+
+  it("omits confidence factors section when factors array is empty", () => {
+    render(
+      <OfferRecommendationCard
+        offer={{
+          ...BASE,
+          fair_value_confidence_interval: {
+            ...BASE.fair_value_confidence_interval!,
+            factors: [],
+          },
+        }}
+      />
+    );
+    expect(screen.queryByText(/few comparable sales/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/why the range/i)).not.toBeInTheDocument();
   });
 
 });

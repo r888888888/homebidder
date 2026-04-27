@@ -3,7 +3,6 @@
 - Tier differentiation — history retention limits. Buyer: show only last 30 days of analyses. Investor: last 6 months. Agent: unlimited. Adds perceived upgrade value without removing real-time features.
 - Tier differentiation — full comparable sales table for Investor+. Buyer tier sees only the summary range (low/mid/high); Investor and Agent see the full comp table with address, sale date, price, and $/sqft.
 - Favorite analyses: users can mark analyses as favorites. Favorited analyses appear visually distinct on the history page (e.g. star icon, highlighted row).
-- Show more info in the frontend about how the fair value estimate was calculated.
 - Support inspection reports
 - Support pest inspection reports
 - Support disclosures
@@ -14,6 +13,8 @@
 - Tier differentiation — watchlist for Investor+. Save a set of addresses; one-click re-run to refresh an analysis as market conditions change.
 
 # DONE
+
+- Show more info in the frontend about how the fair value estimate was calculated. New "How was this calculated?" collapsible section on the Offer Recommendation card showing: method used (comparable sales / price-per-sqft / list price), the comp anchor price, and individual size adjustments (lot, sq footage, TIC discount). Confidence interval factors ("Few comparable sales", "High price dispersion", etc.) shown inline under the CI badge. 11 new frontend tests.
 
 - Tier differentiation — PDF export for Agent tier. "Download PDF" button on the analysis permalink page generates a single-page report (property summary, offer recommendation, risk summary, comparable sales, investment snapshot) using `@react-pdf/renderer`. Non-agent users (Investor/Buyer) see a dashed "PDF Export — Agent plan" upsell button linking to /pricing. 14 new frontend tests.
 
