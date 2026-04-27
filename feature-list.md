@@ -1,12 +1,11 @@
 # TODO
 
-- Tier differentiation — history retention limits. Buyer: show only last 30 days of analyses. Investor: last 6 months. Agent: unlimited. Adds perceived upgrade value without removing real-time features.
 - Tier differentiation — full comparable sales table for Investor+. Buyer tier sees only the summary range (low/mid/high); Investor and Agent see the full comp table with address, sale date, price, and $/sqft.
 - Favorite analyses: users can mark analyses as favorites. Favorited analyses appear visually distinct on the history page (e.g. star icon, highlighted row).
 - Improve the design for the pricing page.
 - Add an FAQ page about how some calculations are done.
 - The links to the Pricing and History pages are a little nondescript. Improve the design better.
-- I want to support uploading inspection report PDFs. Brainstorm ideas for using this data, but one might be to configure the renovation line items based on the report.
+- I want to support uploading inspection report PDFs. I'll attach an example. Brainstorm ideas for using this data, but one might be to configure the renovation line items based on the report.
 - Support pest inspection reports. Use the same strategy as immplementing insepection reports.
 - Design the user profile page better.
 - Support disclosures
@@ -15,8 +14,11 @@
 - Plan this new feature: a validation mode. The app should look at recently sold properties in SF and run analysis on each property. Then it should grade its performance. For poorly scoring analyses, use the LLM to hypothesize what caused the discrepancy.
 - Tier differentiation — bulk/batch analysis for Agent tier. Agent can submit a CSV of addresses and receive analyses for all of them. High-effort but strongest competitive differentiator for active agents touring many properties.
 - Tier differentiation — watchlist for Investor+. Save a set of addresses; one-click re-run to refresh an analysis as market conditions change.
+- Duplex / multi-family fair value support: normalize property type to `"multi"` bucket for comp filtering, wire Redfin type code 6, add income premium adjustment in pricing (GRM-based, capped at 10%), offset monthly buy cost by second-unit rental income in investment metrics, re-run recommend_offer with rent data in orchestrator Phase 8. Plan at `.claude/plans/iterative-cuddling-pelican.md`. ~32 new tests.
 
 # DONE
+
+- Tier differentiation — history retention limits. Buyer: last 30 days. Investor: last 6 months. Agent: unlimited. `_retention_cutoff()` helper in `backend/api/routes.py` filters the `GET /api/analyses` query server-side. `retention_days` included in the response envelope. Informational banner on the history page shows the active window and links to `/pricing` for upgrades. Anonymous users: no filter. 4 new backend tests, 5 new frontend tests.
 
 - Add a robots.txt file. Replaced the allow-all placeholder with a proper robots.txt that permits crawling of public pages (`/`, `/pricing`, `/changelog`) and disallows user-specific or private routes (`/admin`, `/profile`, `/history`, `/analysis`, `/auth/`, `/api/`).
 

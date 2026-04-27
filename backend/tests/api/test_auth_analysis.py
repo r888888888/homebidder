@@ -215,3 +215,120 @@ async def test_delete_anon_analysis_without_auth_succeeds(client):
 
     resp = await client.delete(f"/api/analyses/{analysis_id}")
     assert resp.status_code == 204
+
+
+# ---------------------------------------------------------------------------
+# Retention limit helpers
+# ---------------------------------------------------------------------------
+
+async def _seed_analysis_at(user_id, address: str, days_ago: int) -> int:
+    """Seed a Listing + Analysis with created_at = now - days_ago days."""
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with async_session() as session:
+        listing = Listing(
+            address_input=address,
+            address_matched=address.upper(),
+        )
+        session.add(listing)
+        await session.flush()
+        analysis = Analysis(
+            listing_id=listing.id,
+            session_id="retention-session",
+            created_at=datetime.datetime.utcnow() - datetime.timedelta(days=days_ago),
+            user_id=user_id,
+        )
+        session.add(analysis)
+        await session.commit()
+        return analysis.id
+
+
+async def _set_user_tier(user_id_str: str, tier: str) -> None:
+    """Directly update a user's subscription_tier in the DB."""
+    import uuid as uuid_mod
+    from db.models import User as UserModel
+    from sqlalchemy import update
+
+    uid = uuid_mod.UUID(user_id_str)
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with async_session() as session:
+        await session.execute(
+            update(UserModel).where(UserModel.id == uid).values(subscription_tier=tier)
+        )
+        await session.commit()
+
+
+# ---------------------------------------------------------------------------
+# Retention limit tests
+# ---------------------------------------------------------------------------
+
+async def test_buyer_retention_hides_analyses_older_than_30_days(client):
+    """Buyer tier: analyses older than 30 days are excluded from the list."""
+    import uuid as uuid_mod
+
+    token, user_id = await _register_and_login(client, "buyer_retention@test.com")
+    uid = uuid_mod.UUID(user_id)
+    # subscription_tier defaults to 'buyer' on registration — no tier update needed
+
+    await _seed_analysis_at(uid, "10 Recent St, SF, CA 94110", days_ago=10)
+    await _seed_analysis_at(uid, "40 Old St, SF, CA 94110", days_ago=40)
+
+    resp = await client.get("/api/analyses", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total"] == 1
+    assert "10 RECENT ST" in data["items"][0]["address"]
+
+
+async def test_buyer_retention_shows_analyses_within_30_days(client):
+    """Buyer tier: analyses within the last 30 days are visible."""
+    import uuid as uuid_mod
+
+    token, user_id = await _register_and_login(client, "buyer_recent@test.com")
+    uid = uuid_mod.UUID(user_id)
+
+    await _seed_analysis_at(uid, "1 Fresh St, SF, CA 94110", days_ago=1)
+
+    resp = await client.get("/api/analyses", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total"] == 1
+
+
+async def test_investor_retention_hides_analyses_older_than_180_days(client):
+    """Investor tier: analyses older than 180 days are excluded; within 180 days are shown."""
+    import uuid as uuid_mod
+
+    token, user_id = await _register_and_login(client, "investor_retention@test.com")
+    uid = uuid_mod.UUID(user_id)
+    await _set_user_tier(user_id, "investor")
+
+    await _seed_analysis_at(uid, "10 Inv Recent St, SF, CA 94110", days_ago=10)
+    await _seed_analysis_at(uid, "100 Inv Mid St, SF, CA 94110", days_ago=100)
+    await _seed_analysis_at(uid, "200 Inv Old St, SF, CA 94110", days_ago=200)
+
+    resp = await client.get("/api/analyses", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total"] == 2
+    addresses = [item["address"] for item in data["items"]]
+    assert any("10 INV RECENT" in a for a in addresses)
+    assert any("100 INV MID" in a for a in addresses)
+    assert not any("200 INV OLD" in a for a in addresses)
+
+
+async def test_agent_no_retention_limit(client):
+    """Agent tier: all analyses are visible regardless of age."""
+    import uuid as uuid_mod
+
+    token, user_id = await _register_and_login(client, "agent_retention@test.com")
+    uid = uuid_mod.UUID(user_id)
+    await _set_user_tier(user_id, "agent")
+
+    await _seed_analysis_at(uid, "10 Agt Recent St, SF, CA 94110", days_ago=10)
+    await _seed_analysis_at(uid, "100 Agt Mid St, SF, CA 94110", days_ago=100)
+    await _seed_analysis_at(uid, "400 Agt Old St, SF, CA 94110", days_ago=400)
+
+    resp = await client.get("/api/analyses", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total"] == 3

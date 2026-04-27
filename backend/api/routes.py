@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -12,6 +13,22 @@ from api.rate_limit import check_and_record_rate_limit
 from api.sanitize import sanitize_buyer_context
 from api.auth import current_optional_user
 from db.models import User
+
+
+def _retention_cutoff(user: User | None) -> tuple[datetime | None, int | None]:
+    """Return (cutoff_datetime, retention_days) for the given user tier.
+
+    cutoff_datetime is None when there is no limit (agent or anonymous).
+    retention_days mirrors the cutoff for the frontend (None = unlimited).
+    """
+    if user is None:
+        return None, None
+    if user.subscription_tier == "agent":
+        return None, None
+    if user.subscription_tier == "investor" or user.is_grandfathered:
+        return datetime.utcnow() - timedelta(days=180), 180
+    # buyer (default)
+    return datetime.utcnow() - timedelta(days=30), 30
 
 router = APIRouter()
 
@@ -78,6 +95,10 @@ async def list_analyses(
     else:
         base = base.where(Analysis.user_id == null())
 
+    cutoff, retention_days = _retention_cutoff(user)
+    if cutoff is not None:
+        base = base.where(Analysis.created_at >= cutoff)
+
     count_stmt = select(func.count()).select_from(base.subquery())
     total: int = (await db.execute(count_stmt)).scalar_one()
 
@@ -100,7 +121,7 @@ async def list_analyses(
             "risk_level": analysis.risk_level,
             "investment_rating": analysis.investment_rating,
         })
-    return {"items": items, "total": total, "limit": limit, "offset": offset}
+    return {"items": items, "total": total, "limit": limit, "offset": offset, "retention_days": retention_days}
 
 
 @router.get("/analyses/{analysis_id}")

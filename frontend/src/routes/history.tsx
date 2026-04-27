@@ -8,6 +8,7 @@ import { FixerAnalysisCard, type FixerAnalysisData } from "../components/FixerAn
 import { useToast } from "../components/Toast";
 import { apiBase } from "../lib/api";
 import { authHeaders } from "../lib/auth";
+import { useAuth } from "../lib/AuthContext";
 
 export const Route = createFileRoute("/history")({ component: HistoryPage });
 
@@ -41,7 +42,34 @@ interface AnalysisDetail {
 
 const PAGE_SIZE = 20;
 
+function RetentionBanner({ tier }: { tier: string }) {
+  if (tier === "buyer") {
+    return (
+      <p className="text-xs text-[var(--ink-soft)] mb-4">
+        Your Buyer plan shows the last 30 days of analyses.{" "}
+        <Link to="/pricing" className="underline text-[var(--navy)]">
+          Upgrade to Investor
+        </Link>{" "}
+        for 6 months of history.
+      </p>
+    );
+  }
+  if (tier === "investor") {
+    return (
+      <p className="text-xs text-[var(--ink-soft)] mb-4">
+        Your Investor plan shows the last 6 months of analyses.{" "}
+        <Link to="/pricing" className="underline text-[var(--navy)]">
+          Upgrade to Agent
+        </Link>{" "}
+        for unlimited history.
+      </p>
+    );
+  }
+  return null;
+}
+
 export function HistoryPage() {
+  const { user } = useAuth();
   const [analyses, setAnalyses] = useState<AnalysisSummary[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -94,7 +122,7 @@ export function HistoryPage() {
 
   return (
     <main className="page-wrap py-10">
-      <div className="mb-8 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between">
         <h1 className="display-title text-2xl font-bold text-[var(--ink)]">
           Analysis History
         </h1>
@@ -102,6 +130,7 @@ export function HistoryPage() {
           New analysis
         </Link>
       </div>
+      {user && <RetentionBanner tier={user.subscription_tier} />}
 
       {analyses.length === 0 && total === 0 ? (
         <p className="text-[var(--ink-soft)]">No saved analyses yet.</p>

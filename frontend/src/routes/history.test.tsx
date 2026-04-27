@@ -3,6 +3,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { HistoryPage } from "./history";
 import { ToastProvider } from "../components/Toast";
 
+// Mutable so individual describe blocks can set the active user.
+let _mockAuthUser: Record<string, unknown> | null = null;
+
+vi.mock("../lib/AuthContext", () => ({
+  useAuth: () => ({ user: _mockAuthUser, isLoading: false }),
+}));
+
 // Mock TanStack Router
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (config: unknown) => config,
@@ -438,5 +445,87 @@ describe("HistoryPage — error handling", () => {
       expect(screen.getByRole("alert")).toBeInTheDocument()
     );
     expect(screen.getByText(/450 SANCHEZ ST/i)).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Retention banner tests — use _mockAuthUser to control the active user tier
+// ---------------------------------------------------------------------------
+
+const EMPTY_PAGE = { items: [], total: 0, limit: 20, offset: 0 };
+
+describe("HistoryPage — retention banner (buyer)", () => {
+  beforeEach(() => {
+    _mockAuthUser = { subscription_tier: "buyer", is_grandfathered: false };
+    vi.spyOn(global, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(EMPTY_PAGE), { status: 200 })
+    );
+  });
+  afterEach(() => {
+    _mockAuthUser = null;
+    vi.restoreAllMocks();
+  });
+
+  it("shows 30-day retention notice for buyer tier", async () => {
+    render(<ToastProvider><HistoryPage /></ToastProvider>);
+    await waitFor(() =>
+      expect(screen.getByText(/30 days/i)).toBeInTheDocument()
+    );
+  });
+
+  it("shows upgrade-to-investor CTA link for buyer tier", async () => {
+    render(<ToastProvider><HistoryPage /></ToastProvider>);
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: /investor/i })).toBeInTheDocument()
+    );
+  });
+});
+
+describe("HistoryPage — retention banner (investor)", () => {
+  beforeEach(() => {
+    _mockAuthUser = { subscription_tier: "investor", is_grandfathered: false };
+    vi.spyOn(global, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(EMPTY_PAGE), { status: 200 })
+    );
+  });
+  afterEach(() => {
+    _mockAuthUser = null;
+    vi.restoreAllMocks();
+  });
+
+  it("shows 6-month retention notice for investor tier", async () => {
+    render(<ToastProvider><HistoryPage /></ToastProvider>);
+    await waitFor(() =>
+      expect(screen.getByText(/6 months/i)).toBeInTheDocument()
+    );
+  });
+
+  it("shows upgrade-to-agent CTA link for investor tier", async () => {
+    render(<ToastProvider><HistoryPage /></ToastProvider>);
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: /agent/i })).toBeInTheDocument()
+    );
+  });
+});
+
+describe("HistoryPage — retention banner (agent)", () => {
+  beforeEach(() => {
+    _mockAuthUser = { subscription_tier: "agent", is_grandfathered: false };
+    vi.spyOn(global, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(EMPTY_PAGE), { status: 200 })
+    );
+  });
+  afterEach(() => {
+    _mockAuthUser = null;
+    vi.restoreAllMocks();
+  });
+
+  it("does not show a retention banner for agent tier", async () => {
+    render(<ToastProvider><HistoryPage /></ToastProvider>);
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: /analysis history/i })).toBeInTheDocument()
+    );
+    expect(screen.queryByText(/30 days/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/6 months/i)).not.toBeInTheDocument();
   });
 });
