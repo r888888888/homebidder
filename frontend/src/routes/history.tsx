@@ -39,20 +39,31 @@ interface AnalysisDetail {
   comps: unknown[];
 }
 
+const PAGE_SIZE = 20;
+
 export function HistoryPage() {
   const [analyses, setAnalyses] = useState<AnalysisSummary[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [detail, setDetail] = useState<AnalysisDetail | null>(null);
   const toast = useToast();
 
   useEffect(() => {
-    fetch(`${apiBase}/api/analyses`, { headers: authHeaders() })
+    const offset = (page - 1) * PAGE_SIZE;
+    fetch(
+      `${apiBase}/api/analyses?limit=${PAGE_SIZE}&offset=${offset}`,
+      { headers: authHeaders() }
+    )
       .then((r) => r.json())
-      .then(setAnalyses)
+      .then((data) => {
+        setAnalyses(data.items);
+        setTotal(data.total);
+      })
       .catch(() => {
         toast.error("Failed to load analysis history.");
       });
-  }, [toast]);
+  }, [page, toast]);
 
   async function handleRowClick(id: number) {
     if (selectedId === id) {
@@ -92,7 +103,7 @@ export function HistoryPage() {
         </Link>
       </div>
 
-      {analyses.length === 0 ? (
+      {analyses.length === 0 && total === 0 ? (
         <p className="text-[var(--ink-soft)]">No saved analyses yet.</p>
       ) : (
         <div className="space-y-2">
@@ -191,6 +202,33 @@ export function HistoryPage() {
               ))}
             </tbody>
           </table>
+          {total > PAGE_SIZE && (
+            <div className="flex items-center justify-between pt-4 text-sm text-[var(--ink-soft)]">
+              <div>
+                {page > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => { setPage((p) => p - 1); setSelectedId(null); setDetail(null); }}
+                    className="px-3 py-1 border border-[var(--line)] rounded hover:bg-[var(--bg)]"
+                  >
+                    Prev
+                  </button>
+                )}
+              </div>
+              <span>Page {page} of {Math.ceil(total / PAGE_SIZE)}</span>
+              <div>
+                {page < Math.ceil(total / PAGE_SIZE) && (
+                  <button
+                    type="button"
+                    onClick={() => { setPage((p) => p + 1); setSelectedId(null); setDetail(null); }}
+                    className="px-3 py-1 border border-[var(--line)] rounded hover:bg-[var(--bg)]"
+                  >
+                    Next
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </main>

@@ -47,6 +47,13 @@ const ANALYSES_LIST = [
   },
 ];
 
+// Paginated envelope wrappers used by all tests
+const PAGE_1 = { items: ANALYSES_LIST, total: 2, limit: 20, offset: 0 };
+const PAGE_1_EMPTY = { items: [], total: 0, limit: 20, offset: 0 };
+// Simulate 25 total analyses so there is a second page
+const PAGE_1_LARGE = { items: ANALYSES_LIST, total: 25, limit: 20, offset: 0 };
+const PAGE_2_LARGE = { items: ANALYSES_LIST, total: 25, limit: 20, offset: 20 };
+
 const ANALYSIS_DETAIL = {
   id: 1,
   address: "450 SANCHEZ ST, SAN FRANCISCO, CA, 94114",
@@ -100,7 +107,7 @@ describe("HistoryPage", () => {
 
   it("renders the Analysis History heading", async () => {
     vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify([]), { status: 200 })
+      new Response(JSON.stringify(PAGE_1_EMPTY), { status: 200 })
     );
     renderHistoryPage();
     expect(screen.getByRole("heading", { name: /analysis history/i })).toBeInTheDocument();
@@ -108,7 +115,7 @@ describe("HistoryPage", () => {
 
   it("shows empty state when no analyses exist", async () => {
     vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify([]), { status: 200 })
+      new Response(JSON.stringify(PAGE_1_EMPTY), { status: 200 })
     );
     renderHistoryPage();
     await waitFor(() =>
@@ -118,7 +125,7 @@ describe("HistoryPage", () => {
 
   it("renders analysis rows with address, date, offer, risk level, investment rating", async () => {
     vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify(ANALYSES_LIST), { status: 200 })
+      new Response(JSON.stringify(PAGE_1), { status: 200 })
     );
     renderHistoryPage();
     await waitFor(() =>
@@ -134,7 +141,7 @@ describe("HistoryPage", () => {
 
   it("each row has a permalink link to the saved analysis", async () => {
     vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify(ANALYSES_LIST), { status: 200 })
+      new Response(JSON.stringify(PAGE_1), { status: 200 })
     );
     renderHistoryPage();
     await waitFor(() =>
@@ -148,7 +155,7 @@ describe("HistoryPage", () => {
   it("clicking a row fetches detail and renders offer card", async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(
-        new Response(JSON.stringify(ANALYSES_LIST), { status: 200 })
+        new Response(JSON.stringify(PAGE_1), { status: 200 })
       )
       .mockResolvedValueOnce(
         new Response(JSON.stringify(ANALYSIS_DETAIL), { status: 200 })
@@ -169,7 +176,7 @@ describe("HistoryPage", () => {
   it("each row has an inline delete button that calls DELETE and removes the row without expanding detail", async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(
-        new Response(JSON.stringify(ANALYSES_LIST), { status: 200 })
+        new Response(JSON.stringify(PAGE_1), { status: 200 })
       )
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
 
@@ -192,6 +199,92 @@ describe("HistoryPage", () => {
       expect.stringContaining("/api/analyses/1"),
       expect.objectContaining({ method: "DELETE" })
     );
+  });
+
+  it("does not show pagination controls when total fits on one page", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify(PAGE_1), { status: 200 })
+    );
+    renderHistoryPage();
+    await waitFor(() =>
+      expect(screen.getByText(/450 SANCHEZ ST/i)).toBeInTheDocument()
+    );
+    expect(screen.queryByRole("button", { name: /next/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /prev/i })).not.toBeInTheDocument();
+  });
+
+  it("shows Next button and page indicator when total > limit", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify(PAGE_1_LARGE), { status: 200 })
+    );
+    renderHistoryPage();
+    await waitFor(() =>
+      expect(screen.getByText(/450 SANCHEZ ST/i)).toBeInTheDocument()
+    );
+    expect(screen.getByRole("button", { name: /next/i })).toBeInTheDocument();
+    expect(screen.getByText(/page 1 of 2/i)).toBeInTheDocument();
+  });
+
+  it("Prev button is hidden on the first page", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify(PAGE_1_LARGE), { status: 200 })
+    );
+    renderHistoryPage();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /next/i })).toBeInTheDocument()
+    );
+    expect(screen.queryByRole("button", { name: /prev/i })).not.toBeInTheDocument();
+  });
+
+  it("clicking Next fetches the second page with offset=20", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(PAGE_1_LARGE), { status: 200 })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(PAGE_2_LARGE), { status: 200 })
+      );
+
+    renderHistoryPage();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /next/i })).toBeInTheDocument()
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /next/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/page 2 of 2/i)).toBeInTheDocument()
+    );
+    // Confirm offset=20 was sent
+    const calls = vi.mocked(fetch).mock.calls;
+    expect(calls[1][0]).toMatch(/offset=20/);
+  });
+
+  it("shows Prev button on page 2 and clicking it goes back to page 1", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(PAGE_1_LARGE), { status: 200 })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(PAGE_2_LARGE), { status: 200 })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(PAGE_1_LARGE), { status: 200 })
+      );
+
+    renderHistoryPage();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /next/i })).toBeInTheDocument()
+    );
+    fireEvent.click(screen.getByRole("button", { name: /next/i }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /prev/i })).toBeInTheDocument()
+    );
+    fireEvent.click(screen.getByRole("button", { name: /prev/i }));
+    await waitFor(() =>
+      expect(screen.getByText(/page 1 of 2/i)).toBeInTheDocument()
+    );
+    expect(screen.queryByRole("button", { name: /prev/i })).not.toBeInTheDocument();
   });
 
   it("renders FixerAnalysisCard when detail includes renovation_data", async () => {
@@ -220,7 +313,7 @@ describe("HistoryPage", () => {
 
     vi.mocked(fetch)
       .mockResolvedValueOnce(
-        new Response(JSON.stringify(ANALYSES_LIST), { status: 200 })
+        new Response(JSON.stringify(PAGE_1), { status: 200 })
       )
       .mockResolvedValueOnce(
         new Response(JSON.stringify(detailWithRenovation), { status: 200 })
@@ -241,7 +334,7 @@ describe("HistoryPage", () => {
   it("does not render FixerAnalysisCard when renovation_data is null", async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(
-        new Response(JSON.stringify(ANALYSES_LIST), { status: 200 })
+        new Response(JSON.stringify(PAGE_1), { status: 200 })
       )
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ ...ANALYSIS_DETAIL, renovation_data: null }), { status: 200 })
@@ -263,7 +356,7 @@ describe("HistoryPage", () => {
   it("delete button in detail calls DELETE and removes the row", async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(
-        new Response(JSON.stringify(ANALYSES_LIST), { status: 200 })
+        new Response(JSON.stringify(PAGE_1), { status: 200 })
       )
       .mockResolvedValueOnce(
         new Response(JSON.stringify(ANALYSIS_DETAIL), { status: 200 })
@@ -309,7 +402,7 @@ describe("HistoryPage — error handling", () => {
   it("shows a toast and keeps row collapsed when detail fetch returns non-2xx", async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(
-        new Response(JSON.stringify(ANALYSES_LIST), { status: 200 })
+        new Response(JSON.stringify(PAGE_1), { status: 200 })
       )
       .mockResolvedValueOnce(new Response("Not found", { status: 500 }));
 
@@ -329,7 +422,7 @@ describe("HistoryPage — error handling", () => {
   it("shows a toast and keeps row in list when delete returns non-2xx", async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(
-        new Response(JSON.stringify(ANALYSES_LIST), { status: 200 })
+        new Response(JSON.stringify(PAGE_1), { status: 200 })
       )
       .mockResolvedValueOnce(new Response("Server error", { status: 500 }));
 

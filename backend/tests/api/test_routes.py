@@ -37,10 +37,12 @@ async def test_analyze_endpoint_rejects_url_payload(client):
 # --- /api/analyses endpoints ---
 
 async def test_list_analyses_returns_empty_list(client):
-    """GET /api/analyses returns 200 with empty list when no analyses saved."""
+    """GET /api/analyses returns 200 with empty items list when no analyses saved."""
     resp = await client.get("/api/analyses")
     assert resp.status_code == 200
-    assert resp.json() == []
+    data = resp.json()
+    assert data["items"] == []
+    assert data["total"] == 0
 
 
 async def test_get_analysis_not_found(client):
@@ -454,6 +456,72 @@ async def test_patch_renovation_toggles_analysis_not_found(client):
         headers={"X-Session-ID": "any-session"},
     )
     assert resp.status_code == 404
+
+
+# --- Pagination ---
+
+async def _seed_n_analyses(n: int, prefix: str = "Page"):
+    """Seed n analyses with distinct timestamps (oldest first, i=0)."""
+    import datetime
+    from db.models import Analysis, Listing
+    from db import engine
+    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlalchemy.orm import sessionmaker
+
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with async_session() as session:
+        for i in range(n):
+            listing = Listing(
+                address_input=f"{i} {prefix} St, SF, CA 94110",
+                address_matched=f"{i} {prefix.upper()} ST, SF, CA 94110",
+            )
+            session.add(listing)
+            await session.flush()
+            analysis = Analysis(
+                listing_id=listing.id,
+                session_id=f"page-session-{i}",
+                created_at=datetime.datetime(2026, 1, i + 1, 12, 0, 0),
+            )
+            session.add(analysis)
+            await session.flush()
+        await session.commit()
+
+
+async def test_list_analyses_returns_paginated_envelope(client):
+    """GET /api/analyses returns {items, total, limit, offset} even when empty."""
+    resp = await client.get("/api/analyses")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "items" in data
+    assert "total" in data
+    assert "limit" in data
+    assert "offset" in data
+    assert data["items"] == []
+    assert data["total"] == 0
+    assert data["limit"] == 20
+    assert data["offset"] == 0
+
+
+async def test_list_analyses_pagination_offset_slices_correctly(client):
+    """?offset=2&limit=2 returns the right 2 items out of 5 and correct total."""
+    await _seed_n_analyses(5)
+    resp = await client.get("/api/analyses?offset=2&limit=2")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total"] == 5
+    assert data["limit"] == 2
+    assert data["offset"] == 2
+    assert len(data["items"]) == 2
+
+
+async def test_list_analyses_pagination_total_not_capped_by_limit(client):
+    """total always reflects all user analyses even when limit clips the page."""
+    await _seed_n_analyses(5)
+    resp = await client.get("/api/analyses?limit=2")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total"] == 5
+    assert len(data["items"]) == 2
 
 
 async def test_get_analysis_renovation_data_null_when_absent(client):

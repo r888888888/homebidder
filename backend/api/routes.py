@@ -1,6 +1,6 @@
 import json
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -60,26 +60,39 @@ async def analyze_listing(
 async def list_analyses(
     db: AsyncSession = Depends(get_db),
     user: User | None = Depends(current_optional_user),
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
 ):
-    """List the last 20 analyses for the caller, newest first.
+    """List analyses for the caller, newest first, with pagination.
 
+    Returns {items, total, limit, offset}.
     Authenticated users see only their own analyses.
     Anonymous callers see only analyses with no owner (user_id IS NULL).
     """
     from db.models import Listing, Analysis
-    from sqlalchemy import null
+    from sqlalchemy import null, func
 
-    stmt = select(Analysis, Listing.address_matched).join(Listing)
+    base = select(Analysis).join(Listing)
     if user is not None:
-        stmt = stmt.where(Analysis.user_id == user.id)
+        base = base.where(Analysis.user_id == user.id)
     else:
-        stmt = stmt.where(Analysis.user_id == null())
-    stmt = stmt.order_by(Analysis.created_at.desc()).limit(20)
+        base = base.where(Analysis.user_id == null())
 
-    rows = await db.execute(stmt)
-    result = []
+    count_stmt = select(func.count()).select_from(base.subquery())
+    total: int = (await db.execute(count_stmt)).scalar_one()
+
+    rows_stmt = (
+        select(Analysis, Listing.address_matched)
+        .join(Listing)
+        .where(base.whereclause)
+        .order_by(Analysis.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    rows = await db.execute(rows_stmt)
+    items = []
     for analysis, address in rows:
-        result.append({
+        items.append({
             "id": analysis.id,
             "address": address,
             "created_at": analysis.created_at.isoformat(),
@@ -87,7 +100,7 @@ async def list_analyses(
             "risk_level": analysis.risk_level,
             "investment_rating": analysis.investment_rating,
         })
-    return result
+    return {"items": items, "total": total, "limit": limit, "offset": offset}
 
 
 @router.get("/analyses/{analysis_id}")

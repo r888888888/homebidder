@@ -134,8 +134,8 @@ async def test_list_analyses_authenticated_returns_only_own(client):
     resp = await client.get("/api/analyses", headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 200
     data = resp.json()
-    assert len(data) == 1
-    assert data[0]["address"] == "1 OWN ST, SF, CA 94110"
+    assert data["total"] == 1
+    assert data["items"][0]["address"] == "1 OWN ST, SF, CA 94110"
 
 
 async def test_list_analyses_unauthenticated_returns_only_anonymous(client):
@@ -151,8 +151,8 @@ async def test_list_analyses_unauthenticated_returns_only_anonymous(client):
     resp = await client.get("/api/analyses")
     assert resp.status_code == 200
     data = resp.json()
-    assert len(data) == 1
-    assert data[0]["address"] == "4 PUBLIC ST, SF, CA 94110"
+    assert data["total"] == 1
+    assert data["items"][0]["address"] == "4 PUBLIC ST, SF, CA 94110"
 
 
 # ---------------------------------------------------------------------------
