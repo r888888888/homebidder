@@ -47,6 +47,8 @@ const ANALYSIS_DETAIL = {
   risk_data: null,
   investment_data: null,
   renovation_data: null,
+  permits_data: null,
+  crime_data: null,
   comps: [],
 };
 
@@ -129,5 +131,82 @@ describe("PermalinkPage", () => {
     await waitFor(() =>
       expect(screen.getByRole("alert")).toBeInTheDocument()
     );
+  });
+
+  it("renders tab bar with Decision, Property, Market, Risk, and Analysis tabs", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify(ANALYSIS_DETAIL), { status: 200 })
+    );
+    renderPage();
+    await waitFor(() =>
+      expect(screen.getByRole("tablist")).toBeInTheDocument()
+    );
+    expect(screen.getByRole("tab", { name: /decision/i })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /property/i })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /market/i })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /risk/i })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /analysis/i })).toBeInTheDocument();
+  });
+
+  it("shows offer recommendation on Decision tab by default", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify(ANALYSIS_DETAIL), { status: 200 })
+    );
+    renderPage();
+    await waitFor(() =>
+      expect(screen.getByRole("tab", { name: /decision/i })).toBeInTheDocument()
+    );
+    expect(screen.getByText(/offer recommendation/i)).toBeInTheDocument();
+  });
+
+  it("shows rationale when Analysis tab is clicked", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify(ANALYSIS_DETAIL), { status: 200 })
+    );
+    renderPage();
+    await waitFor(() =>
+      expect(screen.getByRole("tab", { name: /analysis/i })).toBeInTheDocument()
+    );
+    await userEvent.click(screen.getByRole("tab", { name: /analysis/i }));
+    expect(screen.getByText(/good buy/i)).toBeInTheDocument();
+  });
+
+  it("renders CompsCard when comps are present and Market tab is clicked", async () => {
+    const analysisWithComps = {
+      ...ANALYSIS_DETAIL,
+      comps: [
+        {
+          address: "100 Comp St",
+          unit: null,
+          city: "San Francisco",
+          state: "CA",
+          zip_code: "94110",
+          sold_price: 1_100_000,
+          list_price: 1_050_000,
+          sold_date: "2026-02-01",
+          bedrooms: 3,
+          bathrooms: 2,
+          sqft: 1700,
+          lot_size: null,
+          price_per_sqft: 647,
+          pct_over_asking: 4.76,
+          distance_miles: 0.3,
+          url: "",
+          source: "homeharvest",
+        },
+      ],
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify(analysisWithComps), { status: 200 })
+    );
+    renderPage();
+    await waitFor(() =>
+      expect(screen.getByRole("tab", { name: /market/i })).toBeInTheDocument()
+    );
+    await userEvent.click(screen.getByRole("tab", { name: /market/i }));
+    await waitFor(() =>
+      expect(screen.getByText(/comparable sales/i)).toBeInTheDocument()
+    );
+    expect(screen.getByText(/100 Comp St/i)).toBeInTheDocument();
   });
 });

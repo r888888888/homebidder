@@ -1,3 +1,4 @@
+import pytest
 from unittest.mock import patch
 
 
@@ -117,6 +118,76 @@ async def test_force_refresh_field_accepted(client):
             "force_refresh": True,
         })
     assert resp.status_code == 200
+
+
+async def test_get_analysis_returns_full_comp_fields(client):
+    """GET /api/analyses/{id} returns all comp fields including bedrooms, bathrooms, and enriched data."""
+    import datetime
+    from db.models import Analysis, Listing, Comp
+    from db import engine
+    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlalchemy.orm import sessionmaker
+
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with async_session() as session:
+        listing = Listing(
+            address_input="5 Comp St, SF, CA 94110",
+            address_matched="5 COMP ST, SF, CA 94110",
+        )
+        session.add(listing)
+        await session.flush()
+        analysis = Analysis(
+            listing_id=listing.id,
+            session_id="comp-test-session",
+            created_at=datetime.datetime.utcnow(),
+        )
+        session.add(analysis)
+        await session.flush()
+        comp = Comp(
+            analysis_id=analysis.id,
+            address="100 Comp St",
+            unit="2A",
+            city="San Francisco",
+            state="CA",
+            zip_code="94110",
+            sold_price=1_100_000,
+            list_price=1_050_000,
+            sold_date="2026-02-01",
+            bedrooms=3,
+            bathrooms=2.0,
+            sqft=1700,
+            lot_size=2500.0,
+            price_per_sqft=647.0,
+            pct_over_asking=4.76,
+            distance_miles=0.3,
+            url="https://redfin.com/comp1",
+            source="homeharvest",
+        )
+        session.add(comp)
+        await session.commit()
+        analysis_id = analysis.id
+
+    resp = await client.get(f"/api/analyses/{analysis_id}")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["comps"]) == 1
+    c = data["comps"][0]
+    assert c["address"] == "100 Comp St"
+    assert c["unit"] == "2A"
+    assert c["city"] == "San Francisco"
+    assert c["state"] == "CA"
+    assert c["zip_code"] == "94110"
+    assert c["sold_price"] == 1_100_000
+    assert c["list_price"] == 1_050_000
+    assert c["bedrooms"] == 3
+    assert c["bathrooms"] == 2.0
+    assert c["sqft"] == 1700
+    assert c["lot_size"] == 2500.0
+    assert c["price_per_sqft"] == 647.0
+    assert c["pct_over_asking"] == pytest.approx(4.76)
+    assert c["distance_miles"] == pytest.approx(0.3)
+    assert c["url"] == "https://redfin.com/comp1"
+    assert c["source"] == "homeharvest"
 
 
 async def test_get_analysis_includes_renovation_data(client):
@@ -300,6 +371,45 @@ async def test_patch_renovation_toggles_ownership_enforced(client):
         headers={"X-Session-ID": "other-session"},
     )
     assert resp.status_code == 403
+
+
+async def test_get_analysis_includes_permits_and_crime_data(client):
+    """GET /api/analyses/{id} returns permits_data and crime_data fields."""
+    import json, datetime
+    from db.models import Analysis, Listing
+    from db import engine
+    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlalchemy.orm import sessionmaker
+
+    permits_payload = {"permits": [{"permit_number": "P001", "description": "Roof repair"}]}
+    crime_payload = {"violent_count": 2, "property_count": 8}
+
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with async_session() as session:
+        listing = Listing(
+            address_input="7 Permits St, SF, CA 94110",
+            address_matched="7 PERMITS ST, SF, CA 94110",
+        )
+        session.add(listing)
+        await session.flush()
+        analysis = Analysis(
+            listing_id=listing.id,
+            session_id="permits-crime-session",
+            created_at=datetime.datetime.utcnow(),
+            permits_data_json=json.dumps(permits_payload),
+            crime_data_json=json.dumps(crime_payload),
+        )
+        session.add(analysis)
+        await session.commit()
+        analysis_id = analysis.id
+
+    resp = await client.get(f"/api/analyses/{analysis_id}")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "permits_data" in data
+    assert data["permits_data"]["permits"][0]["permit_number"] == "P001"
+    assert "crime_data" in data
+    assert data["crime_data"]["violent_count"] == 2
 
 
 async def test_patch_renovation_toggles_no_renovation_data(client):

@@ -122,15 +122,27 @@ async def get_analysis(analysis_id: int, db: AsyncSession = Depends(get_db)):
         "risk_data": json.loads(analysis.risk_data_json) if analysis.risk_data_json else None,
         "investment_data": json.loads(analysis.investment_data_json) if analysis.investment_data_json else None,
         "renovation_data": json.loads(analysis.renovation_data_json) if analysis.renovation_data_json else None,
+        "permits_data": json.loads(analysis.permits_data_json) if analysis.permits_data_json else None,
+        "crime_data": json.loads(analysis.crime_data_json) if analysis.crime_data_json else None,
         "comps": [
             {
                 "address": c.address,
+                "unit": c.unit,
+                "city": c.city,
+                "state": c.state,
+                "zip_code": c.zip_code,
                 "sold_price": c.sold_price,
+                "list_price": c.list_price,
                 "sold_date": c.sold_date,
+                "bedrooms": c.bedrooms,
+                "bathrooms": c.bathrooms,
                 "sqft": c.sqft,
+                "lot_size": c.lot_size,
                 "price_per_sqft": c.price_per_sqft,
                 "distance_miles": c.distance_miles,
                 "pct_over_asking": c.pct_over_asking,
+                "url": c.url,
+                "source": c.source,
             }
             for c in analysis.comps
         ],
