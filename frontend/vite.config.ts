@@ -1,3 +1,4 @@
+import path from 'path'
 import { defineConfig } from 'vite'
 import { devtools } from '@tanstack/devtools-vite'
 import tsconfigPaths from 'vite-tsconfig-paths'
@@ -19,6 +20,11 @@ const config = defineConfig({
     }),
     viteReact(),
   ],
+  resolve: {
+    alias: {
+      canvas: path.resolve(__dirname, 'src/stubs/canvas-stub.ts'),
+    },
+  },
 })
 
 export default config

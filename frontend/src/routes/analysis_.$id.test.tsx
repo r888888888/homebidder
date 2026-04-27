@@ -12,6 +12,20 @@ vi.mock("@tanstack/react-router", () => ({
   ),
 }));
 
+vi.mock("@react-pdf/renderer", () => ({
+  PDFDownloadLink: ({ children, fileName }: any) => (
+    <a href="blob:fake" download={fileName} data-testid="pdf-link">
+      {typeof children === "function" ? children({ loading: false, url: "blob:fake" }) : children}
+    </a>
+  ),
+  Document: ({ children }: any) => <>{children}</>,
+  Page: ({ children }: any) => <div>{children}</div>,
+  View: ({ children }: any) => <div>{children}</div>,
+  Text: ({ children }: any) => <span>{children}</span>,
+  StyleSheet: { create: (s: any) => s },
+  Font: { register: () => {} },
+}));
+
 // Mock AuthContext — default to investor so existing tests see the full InvestmentCard
 const mockUseAuth = vi.fn();
 vi.mock("../lib/AuthContext", () => ({
@@ -277,5 +291,44 @@ describe("PermalinkPage", () => {
     expect(screen.queryByText(/10yr projected value/i)).not.toBeInTheDocument();
     const upgradeLink = screen.getByRole("link", { name: /upgrade to investor/i });
     expect(upgradeLink).toHaveAttribute("href", "/pricing");
+  });
+
+  it("shows Download PDF button for agent tier", async () => {
+    mockUseAuth.mockReturnValue({ user: { subscription_tier: "agent" }, isLoading: false });
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify(ANALYSIS_DETAIL), { status: 200 })
+    );
+    renderPage();
+    await waitFor(() => expect(screen.getByText(/download pdf/i)).toBeInTheDocument());
+  });
+
+  it("shows PDF upsell for investor tier", async () => {
+    mockUseAuth.mockReturnValue({ user: { subscription_tier: "investor" }, isLoading: false });
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify(ANALYSIS_DETAIL), { status: 200 })
+    );
+    renderPage();
+    await waitFor(() => expect(screen.getByText(/450 SANCHEZ ST/i)).toBeInTheDocument());
+    expect(screen.getByText(/pdf export — agent plan/i)).toBeInTheDocument();
+  });
+
+  it("shows PDF upsell for buyer tier", async () => {
+    mockUseAuth.mockReturnValue({ user: { subscription_tier: "buyer" }, isLoading: false });
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify(ANALYSIS_DETAIL), { status: 200 })
+    );
+    renderPage();
+    await waitFor(() => expect(screen.getByText(/450 SANCHEZ ST/i)).toBeInTheDocument());
+    expect(screen.getByText(/pdf export — agent plan/i)).toBeInTheDocument();
+  });
+
+  it("does not show PDF upsell for agent tier", async () => {
+    mockUseAuth.mockReturnValue({ user: { subscription_tier: "agent" }, isLoading: false });
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify(ANALYSIS_DETAIL), { status: 200 })
+    );
+    renderPage();
+    await waitFor(() => expect(screen.getByText(/download pdf/i)).toBeInTheDocument());
+    expect(screen.queryByText(/pdf export — agent plan/i)).not.toBeInTheDocument();
   });
 });

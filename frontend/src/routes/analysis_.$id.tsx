@@ -13,6 +13,7 @@ import { FixerAnalysisCard, type FixerAnalysisData } from "../components/FixerAn
 import { CompsCard, type CompData } from "../components/CompsCard";
 import { PermitsCard, type PermitsData } from "../components/PermitsCard";
 import { CrimeCard, type CrimeData } from "../components/CrimeCard";
+import { PdfExportButton } from "../components/PdfExportButton";
 import { useToast } from "../components/Toast";
 import { apiBase } from "../lib/api";
 import { authHeaders } from "../lib/auth";
@@ -21,7 +22,7 @@ export const Route = createFileRoute("/analysis_/$id")({
   component: PermalinkPage,
 });
 
-interface AnalysisDetail {
+export interface AnalysisDetail {
   id: number;
   address: string;
   created_at: string;
@@ -179,6 +180,10 @@ export function PermalinkPage() {
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <PdfExportButton
+            analysis={analysis}
+            isAgent={user?.subscription_tier === "agent"}
+          />
           <button
             type="button"
             onClick={handleCopy}

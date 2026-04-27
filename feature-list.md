@@ -1,6 +1,5 @@
 # TODO
 
-- Tier differentiation — PDF export for Agent tier. Generate a printable, shareable single-page report (offer range, risk summary, comps, investment snapshot) that agents can email to clients. This is the clearest justification for the $30/mo price point.
 - Tier differentiation — history retention limits. Buyer: show only last 30 days of analyses. Investor: last 6 months. Agent: unlimited. Adds perceived upgrade value without removing real-time features.
 - Tier differentiation — full comparable sales table for Investor+. Buyer tier sees only the summary range (low/mid/high); Investor and Agent see the full comp table with address, sale date, price, and $/sqft.
 - Favorite analyses: users can mark analyses as favorites. Favorited analyses appear visually distinct on the history page (e.g. star icon, highlighted row).
@@ -15,6 +14,8 @@
 - Tier differentiation — watchlist for Investor+. Save a set of addresses; one-click re-run to refresh an analysis as market conditions change.
 
 # DONE
+
+- Tier differentiation — PDF export for Agent tier. "Download PDF" button on the analysis permalink page generates a single-page report (property summary, offer recommendation, risk summary, comparable sales, investment snapshot) using `@react-pdf/renderer`. Non-agent users (Investor/Buyer) see a dashed "PDF Export — Agent plan" upsell button linking to /pricing. 14 new frontend tests.
 
 - Tier differentiation — gate Investment tab to Investor+ only. Buyer tier (and anonymous users) see an `InvestmentTeaserCard` with monthly cost summary (buy vs rent), ADU potential, rent control, transit, and schools, plus an "Unlock Investment Projections" upsell linking to /pricing. Investor and Agent tiers see the full `InvestmentCard` with 10/20/30yr appreciation projections and opportunity cost analysis. Applied in both `AnalysisStream` and `PermalinkPage`. 14 new frontend tests.
 
