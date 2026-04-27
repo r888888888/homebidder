@@ -247,6 +247,23 @@ async def test_get_analysis_includes_renovation_data(client):
     assert data["renovation_data"]["line_items"][0]["category"] == "Kitchen remodel"
 
 
+# --- _retention_cutoff ---
+
+def test_retention_cutoff_superuser_returns_unlimited():
+    """Superusers get unlimited retention regardless of their subscription_tier."""
+    from types import SimpleNamespace
+    from api.routes import _retention_cutoff
+
+    superuser = SimpleNamespace(
+        is_superuser=True,
+        subscription_tier="buyer",
+        is_grandfathered=False,
+    )
+    cutoff, days = _retention_cutoff(superuser)
+    assert cutoff is None
+    assert days is None
+
+
 # --- buyer_context input validation ---
 
 async def test_buyer_context_too_long_rejected(client):

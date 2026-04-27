@@ -23,7 +23,7 @@ def _retention_cutoff(user: User | None) -> tuple[datetime | None, int | None]:
     """
     if user is None:
         return None, None
-    if user.subscription_tier == "agent":
+    if user.is_superuser or user.subscription_tier == "agent":
         return None, None
     if user.subscription_tier == "investor" or user.is_grandfathered:
         return datetime.utcnow() - timedelta(days=180), 180

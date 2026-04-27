@@ -115,7 +115,9 @@ export function PermalinkPage() {
   const toast = useToast();
   const { user } = useAuth();
   const isInvestorPlus =
-    user?.subscription_tier === "investor" || user?.subscription_tier === "agent";
+    user?.is_superuser ||
+    user?.subscription_tier === "investor" ||
+    user?.subscription_tier === "agent";
 
   useEffect(() => {
     fetch(`${apiBase}/api/analyses/${id}`, { headers: authHeaders() })
@@ -210,7 +212,7 @@ export function PermalinkPage() {
             </button>
             <PdfExportButton
               analysis={analysis}
-              isAgent={user?.subscription_tier === "agent"}
+              isAgent={user?.is_superuser || user?.subscription_tier === "agent"}
             />
             <button
               type="button"

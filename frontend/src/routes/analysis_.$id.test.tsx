@@ -276,6 +276,19 @@ describe("PermalinkPage", () => {
     expect(screen.queryByText(/unlock investment projections/i)).not.toBeInTheDocument();
   });
 
+  it("shows full InvestmentCard (projections) for superuser on Market tab", async () => {
+    mockUseAuth.mockReturnValue({ user: { subscription_tier: "buyer", is_superuser: true }, isLoading: false });
+    const detail = { ...ANALYSIS_DETAIL, investment_data: INVESTMENT_DATA };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify(detail), { status: 200 })
+    );
+    renderPage();
+    await waitFor(() => expect(screen.getByRole("tab", { name: /market/i })).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("tab", { name: /market/i }));
+    await waitFor(() => expect(screen.getByText(/10yr projected value/i)).toBeInTheDocument());
+    expect(screen.queryByText(/unlock investment projections/i)).not.toBeInTheDocument();
+  });
+
   it("shows teaser card (no projections, upgrade CTA) for buyer tier on Market tab", async () => {
     mockUseAuth.mockReturnValue({ user: { subscription_tier: "buyer" }, isLoading: false });
     const detail = { ...ANALYSIS_DETAIL, investment_data: INVESTMENT_DATA };
@@ -324,6 +337,16 @@ describe("PermalinkPage", () => {
 
   it("does not show PDF upsell for agent tier", async () => {
     mockUseAuth.mockReturnValue({ user: { subscription_tier: "agent" }, isLoading: false });
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify(ANALYSIS_DETAIL), { status: 200 })
+    );
+    renderPage();
+    await waitFor(() => expect(screen.getByText(/download pdf/i)).toBeInTheDocument());
+    expect(screen.queryByText(/pdf export — agent plan/i)).not.toBeInTheDocument();
+  });
+
+  it("shows Download PDF button for superuser", async () => {
+    mockUseAuth.mockReturnValue({ user: { subscription_tier: "buyer", is_superuser: true }, isLoading: false });
     vi.mocked(fetch).mockResolvedValueOnce(
       new Response(JSON.stringify(ANALYSIS_DETAIL), { status: 200 })
     );
@@ -397,6 +420,18 @@ describe("PermalinkPage", () => {
     expect(screen.queryByText(/100 Comp St/i)).not.toBeInTheDocument();
     const upgradeLink = screen.getByRole("link", { name: /upgrade to investor/i });
     expect(upgradeLink).toHaveAttribute("href", "/pricing");
+  });
+
+  it("shows full comp table for superuser on Market tab", async () => {
+    mockUseAuth.mockReturnValue({ user: { subscription_tier: "buyer", is_superuser: true }, isLoading: false });
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ ...ANALYSIS_DETAIL, comps: [COMP_FIXTURE] }), { status: 200 })
+    );
+    renderPage();
+    await waitFor(() => expect(screen.getByRole("tab", { name: /market/i })).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("tab", { name: /market/i }));
+    await waitFor(() => expect(screen.getByText(/100 Comp St/i)).toBeInTheDocument());
+    expect(screen.queryByText(/unlock comparable sales/i)).not.toBeInTheDocument();
   });
 });
 

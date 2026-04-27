@@ -116,7 +116,9 @@ export function AnalysisStream({ events, isRunning }: Props) {
   const [isFavorite, setIsFavorite] = useState(false);
   const { user } = useAuth();
   const isInvestorPlus =
-    user?.subscription_tier === "investor" || user?.subscription_tier === "agent";
+    user?.is_superuser ||
+    user?.subscription_tier === "investor" ||
+    user?.subscription_tier === "agent";
 
   async function handleCopyPermalink(id: number) {
     const url = `${window.location.origin}/analysis/${id}`;

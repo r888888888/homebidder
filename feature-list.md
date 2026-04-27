@@ -1,6 +1,4 @@
 # TODO
-
-- Superusers should be functionally equivalent to Agent tier level.
 - Make all the buttons in the title bar in the analysis details page have a cursor pointer.
 - Fix any failing tests.
 - Review the test coverage and eliminate tests that are low value and test edge cases that will probably never happen.
@@ -16,6 +14,8 @@
 - Duplex / multi-family fair value support: normalize property type to `"multi"` bucket for comp filtering, wire Redfin type code 6, add income premium adjustment in pricing (GRM-based, capped at 10%), offset monthly buy cost by second-unit rental income in investment metrics, re-run recommend_offer with rent data in orchestrator Phase 8. Plan at `.claude/plans/iterative-cuddling-pelican.md`. ~32 new tests.
 
 # DONE
+
+- Superusers are functionally equivalent to Agent tier: unlimited retention in `_retention_cutoff`, `isInvestorPlus` and `isAgent` checks include `is_superuser` in `AnalysisStream` and `PermalinkPage`. 1 new backend test, 5 new frontend tests.
 
 - Favorite from analysis detail page: heart icon button added to the permalink page (`analysis_.$id.tsx`) header actions row and to the `AnalysisStream` saved strip. Clicking toggles `is_favorite` via `PATCH /api/analyses/{id}/favorite`. Button shows aria-label "Favorite"/"Unfavorite" and fills on active. 4 new permalink tests, 4 new stream tests.
 

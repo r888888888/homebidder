@@ -773,6 +773,15 @@ describe("AnalysisStream — investment tab tier gating", () => {
     expect(screen.queryByText(/10yr projected value/i)).not.toBeInTheDocument();
     expect(screen.getByText(/unlock investment projections/i)).toBeInTheDocument();
   });
+
+  it("shows full InvestmentCard (projections) for superuser", async () => {
+    const user = userEvent.setup();
+    mockUseAuth.mockReturnValue({ user: { subscription_tier: "buyer", is_superuser: true }, isLoading: false });
+    render(<AnalysisStream events={investmentEvents} isRunning={false} />);
+    await user.click(screen.getByRole("tab", { name: /market/i }));
+    expect(screen.getByText(/10yr projected value/i)).toBeInTheDocument();
+    expect(screen.queryByText(/unlock investment projections/i)).not.toBeInTheDocument();
+  });
 });
 
 describe("AnalysisStream — comps tab tier gating", () => {
@@ -820,5 +829,14 @@ describe("AnalysisStream — comps tab tier gating", () => {
     await user.click(screen.getByRole("tab", { name: /market/i }));
     expect(screen.queryByText(/100 Comp St/i)).not.toBeInTheDocument();
     expect(screen.getByText(/unlock comparable sales/i)).toBeInTheDocument();
+  });
+
+  it("shows full comp table with addresses for superuser", async () => {
+    const user = userEvent.setup();
+    mockUseAuth.mockReturnValue({ user: { subscription_tier: "buyer", is_superuser: true }, isLoading: false });
+    render(<AnalysisStream events={compsEvents} isRunning={false} />);
+    await user.click(screen.getByRole("tab", { name: /market/i }));
+    expect(screen.getByText(/100 Comp St/i)).toBeInTheDocument();
+    expect(screen.queryByText(/unlock comparable sales/i)).not.toBeInTheDocument();
   });
 });
