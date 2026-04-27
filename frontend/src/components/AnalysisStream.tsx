@@ -1,6 +1,9 @@
 import { useState } from "react";
 import type { AnalysisEvent } from "../routes/index";
 import { Link } from "@tanstack/react-router";
+import { Heart } from "lucide-react";
+import { apiBase } from "../lib/api";
+import { authHeaders } from "../lib/auth";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { PropertySummaryCard, type PropertyData } from "./PropertySummaryCard";
@@ -110,6 +113,7 @@ function PanelSkeleton({ label }: { label: string }) {
 export function AnalysisStream({ events, isRunning }: Props) {
   const [activeTab, setActiveTab] = useState<TabId>("decision");
   const [copied, setCopied] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(false);
   const { user } = useAuth();
   const isInvestorPlus =
     user?.subscription_tier === "investor" || user?.subscription_tier === "agent";
@@ -119,6 +123,20 @@ export function AnalysisStream({ events, isRunning }: Props) {
     await navigator.clipboard.writeText(url);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function handleToggleFavorite(id: number) {
+    try {
+      const resp = await fetch(`${apiBase}/api/analyses/${id}/favorite`, {
+        method: "PATCH",
+        headers: authHeaders(),
+      });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      setIsFavorite(data.is_favorite);
+    } catch {
+      // ignore
+    }
   }
 
   const textBlocks = events.filter((e) => e.type === "text");
@@ -369,6 +387,14 @@ export function AnalysisStream({ events, isRunning }: Props) {
               view history
             </Link>
           </span>
+          <button
+            type="button"
+            aria-label={isFavorite ? "Unfavorite" : "Favorite"}
+            onClick={() => handleToggleFavorite(analysisIdEvent.id as number)}
+            className={`inline-flex items-center gap-1 rounded-lg border border-[var(--line)] bg-[var(--card)] px-2.5 py-1 text-xs font-medium transition-colors${isFavorite ? " text-rose-500" : " text-[var(--ink-muted)] hover:text-rose-400"}`}
+          >
+            <Heart size={12} fill={isFavorite ? "currentColor" : "none"} />
+          </button>
           <button
             type="button"
             onClick={() => handleCopyPermalink(analysisIdEvent.id as number)}

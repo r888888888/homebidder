@@ -1,6 +1,8 @@
 # TODO
 
-- The title for an analysis page is cramped. Can we redesign it so that the address can take up full space and rethink the buttons.
+- Superusers should be functionally equivalent to Agent tier level.
+- Make all the buttons in the title bar in the analysis details page have a cursor pointer.
+- Fix any failing tests.
 - Review the test coverage and eliminate tests that are low value and test edge cases that will probably never happen.
 - I want to support uploading inspection report PDFs. I'll attach an example. Brainstorm ideas for using this data, but one might be to configure the renovation line items based on the report.
 - Support pest inspection reports. Use the same strategy as immplementing insepection reports.
@@ -14,6 +16,11 @@
 - Duplex / multi-family fair value support: normalize property type to `"multi"` bucket for comp filtering, wire Redfin type code 6, add income premium adjustment in pricing (GRM-based, capped at 10%), offset monthly buy cost by second-unit rental income in investment metrics, re-run recommend_offer with rent data in orchestrator Phase 8. Plan at `.claude/plans/iterative-cuddling-pelican.md`. ~32 new tests.
 
 # DONE
+
+- Favorite from analysis detail page: heart icon button added to the permalink page (`analysis_.$id.tsx`) header actions row and to the `AnalysisStream` saved strip. Clicking toggles `is_favorite` via `PATCH /api/analyses/{id}/favorite`. Button shows aria-label "Favorite"/"Unfavorite" and fills on active. 4 new permalink tests, 4 new stream tests.
+
+
+- Analysis page title redesign: address now takes full width as an `h1` on its own row; action buttons (Refresh, Copy link, New analysis, PDF Export) moved to a compact sub-row below the address in `text-xs`/`px-3 py-1.5`/`rounded-lg` style, consistent across both `analysis.tsx` (streaming) and `analysis_.$id.tsx` (permalink). Presentation-only change; no tests needed.
 
 - Remove the Dev link for 310 Plymouth Ave. Dev shortcut button (`import.meta.env.DEV` guard) removed from `frontend/src/routes/index.tsx`. Presentation-only change; no tests needed.
 

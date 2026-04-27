@@ -198,6 +198,42 @@ describe("AnalysisStream — analysis_id saved link", () => {
 
     expect(screen.queryByRole("link", { name: /view history/i })).not.toBeInTheDocument();
   });
+
+  it("shows a Favorite button in the saved strip when analysis_id event is received", () => {
+    const events = [{ type: "analysis_id" as const, id: 42 }];
+    render(<AnalysisStream events={events} isRunning={false} />);
+    expect(screen.getByRole("button", { name: /^favorite$/i })).toBeInTheDocument();
+  });
+
+  it("does not show Favorite button when no analysis_id event", () => {
+    render(<AnalysisStream events={[]} isRunning={false} />);
+    expect(screen.queryByRole("button", { name: /favorite/i })).not.toBeInTheDocument();
+  });
+
+  it("calls PATCH /api/analyses/{id}/favorite when Favorite is clicked", async () => {
+    vi.spyOn(global, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify({ is_favorite: true }), { status: 200 })
+    );
+    const events = [{ type: "analysis_id" as const, id: 42 }];
+    render(<AnalysisStream events={events} isRunning={false} />);
+    await userEvent.click(screen.getByRole("button", { name: /^favorite$/i }));
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/analyses/42/favorite"),
+      expect.objectContaining({ method: "PATCH" })
+    );
+    vi.restoreAllMocks();
+  });
+
+  it("toggles Favorite to Unfavorite after successful PATCH", async () => {
+    vi.spyOn(global, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify({ is_favorite: true }), { status: 200 })
+    );
+    const events = [{ type: "analysis_id" as const, id: 42 }];
+    render(<AnalysisStream events={events} isRunning={false} />);
+    await userEvent.click(screen.getByRole("button", { name: /^favorite$/i }));
+    await screen.findByRole("button", { name: /^unfavorite$/i });
+    vi.restoreAllMocks();
+  });
 });
 
 describe("AnalysisStream", () => {

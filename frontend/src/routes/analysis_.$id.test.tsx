@@ -399,3 +399,69 @@ describe("PermalinkPage", () => {
     expect(upgradeLink).toHaveAttribute("href", "/pricing");
   });
 });
+
+describe("PermalinkPage — favorites", () => {
+  beforeEach(() => {
+    vi.spyOn(global, "fetch");
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("renders an unfilled Favorite button when is_favorite is false", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ ...ANALYSIS_DETAIL, is_favorite: false }), { status: 200 })
+    );
+    renderPage();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /^favorite$/i })).toBeInTheDocument()
+    );
+  });
+
+  it("renders a filled Unfavorite button when is_favorite is true", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ ...ANALYSIS_DETAIL, is_favorite: true }), { status: 200 })
+    );
+    renderPage();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /^unfavorite$/i })).toBeInTheDocument()
+    );
+  });
+
+  it("calls PATCH /api/analyses/{id}/favorite when favorite button is clicked", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ...ANALYSIS_DETAIL, is_favorite: false }), { status: 200 })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ is_favorite: true }), { status: 200 })
+      );
+    renderPage();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /^favorite$/i })).toBeInTheDocument()
+    );
+    await userEvent.click(screen.getByRole("button", { name: /^favorite$/i }));
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/analyses/1/favorite"),
+      expect.objectContaining({ method: "PATCH" })
+    );
+  });
+
+  it("toggles aria-label from Favorite to Unfavorite after successful PATCH", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ...ANALYSIS_DETAIL, is_favorite: false }), { status: 200 })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ is_favorite: true }), { status: 200 })
+      );
+    renderPage();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /^favorite$/i })).toBeInTheDocument()
+    );
+    await userEvent.click(screen.getByRole("button", { name: /^favorite$/i }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /^unfavorite$/i })).toBeInTheDocument()
+    );
+  });
+});

@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { Heart } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { PropertySummaryCard, type PropertyData } from "../components/PropertySummaryCard";
@@ -42,6 +43,7 @@ export interface AnalysisDetail {
   permits_data: PermitsData | null;
   crime_data: CrimeData | null;
   comps: CompData[];
+  is_favorite: boolean;
 }
 
 type TabId = "decision" | "property" | "market" | "risk" | "analysis";
@@ -108,6 +110,7 @@ export function PermalinkPage() {
   const [notFound, setNotFound] = useState(false);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>("decision");
   const toast = useToast();
   const { user } = useAuth();
@@ -124,10 +127,25 @@ export function PermalinkPage() {
         if (!resp.ok) throw new Error(resp.statusText);
         const data = await resp.json();
         setAnalysis(data);
+        setIsFavorite(data.is_favorite ?? false);
       })
       .catch(() => toast.error("Failed to load analysis."))
       .finally(() => setLoading(false));
   }, [id, toast]);
+
+  async function handleToggleFavorite() {
+    try {
+      const resp = await fetch(`${apiBase}/api/analyses/${id}/favorite`, {
+        method: "PATCH",
+        headers: authHeaders(),
+      });
+      if (!resp.ok) throw new Error(resp.statusText);
+      const data = await resp.json();
+      setIsFavorite(data.is_favorite);
+    } catch {
+      toast.error("Failed to update favorite.");
+    }
+  }
 
   async function handleCopy() {
     await navigator.clipboard.writeText(window.location.href);
@@ -166,77 +184,87 @@ export function PermalinkPage() {
 
   return (
     <main className="page-wrap py-10">
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-[var(--ink-muted)]">
-            Saved Analysis
-          </p>
-          <h1 className="display-title text-2xl font-bold text-[var(--ink)] sm:text-3xl">
-            {analysis.address}
-          </h1>
-          <p className="mt-1 text-xs text-[var(--ink-muted)]">
+      <div className="mb-8">
+        <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-[var(--ink-muted)]">
+          Saved Analysis
+        </p>
+        <h1 className="display-title text-2xl font-bold text-[var(--ink)] sm:text-3xl">
+          {analysis.address}
+        </h1>
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
+          <p className="text-xs text-[var(--ink-muted)]">
             {new Date(analysis.created_at).toLocaleDateString(undefined, {
               dateStyle: "long",
             })}
           </p>
-        </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <PdfExportButton
-            analysis={analysis}
-            isAgent={user?.subscription_tier === "agent"}
-          />
-          <button
-            type="button"
-            onClick={handleCopy}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--card-border)] bg-white px-4 py-2 text-sm font-semibold text-[var(--ink)] shadow-sm hover:bg-[var(--bg)]"
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
+          <span className="text-[var(--line)] select-none" aria-hidden="true">·</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              aria-label={isFavorite ? "Unfavorite" : "Favorite"}
+              onClick={handleToggleFavorite}
+              className={`inline-flex items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-white px-3 py-1.5 text-xs font-semibold shadow-sm hover:bg-[var(--bg)] transition-colors${isFavorite ? " text-rose-500" : " text-[var(--ink-muted)]"}`}
             >
-              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-            </svg>
-            {copied ? "Copied!" : "Copy permalink"}
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              navigate({ to: "/analysis", search: { address: analysis.address, buyerContext: "", forceRefresh: "1" } })
-            }
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-[var(--card-border)] bg-white px-4 py-2 text-sm font-semibold text-[var(--ink)] shadow-sm hover:bg-[var(--bg)]"
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
+              <Heart size={12} fill={isFavorite ? "currentColor" : "none"} />
+              {isFavorite ? "Favorited" : "Favorite"}
+            </button>
+            <PdfExportButton
+              analysis={analysis}
+              isAgent={user?.subscription_tier === "agent"}
+            />
+            <button
+              type="button"
+              onClick={handleCopy}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--ink)] shadow-sm hover:bg-[var(--bg)]"
             >
-              <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
-              <path d="M21 3v5h-5" />
-              <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
-              <path d="M8 16H3v5" />
-            </svg>
-            Refresh analysis
-          </button>
-          <Link
-            to="/"
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-[var(--card-border)] bg-white px-4 py-2 text-sm font-semibold text-[var(--ink)] shadow-sm no-underline hover:bg-[var(--bg)]"
-          >
-            New analysis
-          </Link>
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+              </svg>
+              {copied ? "Copied!" : "Copy permalink"}
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                navigate({ to: "/analysis", search: { address: analysis.address, buyerContext: "", forceRefresh: "1" } })
+              }
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--ink)] shadow-sm hover:bg-[var(--bg)]"
+            >
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+                <path d="M21 3v5h-5" />
+                <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+                <path d="M8 16H3v5" />
+              </svg>
+              Refresh analysis
+            </button>
+            <Link
+              to="/"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--ink)] shadow-sm no-underline hover:bg-[var(--bg)]"
+            >
+              New analysis
+            </Link>
+          </div>
         </div>
       </div>
 
