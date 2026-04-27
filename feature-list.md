@@ -1,9 +1,9 @@
 # TODO
 
-- Update the text for "X of Y free analyses remaining today" with the updated rate limitng.
 - Superusers should see a link to the admin portal. Include it in the footer.
 - Remove the Dev link for 310 Plymouth Ave.
 - The title for an analysis page is cramped. Can we redesign it so that the address can take up full space and rethink the buttons.
+- Review the test coverage and eliminate tests that are low value and test edge cases that will probably never happen.
 - I want to support uploading inspection report PDFs. I'll attach an example. Brainstorm ideas for using this data, but one might be to configure the renovation line items based on the report.
 - Support pest inspection reports. Use the same strategy as immplementing insepection reports.
 - Design the user profile page better.
@@ -16,6 +16,8 @@
 - Duplex / multi-family fair value support: normalize property type to `"multi"` bucket for comp filtering, wire Redfin type code 6, add income premium adjustment in pricing (GRM-based, capped at 10%), offset monthly buy cost by second-unit rental income in investment metrics, re-run recommend_offer with rent data in orchestrator Phase 8. Plan at `.claude/plans/iterative-cuddling-pelican.md`. ~32 new tests.
 
 # DONE
+
+- Updated rate limit counter text from daily to monthly. "X of Y free analyses remaining today" → "this month"; "Daily limit reached" button → "Monthly limit reached"; "Try again tomorrow" → "Resets next month"; reset timestamp formatted as a date (e.g. "May 1") instead of a time of day. 5 new frontend tests.
 
 - Favorite analyses: heart icon button on each history row toggles `is_favorite`. Favorited rows highlighted with a rose background. `PATCH /api/analyses/{id}/favorite` toggles the flag with ownership checks; `is_favorite` included in both `GET /api/analyses` and `GET /api/analyses/{id}` responses. `is_favorite` column added to analyses table via `_ANALYSES_MIGRATIONS`. 5 new backend tests, 3 new frontend tests.
 

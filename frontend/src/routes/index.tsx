@@ -59,8 +59,8 @@ interface RateLimitInfo {
   reset_at: string | null;
 }
 
-function formatResetTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+function formatResetDate(iso: string): string {
+  return new Date(iso).toLocaleDateString([], { month: "long", day: "numeric" });
 }
 
 export function HomePage() {
@@ -132,9 +132,9 @@ export function HomePage() {
             >
               {rateLimitReached
                 ? rateLimitInfo.reset_at
-                  ? `Resets at ${formatResetTime(rateLimitInfo.reset_at)}`
-                  : "Try again tomorrow"
-                : `${rateLimitInfo.remaining} of ${rateLimitInfo.limit} free analyses remaining today`}
+                  ? `Resets on ${formatResetDate(rateLimitInfo.reset_at)}`
+                  : "Resets next month"
+                : `${rateLimitInfo.remaining} of ${rateLimitInfo.limit} free analyses remaining this month`}
             </p>
           )}
 

@@ -23,10 +23,11 @@ function mockRateLimitStatus(
   remaining: number,
   used: number,
   limit = 5,
-  reset_at: string | null = null
+  reset_at: string | null = null,
+  window: string = "monthly"
 ) {
   vi.mocked(fetch).mockResolvedValue(
-    new Response(JSON.stringify({ remaining, used, limit, reset_at }), {
+    new Response(JSON.stringify({ remaining, used, limit, reset_at, window }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     })
@@ -49,6 +50,14 @@ describe("HomePage rate limit indicator", () => {
     );
   });
 
+  it("shows 'this month' in the remaining counter text", async () => {
+    mockRateLimitStatus(3, 2);
+    renderHomePage();
+    await waitFor(() =>
+      expect(screen.getByText(/this month/i)).toBeInTheDocument()
+    );
+  });
+
   it("shows full quota when no analyses used", async () => {
     mockRateLimitStatus(5, 0);
     renderHomePage();
@@ -57,11 +66,27 @@ describe("HomePage rate limit indicator", () => {
     );
   });
 
-  it("shows daily limit reached message when remaining is zero", async () => {
-    mockRateLimitStatus(0, 5, 5, "2026-04-15T10:00:00");
+  it("shows monthly limit reached message when remaining is zero", async () => {
+    mockRateLimitStatus(0, 5, 5, "2026-05-01T00:00:00");
     renderHomePage();
     await waitFor(() =>
-      expect(screen.getByText(/daily limit reached/i)).toBeInTheDocument()
+      expect(screen.getByText(/monthly limit reached/i)).toBeInTheDocument()
+    );
+  });
+
+  it("shows Resets on [date] when limit reached and reset_at is set", async () => {
+    mockRateLimitStatus(0, 5, 5, "2026-05-01T00:00:00");
+    renderHomePage();
+    await waitFor(() =>
+      expect(screen.getByText(/resets on/i)).toBeInTheDocument()
+    );
+  });
+
+  it("shows Resets next month when limit reached and reset_at is null", async () => {
+    mockRateLimitStatus(0, 5, 5, null);
+    renderHomePage();
+    await waitFor(() =>
+      expect(screen.getByText(/resets next month/i)).toBeInTheDocument()
     );
   });
 
@@ -70,7 +95,7 @@ describe("HomePage rate limit indicator", () => {
     renderHomePage();
     await waitFor(() =>
       expect(
-        screen.getByRole("button", { name: /daily limit reached/i })
+        screen.getByRole("button", { name: /monthly limit reached/i })
       ).toBeDisabled()
     );
   });

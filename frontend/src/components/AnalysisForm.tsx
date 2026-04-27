@@ -73,7 +73,7 @@ export function AnalysisForm({ onSubmit, isRunning, rateLimitReached = false }: 
         className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--coral)] px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-[var(--coral-hover)] disabled:cursor-not-allowed disabled:opacity-50"
       >
         {rateLimitReached ? (
-          "Daily limit reached"
+          "Monthly limit reached"
         ) : isRunning ? (
           <>
             <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
