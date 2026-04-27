@@ -86,6 +86,14 @@ class Comp(Base):
     price_per_sqft: Mapped[float | None] = mapped_column(Float)
     distance_miles: Mapped[float | None] = mapped_column(Float)
     pct_over_asking: Mapped[float | None] = mapped_column(Float)
+    unit: Mapped[str | None] = mapped_column(String(64))
+    city: Mapped[str | None] = mapped_column(String(128))
+    state: Mapped[str | None] = mapped_column(String(2))
+    zip_code: Mapped[str | None] = mapped_column(String(10))
+    list_price: Mapped[float | None] = mapped_column(Float)
+    lot_size: Mapped[float | None] = mapped_column(Float)
+    url: Mapped[str | None] = mapped_column(Text)
+    source: Mapped[str | None] = mapped_column(String(32))
     analysis: Mapped["Analysis"] = relationship("Analysis", back_populates="comps")
 
 

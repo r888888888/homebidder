@@ -352,14 +352,22 @@ async def _persist_analysis(
         db.add(Comp(
             analysis_id=analysis.id,
             address=comp.get("address", ""),
+            unit=comp.get("unit"),
+            city=comp.get("city"),
+            state=comp.get("state"),
+            zip_code=comp.get("zip_code"),
             sold_price=comp.get("sold_price"),
+            list_price=comp.get("list_price"),
             sold_date=comp.get("sold_date"),
             bedrooms=comp.get("bedrooms"),
             bathrooms=comp.get("bathrooms"),
             sqft=comp.get("sqft"),
+            lot_size=comp.get("lot_size"),
             price_per_sqft=comp.get("price_per_sqft"),
             distance_miles=comp.get("distance_miles"),
             pct_over_asking=comp.get("pct_over_asking"),
+            url=comp.get("url"),
+            source=comp.get("source"),
         ))
 
     await db.commit()
@@ -403,14 +411,22 @@ async def _stream_cached_analysis(analysis) -> AsyncIterator[str]:
         comps_list = [
             {
                 "address": c.address,
+                "unit": c.unit,
+                "city": c.city,
+                "state": c.state,
+                "zip_code": c.zip_code,
                 "sold_price": c.sold_price,
+                "list_price": c.list_price,
                 "sold_date": c.sold_date,
                 "bedrooms": c.bedrooms,
                 "bathrooms": c.bathrooms,
                 "sqft": c.sqft,
+                "lot_size": c.lot_size,
                 "price_per_sqft": c.price_per_sqft,
                 "distance_miles": c.distance_miles,
                 "pct_over_asking": c.pct_over_asking,
+                "url": c.url,
+                "source": c.source,
             }
             for c in analysis.comps
         ]

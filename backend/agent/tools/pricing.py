@@ -4,12 +4,20 @@ Statistical analysis of comps to derive an offer price range.
 
 import statistics
 from datetime import datetime, timedelta
+from math import log
 from typing import Any
 
 
 DEFAULT_MORTGAGE_RATE_PCT = 6.5
 DEFAULT_MORTGAGE_TERM_YEARS = 30
 DEFAULT_DOWN_PAYMENT_PCT = 20.0
+
+# Hedonic log-linear elasticities for fair value adjustments.
+# Using ln(ratio) * elasticity: each doubling/halving produces a fixed percentage adjustment,
+# with diminishing marginal returns naturally — no artificial clamping needed for normal ranges.
+# Bay Area empirical range for lot size: 0.10–0.20 (Kok, Monkkonen & Quigley 2014).
+LOT_ELASTICITY = 0.15   # doubling lot size → ~10.4% price premium
+SQFT_ELASTICITY = 0.25  # keeps existing magnitude; log form fixes tail behavior
 
 
 def _clamp(value: float, low: float, high: float) -> float:
@@ -247,13 +255,13 @@ def recommend_offer(
         tic_adjustment_pct: float | None = None
 
         if not is_condo and lot_size and median_lot_size:
-            lot_delta = (lot_size - median_lot_size) / median_lot_size
-            lot_adjustment_pct = _clamp(lot_delta * 0.60, -0.20, 0.25)
+            lot_ratio = lot_size / median_lot_size
+            lot_adjustment_pct = _clamp(LOT_ELASTICITY * log(lot_ratio), -0.15, 0.20)
             total_adjustment += lot_adjustment_pct
 
         if sqft and median_comp_sqft:
-            sqft_delta = (sqft - median_comp_sqft) / median_comp_sqft
-            sqft_adjustment_pct = _clamp(sqft_delta * 0.25, -0.10, 0.12)
+            sqft_ratio = sqft / median_comp_sqft
+            sqft_adjustment_pct = _clamp(SQFT_ELASTICITY * log(sqft_ratio), -0.10, 0.12)
             total_adjustment += sqft_adjustment_pct
 
         if is_tic:

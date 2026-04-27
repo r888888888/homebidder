@@ -55,6 +55,14 @@ _ANALYSES_MIGRATIONS: list[tuple[str, str]] = [
 
 _COMPS_MIGRATIONS: list[tuple[str, str]] = [
     ("pct_over_asking", "FLOAT"),
+    ("unit",       "VARCHAR(64)"),
+    ("city",       "VARCHAR(128)"),
+    ("state",      "VARCHAR(2)"),
+    ("zip_code",   "VARCHAR(10)"),
+    ("list_price", "FLOAT"),
+    ("lot_size",   "FLOAT"),
+    ("url",        "TEXT"),
+    ("source",     "VARCHAR(32)"),
 ]
 
 _USERS_MIGRATIONS: list[tuple[str, str]] = [

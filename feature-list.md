@@ -3,8 +3,12 @@
 - Tier differentiation — history retention limits. Buyer: show only last 30 days of analyses. Investor: last 6 months. Agent: unlimited. Adds perceived upgrade value without removing real-time features.
 - Tier differentiation — full comparable sales table for Investor+. Buyer tier sees only the summary range (low/mid/high); Investor and Agent see the full comp table with address, sale date, price, and $/sqft.
 - Favorite analyses: users can mark analyses as favorites. Favorited analyses appear visually distinct on the history page (e.g. star icon, highlighted row).
-- Support inspection reports
-- Support pest inspection reports
+- Improve the design for the pricing page.
+- Add an FAQ page about how some calculations are done.
+- The links to the Pricing and History pages are a little nondescript. Improve the design better.
+- I want to support uploading inspection report PDFs. Brainstorm ideas for using this data, but one might be to configure the renovation line items based on the report.
+- Support pest inspection reports. Use the same strategy as immplementing insepection reports.
+- Design the user profile page better.
 - Support disclosures
 - Factor in seasonality of sales
 - Regularly prune the database for stale data
@@ -13,6 +17,8 @@
 - Tier differentiation — watchlist for Investor+. Save a set of addresses; one-click re-run to refresh an analysis as market conditions change.
 
 # DONE
+
+- Log-based hedonic lot/sqft adjustments. Replaced linear `delta * coefficient` sizing adjustments with a log-linear model: `elasticity * ln(ratio)`. Lot elasticity set to 0.15 (doubling lot size → ~10.4% premium, grounded in Kok, Monkkonen & Quigley 2014 Bay Area empirics); sqft elasticity kept at 0.25 to preserve existing magnitude while fixing tail behavior. Hard clamp on lot narrowed from ±20%/25% to −15%/+20% since log form no longer produces runaway values on extreme ratios.
 
 - Show more info in the frontend about how the fair value estimate was calculated. New "How was this calculated?" collapsible section on the Offer Recommendation card showing: method used (comparable sales / price-per-sqft / list price), the comp anchor price, and individual size adjustments (lot, sq footage, TIC discount). Confidence interval factors ("Few comparable sales", "High price dispersion", etc.) shown inline under the CI badge. 11 new frontend tests.
 

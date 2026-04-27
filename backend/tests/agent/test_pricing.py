@@ -508,6 +508,32 @@ class TestFairValueAlgorithm:
         assert result["fair_value_breakdown"]["lot_adjustment_pct"] is not None
         assert result["fair_value_estimate"] > 1_100_000
 
+    def test_lot_adjustment_shows_diminishing_returns(self):
+        """Each equal absolute addition to lot size should add less value than the previous.
+
+        A linear formula gives constant marginal gains for equal absolute increments.
+        A log formula gives declining marginal gains, reflecting economic reality.
+        This test fails with a linear elasticity and passes with log.
+        """
+        stats = {
+            **BASE_STATS,
+            "median_sale_price": 1_000_000,
+            "median_lot_size": 2500,
+            "median_comp_sqft": 1500,
+            "median_pct_over_asking": 0.0,
+        }
+        fv = lambda lot: recommend_offer(
+            {**BASE_LISTING, "sqft": 1500, "lot_size": lot}, stats
+        )["fair_value_estimate"]
+
+        # Each step adds 250 sqft; gains should shrink (log) not stay constant (linear)
+        gain_step1 = fv(2750) - fv(2500)   # median → +250 sqft
+        gain_step2 = fv(3000) - fv(2750)   # +250 → +500 sqft above median
+        gain_step3 = fv(3250) - fv(3000)   # +500 → +750 sqft above median
+
+        assert gain_step2 < gain_step1, "marginal lot gain should decline (diminishing returns)"
+        assert gain_step3 < gain_step2, "marginal lot gain should continue to decline"
+
 
 # ---------------------------------------------------------------------------
 # recommend_offer — dynamic offer range band
