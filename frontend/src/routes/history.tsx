@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import React, { useEffect, useState, useCallback } from "react";
+import { Heart } from "lucide-react";
 import { PropertySummaryCard, type PropertyData } from "../components/PropertySummaryCard";
 import { OfferRecommendationCard, type OfferData } from "../components/OfferRecommendationCard";
 import { RiskAnalysisCard, type RiskData } from "../components/RiskAnalysisCard";
@@ -19,6 +20,7 @@ interface AnalysisSummary {
   offer_recommended: number | null;
   risk_level: string | null;
   investment_rating: string | null;
+  is_favorite: boolean;
 }
 
 interface AnalysisDetail {
@@ -120,6 +122,22 @@ export function HistoryPage() {
     setDetail(null);
   }, [toast]);
 
+  const handleToggleFavorite = useCallback(async (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const resp = await fetch(`${apiBase}/api/analyses/${id}/favorite`, {
+      method: "PATCH",
+      headers: authHeaders(),
+    });
+    if (!resp.ok) {
+      toast.error("Failed to update favorite.");
+      return;
+    }
+    const data = await resp.json();
+    setAnalyses((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, is_favorite: data.is_favorite } : a))
+    );
+  }, [toast]);
+
   return (
     <main className="page-wrap py-10">
       <div className="mb-4 flex items-center justify-between">
@@ -152,7 +170,7 @@ export function HistoryPage() {
                 <React.Fragment key={a.id}>
                   <tr
                     key={a.id}
-                    className="cursor-pointer hover:bg-[var(--bg)] border-b border-[var(--line)]"
+                    className={`cursor-pointer hover:bg-[var(--bg)] border-b border-[var(--line)] transition-colors${a.is_favorite ? " bg-rose-50" : ""}`}
                     onClick={() => handleRowClick(a.id)}
                   >
                     <td className="py-3 pr-4">{a.address}</td>
@@ -168,6 +186,14 @@ export function HistoryPage() {
                     <td className="py-3 pr-4">{a.investment_rating ?? "—"}</td>
                     <td className="py-3" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={(e) => handleToggleFavorite(a.id, e)}
+                          aria-label={a.is_favorite ? "Unfavorite" : "Favorite"}
+                          className={`flex-shrink-0 transition-colors${a.is_favorite ? " text-rose-500" : " text-[var(--ink-muted)] hover:text-rose-400"}`}
+                        >
+                          <Heart size={14} fill={a.is_favorite ? "currentColor" : "none"} />
+                        </button>
                         <Link
                           to="/analysis/$id"
                           params={{ id: String(a.id) }}

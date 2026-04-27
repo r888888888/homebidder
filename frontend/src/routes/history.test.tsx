@@ -43,6 +43,7 @@ const ANALYSES_LIST = [
     offer_recommended: 1_200_000,
     risk_level: "Moderate",
     investment_rating: "Buy",
+    is_favorite: false,
   },
   {
     id: 2,
@@ -51,6 +52,7 @@ const ANALYSES_LIST = [
     offer_recommended: null,
     risk_level: "Low",
     investment_rating: "Hold",
+    is_favorite: false,
   },
 ];
 
@@ -527,5 +529,76 @@ describe("HistoryPage — retention banner (agent)", () => {
     );
     expect(screen.queryByText(/30 days/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/6 months/i)).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Favorites
+// ---------------------------------------------------------------------------
+
+describe("HistoryPage — favorites", () => {
+  beforeEach(() => {
+    vi.spyOn(global, "fetch");
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("renders a favorite button for each analysis row", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify(PAGE_1), { status: 200 })
+    );
+    renderHistoryPage();
+    await waitFor(() =>
+      expect(screen.getByText(/450 SANCHEZ ST/i)).toBeInTheDocument()
+    );
+    const favButtons = screen.getAllByRole("button", { name: /favorite/i });
+    expect(favButtons.length).toBe(2);
+  });
+
+  it("calls PATCH /api/analyses/{id}/favorite when favorite button is clicked", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(PAGE_1), { status: 200 })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ is_favorite: true }), { status: 200 })
+      );
+
+    renderHistoryPage();
+    await waitFor(() =>
+      expect(screen.getByText(/450 SANCHEZ ST/i)).toBeInTheDocument()
+    );
+
+    const favButtons = screen.getAllByRole("button", { name: /favorite/i });
+    fireEvent.click(favButtons[0]);
+
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining("/api/analyses/1/favorite"),
+        expect.objectContaining({ method: "PATCH" })
+      )
+    );
+  });
+
+  it("updates aria-label from Favorite to Unfavorite after toggling on", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(PAGE_1), { status: 200 })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ is_favorite: true }), { status: 200 })
+      );
+
+    renderHistoryPage();
+    await waitFor(() =>
+      expect(screen.getByText(/450 SANCHEZ ST/i)).toBeInTheDocument()
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: /^favorite$/i })[0]);
+
+    await waitFor(() =>
+      expect(screen.getAllByRole("button", { name: /unfavorite/i }).length).toBeGreaterThan(0)
+    );
   });
 });

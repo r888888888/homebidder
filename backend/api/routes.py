@@ -120,6 +120,7 @@ async def list_analyses(
             "offer_recommended": analysis.offer_recommended,
             "risk_level": analysis.risk_level,
             "investment_rating": analysis.investment_rating,
+            "is_favorite": analysis.is_favorite,
         })
     return {"items": items, "total": total, "limit": limit, "offset": offset, "retention_days": retention_days}
 
@@ -149,6 +150,7 @@ async def get_analysis(analysis_id: int, db: AsyncSession = Depends(get_db)):
         "offer_high": analysis.offer_high,
         "risk_level": analysis.risk_level,
         "investment_rating": analysis.investment_rating,
+        "is_favorite": analysis.is_favorite,
         "rationale": analysis.rationale,
         "property_data": json.loads(analysis.property_data_json) if analysis.property_data_json else None,
         "neighborhood_data": json.loads(analysis.neighborhood_data_json) if analysis.neighborhood_data_json else None,
@@ -251,6 +253,35 @@ async def patch_renovation_toggles(
     await db.commit()
 
     return {"disabled_indices": body.disabled_indices}
+
+
+@router.patch("/analyses/{analysis_id}/favorite")
+async def toggle_favorite(
+    analysis_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User | None = Depends(current_optional_user),
+    x_session_id: str | None = Header(default=None, alias="X-Session-ID"),
+):
+    """Toggle the is_favorite flag on an analysis."""
+    from db.models import Analysis
+
+    result = await db.execute(select(Analysis).where(Analysis.id == analysis_id))
+    analysis = result.scalar_one_or_none()
+    if analysis is None:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
+    # Ownership check
+    if user is not None:
+        if analysis.user_id != user.id:
+            raise HTTPException(status_code=403, detail="Not authorized")
+    else:
+        if analysis.user_id is not None or analysis.session_id != x_session_id:
+            raise HTTPException(status_code=403, detail="Not authorized")
+
+    analysis.is_favorite = not analysis.is_favorite
+    await db.commit()
+
+    return {"is_favorite": analysis.is_favorite}
 
 
 @router.get("/health")

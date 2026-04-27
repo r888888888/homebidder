@@ -332,3 +332,88 @@ async def test_agent_no_retention_limit(client):
     assert resp.status_code == 200
     data = resp.json()
     assert data["total"] == 3
+
+
+# ---------------------------------------------------------------------------
+# Favorite toggle
+# ---------------------------------------------------------------------------
+
+async def test_toggle_favorite_own_analysis_sets_is_favorite(client):
+    """PATCH /api/analyses/{id}/favorite toggles is_favorite for the owning user."""
+    import uuid as uuid_mod
+
+    token, user_id = await _register_and_login(client, "fav_user@test.com")
+    uid = uuid_mod.UUID(user_id)
+    analysis_id = await _seed_analysis(user_id=uid, address="1 Fav St, SF, CA 94110")
+
+    resp = await client.patch(
+        f"/api/analyses/{analysis_id}/favorite",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["is_favorite"] is True
+
+
+async def test_toggle_favorite_twice_resets_to_false(client):
+    """PATCH /api/analyses/{id}/favorite twice toggles back to is_favorite=False."""
+    import uuid as uuid_mod
+
+    token, user_id = await _register_and_login(client, "fav_toggle@test.com")
+    uid = uuid_mod.UUID(user_id)
+    analysis_id = await _seed_analysis(user_id=uid, address="2 Fav St, SF, CA 94110")
+
+    await client.patch(
+        f"/api/analyses/{analysis_id}/favorite",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    resp = await client.patch(
+        f"/api/analyses/{analysis_id}/favorite",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["is_favorite"] is False
+
+
+async def test_toggle_favorite_reflects_in_list(client):
+    """After toggling favorite, GET /api/analyses includes is_favorite=True for that item."""
+    import uuid as uuid_mod
+
+    token, user_id = await _register_and_login(client, "fav_list@test.com")
+    uid = uuid_mod.UUID(user_id)
+    analysis_id = await _seed_analysis(user_id=uid, address="3 Fav St, SF, CA 94110")
+
+    await client.patch(
+        f"/api/analyses/{analysis_id}/favorite",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    resp = await client.get("/api/analyses", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["items"][0]["is_favorite"] is True
+
+
+async def test_toggle_favorite_other_user_returns_403(client):
+    """PATCH /api/analyses/{id}/favorite by a different user returns 403."""
+    import uuid as uuid_mod
+
+    _, user_a_id = await _register_and_login(client, "fav_owner@test.com")
+    uid_a = uuid_mod.UUID(user_a_id)
+    analysis_id = await _seed_analysis(user_id=uid_a, address="4 Fav St, SF, CA 94110")
+
+    token_b, _ = await _register_and_login(client, "fav_thief@test.com")
+    resp = await client.patch(
+        f"/api/analyses/{analysis_id}/favorite",
+        headers={"Authorization": f"Bearer {token_b}"},
+    )
+    assert resp.status_code == 403
+
+
+async def test_toggle_favorite_not_found_returns_404(client):
+    """PATCH /api/analyses/99999/favorite returns 404."""
+    token, _ = await _register_and_login(client, "fav_404@test.com")
+    resp = await client.patch(
+        "/api/analyses/99999/favorite",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 404
