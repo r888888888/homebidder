@@ -208,7 +208,7 @@ export function PermalinkPage() {
           <button
             type="button"
             onClick={() =>
-              navigate({ to: "/analysis", search: { address: analysis.address, buyerContext: "" } })
+              navigate({ to: "/analysis", search: { address: analysis.address, buyerContext: "", forceRefresh: "1" } })
             }
             className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-[var(--card-border)] bg-white px-4 py-2 text-sm font-semibold text-[var(--ink)] shadow-sm hover:bg-[var(--bg)]"
           >

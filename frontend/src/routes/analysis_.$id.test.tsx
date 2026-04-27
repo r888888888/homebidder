@@ -36,7 +36,7 @@ beforeEach(() => {
   mockUseAuth.mockReturnValue({ user: { subscription_tier: "investor" }, isLoading: false });
 });
 
-import { useParams } from "@tanstack/react-router";
+import { useParams, useNavigate } from "@tanstack/react-router";
 import { PermalinkPage } from "./analysis_.$id";
 
 const ANALYSIS_DETAIL = {
@@ -330,5 +330,24 @@ describe("PermalinkPage", () => {
     renderPage();
     await waitFor(() => expect(screen.getByText(/download pdf/i)).toBeInTheDocument());
     expect(screen.queryByText(/pdf export — agent plan/i)).not.toBeInTheDocument();
+  });
+
+  it("Refresh analysis button navigates to /analysis with forceRefresh=1", async () => {
+    const mockNavigate = vi.fn();
+    vi.mocked(useNavigate).mockReturnValue(mockNavigate);
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify(ANALYSIS_DETAIL), { status: 200 })
+    );
+    renderPage();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /refresh analysis/i })).toBeInTheDocument()
+    );
+    await userEvent.click(screen.getByRole("button", { name: /refresh analysis/i }));
+    expect(mockNavigate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "/analysis",
+        search: expect.objectContaining({ forceRefresh: "1" }),
+      })
+    );
   });
 });

@@ -20,8 +20,8 @@ vi.mock("../lib/AuthContext", () => ({
 
 import { useSearch } from "@tanstack/react-router";
 
-function renderAnalysisPage(address: string, buyerContext = "") {
-  vi.mocked(useSearch).mockReturnValue({ address, buyerContext });
+function renderAnalysisPage(address: string, buyerContext = "", forceRefresh = false) {
+  vi.mocked(useSearch).mockReturnValue({ address, buyerContext, forceRefresh });
   return render(
     <ToastProvider>
       <AnalysisPage />
@@ -208,12 +208,24 @@ describe("AnalysisPage", () => {
     vi.mocked(fetch).mockResolvedValue(
       mockSseStream([`data: ${JSON.stringify({ type: "done" })}\n\n`])
     );
-    renderAnalysisPage("450 Sanchez St, San Francisco, CA 94114");
+    renderAnalysisPage("450 Sanchez St, San Francisco, CA 94114", "", false);
 
     await waitFor(() => expect(fetch).toHaveBeenCalledOnce());
     const [, init] = vi.mocked(fetch).mock.calls[0];
     const body = JSON.parse((init as RequestInit).body as string);
     expect(body.force_refresh).toBe(false);
+  });
+
+  it("sends force_refresh: true on initial mount when forceRefresh param is set", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      mockSseStream([`data: ${JSON.stringify({ type: "done" })}\n\n`])
+    );
+    renderAnalysisPage("450 Sanchez St, San Francisco, CA 94114", "", true);
+
+    await waitFor(() => expect(fetch).toHaveBeenCalledOnce());
+    const [, init] = vi.mocked(fetch).mock.calls[0];
+    const body = JSON.parse((init as RequestInit).body as string);
+    expect(body.force_refresh).toBe(true);
   });
 
   it("sends force_refresh: true when Refresh button is clicked", async () => {

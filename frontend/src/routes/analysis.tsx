@@ -17,14 +17,15 @@ export const Route = createFileRoute("/analysis")({
   validateSearch: (search: Record<string, unknown>) => ({
     address: String(search.address ?? ""),
     buyerContext: String(search.buyerContext ?? ""),
+    forceRefresh: search.forceRefresh === "1",
   }),
 });
 
 export function AnalysisPage() {
-  const { address, buyerContext } = useSearch({ from: "/analysis" });
+  const { address, buyerContext, forceRefresh } = useSearch({ from: "/analysis" });
   const [events, setEvents] = useState<AnalysisEvent[]>([]);
   const [isRunning, setIsRunning] = useState(true);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(forceRefresh ? 1 : 0);
   const [limitReached, setLimitReached] = useState<LimitReachedInfo | null>(null);
   const toast = useToast();
   const abortRef = useRef<AbortController | null>(null);
