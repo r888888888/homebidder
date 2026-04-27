@@ -270,6 +270,19 @@ describe("OfferRecommendationCard", () => {
     expect(screen.getByText(/few comparable sales/i)).toBeInTheDocument();
   });
 
+  it("does not crash when fair_value_breakdown is missing tic_adjustment_pct (old stored analysis)", () => {
+    const breakdownWithoutTic = {
+      method: "median_comp_anchor" as const,
+      base_comp_median: 1_090_000,
+      lot_adjustment_pct: 3.2,
+      sqft_adjustment_pct: -1.5,
+      // tic_adjustment_pct intentionally absent — simulates pre-TIC stored analyses
+    } as unknown as import("./OfferRecommendationCard").FairValueBreakdown;
+    expect(() =>
+      render(<OfferRecommendationCard offer={{ ...BASE, fair_value_breakdown: breakdownWithoutTic }} />)
+    ).not.toThrow();
+  });
+
   it("does not crash when fair_value_confidence_interval has no factors field", () => {
     expect(() =>
       render(

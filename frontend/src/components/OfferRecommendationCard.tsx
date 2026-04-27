@@ -241,9 +241,9 @@ export function OfferRecommendationCard({ offer }: Props) {
         {offer.fair_value_breakdown && (() => {
           const fvb = offer.fair_value_breakdown!;
           const adjustments: { label: string; value: number }[] = [];
-          if (fvb.lot_adjustment_pct !== null) adjustments.push({ label: "Lot size", value: fvb.lot_adjustment_pct });
-          if (fvb.sqft_adjustment_pct !== null) adjustments.push({ label: "Sq footage", value: fvb.sqft_adjustment_pct });
-          if (fvb.tic_adjustment_pct !== null) adjustments.push({ label: "TIC discount", value: fvb.tic_adjustment_pct });
+          if (fvb.lot_adjustment_pct != null) adjustments.push({ label: "Lot size", value: fvb.lot_adjustment_pct });
+          if (fvb.sqft_adjustment_pct != null) adjustments.push({ label: "Sq footage", value: fvb.sqft_adjustment_pct });
+          if (fvb.tic_adjustment_pct != null) adjustments.push({ label: "TIC discount", value: fvb.tic_adjustment_pct });
           return (
             <details className="group rounded-xl border border-[var(--line)] text-sm">
               <summary className="flex cursor-pointer select-none items-center justify-between px-4 py-3 text-xs font-semibold text-[var(--coral)] hover:bg-[var(--bg)]">
@@ -262,7 +262,7 @@ export function OfferRecommendationCard({ offer }: Props) {
                   <span>Method</span>
                   <span className="font-medium text-[var(--ink)]">{METHOD_LABELS[fvb.method] ?? fvb.method}</span>
                 </div>
-                {fvb.base_comp_median !== null && (
+                {fvb.base_comp_median != null && (
                   <div className="flex items-center justify-between">
                     <span>Comp anchor</span>
                     <span className="font-medium text-[var(--ink)]">{fmtUsd(fvb.base_comp_median)} median</span>
