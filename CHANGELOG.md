@@ -5,6 +5,22 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-04-27
+
+### Added
+- Log-based hedonic adjustments for lot size and square footage — more accurate relative value comparisons using a diminishing-returns model; expanded comp fields surfaced in analysis
+- Analysis history pagination — offset/limit query parameters to load history incrementally
+- Fair value calculation breakdown on offer card — itemized view of how base comp value, hedonic adjustments, and risk discounts combine to produce the final fair value
+- PDF export for Agent tier — download a full analysis report as a formatted PDF
+- Investment tab projections gated to Investor+ tier — Buyer tier users see an upgrade prompt instead of financial projections
+- Tab navigation on saved analysis permalink page — switch between Offer, Investment, and Risk views on the saved analysis page
+
+### Fixed
+- Stripe webhook handler updated for SDK v15 compatibility; added reset subscription script for development
+- Refresh button on saved analysis page now triggers a force-refresh immediately without requiring a second click
+- Valuation breakdown handles old analyses gracefully — loose null checks prevent errors when displaying older saved analyses
+- Null/undefined guards in numeric formatting prevent toFixed errors on old analyses
+
 ## [1.9.0] - 2026-04-26
 
 ### Added

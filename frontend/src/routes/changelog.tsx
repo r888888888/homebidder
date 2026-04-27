@@ -15,6 +15,22 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "1.10.0",
+    date: "2026-04-27",
+    entries: [
+      { category: "Added", text: "Log-based hedonic adjustments for lot size and square footage — more accurate relative value comparisons using a diminishing-returns model; expanded comp fields surfaced in analysis" },
+      { category: "Added", text: "Analysis history pagination — offset/limit query parameters to load history incrementally" },
+      { category: "Added", text: "Fair value calculation breakdown on offer card — itemized view of how base comp value, hedonic adjustments, and risk discounts combine to produce the final fair value" },
+      { category: "Added", text: "PDF export for Agent tier — download a full analysis report as a formatted PDF" },
+      { category: "Added", text: "Investment tab projections gated to Investor+ tier — Buyer tier users see an upgrade prompt instead of financial projections" },
+      { category: "Added", text: "Tab navigation on saved analysis permalink page — switch between Offer, Investment, and Risk views on the saved analysis page" },
+      { category: "Fixed", text: "Stripe webhook handler updated for SDK v15 compatibility; added reset subscription script for development" },
+      { category: "Fixed", text: "Refresh button on saved analysis page now triggers a force-refresh immediately without requiring a second click" },
+      { category: "Fixed", text: "Valuation breakdown handles old analyses gracefully — loose null checks prevent errors when displaying older saved analyses" },
+      { category: "Fixed", text: "Null/undefined guards in numeric formatting prevent toFixed errors on old analyses" },
+    ],
+  },
+  {
     version: "1.9.0",
     date: "2026-04-26",
     entries: [
