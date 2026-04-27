@@ -212,13 +212,13 @@ export function OfferRecommendationCard({ offer }: Props) {
                   <span className={`inline-block mt-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${style.badge}`}>
                     {style.label}
                   </span>
-                  {ci.factors.length > 0 && (
+                  {(ci.factors?.length ?? 0) > 0 && (
                     <div className="mt-2">
                       <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink-muted)] mb-1">
                         Why the range is wider
                       </p>
                       <ul className="space-y-0.5">
-                        {ci.factors.map((f) => (
+                        {(ci.factors ?? []).map((f) => (
                           <li key={f} className="flex items-start gap-1 text-[10px] text-[var(--ink-muted)]">
                             <span className="mt-0.5 shrink-0">•</span>
                             <span>{CI_FACTOR_LABELS[f] ?? f}</span>

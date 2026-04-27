@@ -179,7 +179,7 @@ export function InvestmentCard({ investment }: Props) {
                     )}
                   </div>
                   <div className="text-xs text-right shrink-0">
-                    <span className="text-violet-600">{school.distance_miles.toFixed(2)} mi · </span>
+                    <span className="text-violet-600">{school.distance_miles != null ? `${school.distance_miles.toFixed(2)} mi · ` : ""}</span>
                     <span className={schoolProficiencyColor(school.math_pct)}>
                       Math {school.math_pct != null ? `${school.math_pct.toFixed(0)}%` : "—"}
                     </span>

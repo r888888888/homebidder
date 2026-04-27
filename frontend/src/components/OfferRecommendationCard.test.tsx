@@ -270,6 +270,25 @@ describe("OfferRecommendationCard", () => {
     expect(screen.getByText(/few comparable sales/i)).toBeInTheDocument();
   });
 
+  it("does not crash when fair_value_confidence_interval has no factors field", () => {
+    expect(() =>
+      render(
+        <OfferRecommendationCard
+          offer={{
+            ...BASE,
+            fair_value_confidence_interval: {
+              low: 1_045_000,
+              high: 1_155_000,
+              ci_pct: 5.0,
+              confidence: "moderate",
+              factors: undefined as unknown as string[],
+            },
+          }}
+        />
+      )
+    ).not.toThrow();
+  });
+
   it("omits confidence factors section when factors array is empty", () => {
     render(
       <OfferRecommendationCard

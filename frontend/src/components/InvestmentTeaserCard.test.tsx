@@ -82,6 +82,36 @@ describe("InvestmentTeaserCard", () => {
     expect(screen.getByText(/adu potential/i)).toBeInTheDocument();
   });
 
+  it("renders school section with distance when distance_miles is present", () => {
+    render(
+      <InvestmentTeaserCard
+        investment={{
+          ...BASE,
+          nearby_schools: [
+            { name: "Lowell High School", type: "high", grades: "9-12", distance_miles: 0.45, math_pct: 72, ela_pct: 68 },
+          ],
+        }}
+      />
+    );
+    expect(screen.getByText(/lowell high school/i)).toBeInTheDocument();
+    expect(screen.getByText(/0\.45 mi/)).toBeInTheDocument();
+  });
+
+  it("does not crash when a school's distance_miles is null", () => {
+    expect(() =>
+      render(
+        <InvestmentTeaserCard
+          investment={{
+            ...BASE,
+            nearby_schools: [
+              { name: "Lowell High School", type: "high", grades: "9-12", distance_miles: null as unknown as number, math_pct: 72, ela_pct: 68 },
+            ],
+          }}
+        />
+      )
+    ).not.toThrow();
+  });
+
   it("shows rent comparison unavailable when no rent data", () => {
     render(
       <InvestmentTeaserCard
