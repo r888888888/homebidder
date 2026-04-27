@@ -1,7 +1,4 @@
 from unittest.mock import AsyncMock, patch
-from pathlib import Path
-import subprocess
-import sys
 
 import pytest
 
@@ -39,14 +36,3 @@ async def test_prefetch_script_runs_all_prefetchers():
     muni_mock.assert_awaited_once_with(force=True)
 
 
-def test_prefetch_script_is_importable_when_run_by_path_from_repo_root():
-    repo_root = Path(__file__).resolve().parents[3]
-    script_path = repo_root / "backend" / "scripts" / "prefetch_backend_data.py"
-
-    proc = subprocess.run(
-        [sys.executable, str(script_path), "--help"],
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-    )
-    assert proc.returncode == 0, proc.stderr

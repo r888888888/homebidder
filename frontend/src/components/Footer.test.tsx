@@ -23,14 +23,6 @@ function renderFooter() {
 }
 
 describe("Footer (unauthenticated)", () => {
-  it("renders FAQ and Changelog links", async () => {
-    renderFooter();
-    await waitFor(() => {
-      expect(screen.getByRole("link", { name: /faq/i })).toHaveAttribute("href", "/faq");
-      expect(screen.getByRole("link", { name: /changelog/i })).toHaveAttribute("href", "/changelog");
-    });
-  });
-
   it("does not show Admin link when not authenticated", async () => {
     renderFooter();
     await waitFor(() => {

@@ -43,23 +43,3 @@ async def test_analyses_user_id_column_is_nullable(client):
         assert analysis.user_id is None
 
 
-async def test_user_table_has_email_column(client):
-    """The users table must have an email column."""
-    from db import engine
-    from sqlalchemy import text
-    async with engine.begin() as conn:
-        result = await conn.execute(text("PRAGMA table_info(users)"))
-        col_names = {row[1] for row in result.fetchall()}
-    assert "email" in col_names
-    assert "hashed_password" in col_names
-    assert "is_active" in col_names
-
-
-async def test_analyses_user_id_column_exists(client):
-    """The analyses table must have a user_id column after migration."""
-    from db import engine
-    from sqlalchemy import text
-    async with engine.begin() as conn:
-        result = await conn.execute(text("PRAGMA table_info(analyses)"))
-        col_names = {row[1] for row in result.fetchall()}
-    assert "user_id" in col_names

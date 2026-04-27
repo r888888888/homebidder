@@ -1,5 +1,4 @@
 # TODO
-- Review the test coverage and eliminate tests that are low value and test edge cases that will probably never happen.
 - I want to support uploading inspection report PDFs. I'll attach an example. Brainstorm ideas for using this data, but one might be to configure the renovation line items based on the report.
 - Support pest inspection reports. Use the same strategy as immplementing insepection reports.
 - Design the user profile page better.
@@ -12,6 +11,8 @@
 - Duplex / multi-family fair value support: normalize property type to `"multi"` bucket for comp filtering, wire Redfin type code 6, add income premium adjustment in pricing (GRM-based, capped at 10%), offset monthly buy cost by second-unit rental income in investment metrics, re-run recommend_offer with rent data in orchestrator Phase 8. Plan at `.claude/plans/iterative-cuddling-pelican.md`. ~32 new tests.
 
 # DONE
+
+- Removed low-value tests: deleted `backend/tests/db/test_models.py` (6 ORM column-existence checks), `frontend/src/routes/changelog.test.tsx` (3 static-content checks), removed 2 PRAGMA column-existence tests from `test_user_model.py`, 1 import/help invocation test from `test_prefetch_backend_data.py`, and 1 static link test from `Footer.test.tsx`. All remaining tests still pass (758 backend, 380 frontend).
 
 - Fix failing tests: Refresh button text in `analysis.tsx` was changed from "Refresh analysis" to "Refresh" in the title redesign; Header nav link text changed from "Pricing" to "Plans". Updated 4 tests in `analysis.test.tsx` to use `/^refresh$/i` and 1 test in `Header.test.tsx` to use `/^plans$/i`. All 384 frontend tests pass.
 
