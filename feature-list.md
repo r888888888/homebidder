@@ -1,6 +1,4 @@
 # TODO
-- Make all the buttons in the title bar in the analysis details page have a cursor pointer.
-- Fix any failing tests.
 - Review the test coverage and eliminate tests that are low value and test edge cases that will probably never happen.
 - I want to support uploading inspection report PDFs. I'll attach an example. Brainstorm ideas for using this data, but one might be to configure the renovation line items based on the report.
 - Support pest inspection reports. Use the same strategy as immplementing insepection reports.
@@ -14,6 +12,10 @@
 - Duplex / multi-family fair value support: normalize property type to `"multi"` bucket for comp filtering, wire Redfin type code 6, add income premium adjustment in pricing (GRM-based, capped at 10%), offset monthly buy cost by second-unit rental income in investment metrics, re-run recommend_offer with rent data in orchestrator Phase 8. Plan at `.claude/plans/iterative-cuddling-pelican.md`. ~32 new tests.
 
 # DONE
+
+- Fix failing tests: Refresh button text in `analysis.tsx` was changed from "Refresh analysis" to "Refresh" in the title redesign; Header nav link text changed from "Pricing" to "Plans". Updated 4 tests in `analysis.test.tsx` to use `/^refresh$/i` and 1 test in `Header.test.tsx` to use `/^plans$/i`. All 384 frontend tests pass.
+
+- Cursor pointer on all title bar buttons: added `cursor-pointer` to the Refresh button in `analysis.tsx`; Favorite, Copy permalink, Refresh analysis buttons in `analysis_.$id.tsx`; tab bar buttons; and the `PDFDownloadLink` in `PdfExportButton.tsx`. Presentation-only change; no tests needed.
 
 - Superusers are functionally equivalent to Agent tier: unlimited retention in `_retention_cutoff`, `isInvestorPlus` and `isAgent` checks include `is_superuser` in `AnalysisStream` and `PermalinkPage`. 1 new backend test, 5 new frontend tests.
 

@@ -42,10 +42,10 @@ describe("Header (unauthenticated)", () => {
     expect(screen.queryByRole("link", { name: /history/i })).not.toBeInTheDocument();
   });
 
-  it("shows Pricing link when not authenticated", async () => {
+  it("shows Plans link when not authenticated", async () => {
     renderHeader();
     await waitFor(() => {
-      expect(screen.getByRole("link", { name: /pricing/i })).toHaveAttribute("href", "/pricing");
+      expect(screen.getByRole("link", { name: /^plans$/i })).toHaveAttribute("href", "/pricing");
     });
   });
 
