@@ -22,11 +22,11 @@ export function PdfExportButton({ analysis, isAgent }: Props) {
       <PDFDownloadLink
         document={<PdfReport analysis={analysis} />}
         fileName={`homebidder-${slugAddress(analysis.address)}.pdf`}
-        className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--card-border)] bg-white px-4 py-2 text-sm font-semibold text-[var(--ink)] shadow-sm hover:bg-[var(--bg)] no-underline"
+        className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--ink)] shadow-sm hover:bg-[var(--bg)] no-underline"
       >
         {({ loading }) => (
           <>
-            <Download size={14} aria-hidden="true" />
+            <Download size={12} aria-hidden="true" />
             {loading ? "Preparing PDF…" : "Download PDF"}
           </>
         )}
@@ -37,9 +37,9 @@ export function PdfExportButton({ analysis, isAgent }: Props) {
   return (
     <Link
       to="/pricing"
-      className="inline-flex items-center gap-1.5 rounded-xl border border-dashed border-[var(--card-border)] px-4 py-2 text-sm font-semibold text-[var(--ink-muted)] no-underline hover:bg-[var(--bg)]"
+      className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-[var(--card-border)] px-3 py-1.5 text-xs font-semibold text-[var(--ink-muted)] no-underline hover:bg-[var(--bg)]"
     >
-      <Lock size={14} aria-hidden="true" />
+      <Lock size={12} aria-hidden="true" />
       PDF Export — Agent plan
     </Link>
   );

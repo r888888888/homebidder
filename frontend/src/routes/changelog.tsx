@@ -15,6 +15,24 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "1.11.0",
+    date: "2026-04-27",
+    entries: [
+      { category: "Added", text: "Favorite analyses — heart icon on history page rows and analysis detail/streaming page headers toggles favorite status; favorited history rows highlighted with rose background" },
+      { category: "Added", text: "Comparable sales table gated to Investor+ tier — Buyer tier sees a teaser with comp count, price range, and median $/sqft; Investor and Agent tiers see full table with addresses, dates, and $/sqft" },
+      { category: "Added", text: "History retention limits by tier — Buyer (30 days), Investor (6 months), Agent (unlimited); informational banner on history page links to /pricing for upgrades" },
+      { category: "Added", text: "Lower confidence interval when square footage or lot size data is missing — CI half-width widens +2% for missing sqft, +1% for missing lot size on non-condos" },
+      { category: "Added", text: "FAQ page at /faq explaining how HomeBidder's calculations work — 6 sections and 15 questions; FAQ link added to footer" },
+      { category: "Added", text: "Admin link in footer visible only to superusers" },
+      { category: "Added", text: "robots.txt allowing crawling of public pages and disallowing private routes" },
+      { category: "Changed", text: "Superusers treated as Agent tier for all feature gates — unlimited history retention, full comparable sales table, and investment projections" },
+      { category: "Changed", text: "Analysis page title redesigned — address displayed as a full-width h1; action buttons (Refresh, New analysis, PDF Export) moved to a compact sub-row below the address" },
+      { category: "Changed", text: "Rate limit counter text updated from daily to monthly throughout the UI" },
+      { category: "Changed", text: "Plans nav link given persistent coral color to visually distinguish it from standard nav links" },
+      { category: "Changed", text: "Pricing page redesigned with tiered visual identity — colored header bands, per-tier feature checklists, featured Investor card with coral ring shadow, anonymous usage pill badge, and Stripe trust strip" },
+    ],
+  },
+  {
     version: "1.10.0",
     date: "2026-04-27",
     entries: [

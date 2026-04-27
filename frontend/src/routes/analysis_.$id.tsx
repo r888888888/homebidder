@@ -83,7 +83,7 @@ function TabBar({
             id={`tab-${id}`}
             onClick={() => onSelect(id)}
             className={[
-              "relative flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+              "relative flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
               isActive
                 ? "bg-[var(--navy)] text-white"
                 : "text-[var(--ink-soft)] hover:bg-[var(--bg)] hover:text-[var(--ink)]",
@@ -205,7 +205,7 @@ export function PermalinkPage() {
               type="button"
               aria-label={isFavorite ? "Unfavorite" : "Favorite"}
               onClick={handleToggleFavorite}
-              className={`inline-flex items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-white px-3 py-1.5 text-xs font-semibold shadow-sm hover:bg-[var(--bg)] transition-colors${isFavorite ? " text-rose-500" : " text-[var(--ink-muted)]"}`}
+              className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-white px-3 py-1.5 text-xs font-semibold shadow-sm hover:bg-[var(--bg)] transition-colors${isFavorite ? " text-rose-500" : " text-[var(--ink-muted)]"}`}
             >
               <Heart size={12} fill={isFavorite ? "currentColor" : "none"} />
               {isFavorite ? "Favorited" : "Favorite"}
@@ -217,7 +217,7 @@ export function PermalinkPage() {
             <button
               type="button"
               onClick={handleCopy}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--ink)] shadow-sm hover:bg-[var(--bg)]"
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--ink)] shadow-sm hover:bg-[var(--bg)]"
             >
               <svg
                 width="12"
@@ -240,7 +240,7 @@ export function PermalinkPage() {
               onClick={() =>
                 navigate({ to: "/analysis", search: { address: analysis.address, buyerContext: "", forceRefresh: "1" } })
               }
-              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--ink)] shadow-sm hover:bg-[var(--bg)]"
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--ink)] shadow-sm hover:bg-[var(--bg)]"
             >
               <svg
                 width="12"

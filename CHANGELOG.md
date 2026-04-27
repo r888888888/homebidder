@@ -5,6 +5,24 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-04-27
+
+### Added
+- Favorite analyses — heart icon on history page rows and analysis detail/streaming page headers toggles favorite status; favorited history rows highlighted with rose background
+- Comparable sales table gated to Investor+ tier — Buyer tier sees a teaser with comp count, price range, and median $/sqft; Investor and Agent tiers see full table with addresses, dates, and $/sqft
+- History retention limits by tier — Buyer (30 days), Investor (6 months), Agent (unlimited); informational banner on history page links to /pricing for upgrades
+- Lower confidence interval when square footage or lot size data is missing — CI half-width widens +2% for missing sqft, +1% for missing lot size on non-condos
+- FAQ page at /faq explaining how HomeBidder's calculations work — 6 sections and 15 questions; FAQ link added to footer
+- Admin link in footer visible only to superusers
+- robots.txt allowing crawling of public pages (/pricing, /changelog) and disallowing private routes (/admin, /profile, /history, /analysis, /api/)
+
+### Changed
+- Superusers treated as Agent tier for all feature gates — unlimited history retention, full comparable sales table, and investment projections
+- Analysis page title redesigned — address displayed as a full-width h1; action buttons (Refresh, New analysis, PDF Export) moved to a compact sub-row below the address
+- Rate limit counter text updated from daily to monthly throughout the UI
+- Plans nav link given persistent coral color to visually distinguish it from standard nav links
+- Pricing page redesigned with tiered visual identity — colored header bands, per-tier feature checklists, featured Investor card with coral ring shadow, anonymous usage pill badge, and Stripe trust strip
+
 ## [1.10.0] - 2026-04-27
 
 ### Added

@@ -124,50 +124,50 @@ export function AnalysisPage() {
 
   return (
     <main className="page-wrap py-10">
-      {/* Header row */}
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-[var(--ink-muted)]">
-            Analysis
-          </p>
-          <h1 className="display-title text-2xl font-bold text-[var(--ink)] sm:text-3xl">
-            {address}
-          </h1>
-        </div>
-        <button
-          type="button"
-          onClick={() => setRefreshKey((k) => k + 1)}
-          disabled={isRunning}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-[var(--card-border)] bg-white px-4 py-2 text-sm font-semibold text-[var(--ink)] shadow-sm hover:bg-[var(--bg)] disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <svg
-            className={isRunning ? "animate-spin" : undefined}
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
+      {/* Header */}
+      <div className="mb-8">
+        <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-[var(--ink-muted)]">
+          Analysis
+        </p>
+        <h1 className="display-title text-2xl font-bold text-[var(--ink)] sm:text-3xl">
+          {address}
+        </h1>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setRefreshKey((k) => k + 1)}
+            disabled={isRunning}
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--ink)] shadow-sm hover:bg-[var(--bg)] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
-            <path d="M21 3v5h-5" />
-            <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
-            <path d="M8 16H3v5" />
-          </svg>
-          {isRunning ? "Refreshing\u2026" : "Refresh analysis"}
-        </button>
-        <Link
-          to="/"
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-[var(--card-border)] bg-white px-4 py-2 text-sm font-semibold text-[var(--ink)] shadow-sm no-underline hover:bg-[var(--bg)]"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M12 5l-7 7 7 7M5 12h14" />
-          </svg>
-          New analysis
-        </Link>
+            <svg
+              className={isRunning ? "animate-spin" : undefined}
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+              <path d="M21 3v5h-5" />
+              <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+              <path d="M8 16H3v5" />
+            </svg>
+            {isRunning ? "Refreshing\u2026" : "Refresh"}
+          </button>
+          <Link
+            to="/"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--ink)] shadow-sm no-underline hover:bg-[var(--bg)]"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 5l-7 7 7 7M5 12h14" />
+            </svg>
+            New analysis
+          </Link>
+        </div>
       </div>
 
       <AnalysisStream events={events} isRunning={isRunning} />
