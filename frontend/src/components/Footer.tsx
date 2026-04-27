@@ -1,7 +1,9 @@
 import { Link } from '@tanstack/react-router'
+import { useAuth } from '../lib/AuthContext'
 
 export default function Footer() {
   const year = new Date().getFullYear()
+  const { user } = useAuth()
 
   return (
     <footer
@@ -36,6 +38,14 @@ export default function Footer() {
           >
             Changelog
           </Link>
+          {user?.is_superuser && (
+            <Link
+              to="/admin"
+              className="text-xs text-[var(--ink-muted)] no-underline hover:text-[var(--ink-soft)]"
+            >
+              Admin
+            </Link>
+          )}
         </nav>
 
         <p className="m-0 max-w-md text-xs leading-relaxed text-[var(--ink-muted)]">

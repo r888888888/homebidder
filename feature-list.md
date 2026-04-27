@@ -1,6 +1,5 @@
 # TODO
 
-- Superusers should see a link to the admin portal. Include it in the footer.
 - Remove the Dev link for 310 Plymouth Ave.
 - The title for an analysis page is cramped. Can we redesign it so that the address can take up full space and rethink the buttons.
 - Review the test coverage and eliminate tests that are low value and test edge cases that will probably never happen.
@@ -16,6 +15,8 @@
 - Duplex / multi-family fair value support: normalize property type to `"multi"` bucket for comp filtering, wire Redfin type code 6, add income premium adjustment in pricing (GRM-based, capped at 10%), offset monthly buy cost by second-unit rental income in investment metrics, re-run recommend_offer with rent data in orchestrator Phase 8. Plan at `.claude/plans/iterative-cuddling-pelican.md`. ~32 new tests.
 
 # DONE
+
+- Superuser admin link in footer: Footer conditionally renders an "Admin" link to `/admin` when the logged-in user has `is_superuser: true`. Non-superusers and unauthenticated visitors do not see the link. 4 new frontend tests.
 
 - Updated rate limit counter text from daily to monthly. "X of Y free analyses remaining today" → "this month"; "Daily limit reached" button → "Monthly limit reached"; "Try again tomorrow" → "Resets next month"; reset timestamp formatted as a date (e.g. "May 1") instead of a time of day. 5 new frontend tests.
 
