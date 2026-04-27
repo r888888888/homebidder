@@ -740,3 +740,53 @@ class TestTICFairValueDiscount:
         # Fair value must be strictly below the anchor (no lot/sqft offsets in this listing)
         assert result["fair_value_estimate"] < 1_000_000
 
+
+# ---------------------------------------------------------------------------
+# recommend_offer — missing size data lowers confidence
+# ---------------------------------------------------------------------------
+
+class TestMissingSizeDataLowersConfidence:
+    """When sqft or lot_size is absent, CI widens and a factor is emitted."""
+
+    STATS_WITH_COMP = {
+        **BASE_STATS,
+        "median_sale_price": 1_100_000,
+        "median_comp_sqft": 1500,
+        "median_lot_size": 2500,
+        "median_pct_over_asking": 0.0,
+    }
+
+    def test_missing_sqft_widens_ci(self):
+        listing_with = {**BASE_LISTING, "sqft": 1500, "lot_size": 2500}
+        listing_without = {k: v for k, v in listing_with.items() if k != "sqft"}
+        ci_with = recommend_offer(listing_with, self.STATS_WITH_COMP)["fair_value_confidence_interval"]["ci_pct"]
+        ci_without = recommend_offer(listing_without, self.STATS_WITH_COMP)["fair_value_confidence_interval"]["ci_pct"]
+        assert ci_without > ci_with
+
+    def test_missing_sqft_adds_factor(self):
+        listing = {k: v for k, v in BASE_LISTING.items() if k != "sqft"}
+        listing["lot_size"] = 2500
+        result = recommend_offer(listing, self.STATS_WITH_COMP)
+        assert "missing_sqft" in result["fair_value_confidence_interval"]["factors"]
+
+    def test_missing_lot_size_widens_ci_for_sfh(self):
+        listing_with = {**BASE_LISTING, "sqft": 1500, "lot_size": 2500, "property_type": "SINGLE_FAMILY"}
+        listing_without = {k: v for k, v in listing_with.items() if k != "lot_size"}
+        ci_with = recommend_offer(listing_with, self.STATS_WITH_COMP)["fair_value_confidence_interval"]["ci_pct"]
+        ci_without = recommend_offer(listing_without, self.STATS_WITH_COMP)["fair_value_confidence_interval"]["ci_pct"]
+        assert ci_without > ci_with
+
+    def test_missing_lot_size_adds_factor_for_sfh(self):
+        listing = {**BASE_LISTING, "sqft": 1500, "property_type": "SINGLE_FAMILY"}
+        # no lot_size key
+        result = recommend_offer(listing, self.STATS_WITH_COMP)
+        assert "missing_lot_size" in result["fair_value_confidence_interval"]["factors"]
+
+    def test_missing_lot_size_does_not_penalize_condo(self):
+        """Condos don't use lot size — missing it should not widen CI or add a factor."""
+        listing = {**BASE_LISTING, "sqft": 800, "property_type": "CONDO"}
+        # no lot_size key
+        result = recommend_offer(listing, self.STATS_WITH_COMP)
+        factors = result["fair_value_confidence_interval"]["factors"]
+        assert "missing_lot_size" not in factors
+

@@ -1,7 +1,6 @@
 # TODO
 
-- If a property is missing square footage/lot size data, does it make sense to lower the confidence?
-- Favorite analyses: users can mark analyses as favorites. Favorited analyses appear visually distinct on the history page (e.g. star icon, highlighted row).
+- Favorite analyses: users can mark analyses as favorites. Favorited analyses appear visually distinct on the history page (e.g. heart icon, highlighted row).
 - I want to support uploading inspection report PDFs. I'll attach an example. Brainstorm ideas for using this data, but one might be to configure the renovation line items based on the report.
 - Support pest inspection reports. Use the same strategy as immplementing insepection reports.
 - Design the user profile page better.
@@ -14,6 +13,8 @@
 - Duplex / multi-family fair value support: normalize property type to `"multi"` bucket for comp filtering, wire Redfin type code 6, add income premium adjustment in pricing (GRM-based, capped at 10%), offset monthly buy cost by second-unit rental income in investment metrics, re-run recommend_offer with rent data in orchestrator Phase 8. Plan at `.claude/plans/iterative-cuddling-pelican.md`. ~32 new tests.
 
 # DONE
+
+- Missing size data lowers fair value confidence. When `sqft` is absent, the CI half-width widens by +2% and a `"missing_sqft"` factor is emitted. When `lot_size` is absent for a non-condo, CI widens by +1% and a `"missing_lot_size"` factor is emitted. Condos are exempt from the lot penalty (lot size is irrelevant for condo pricing). 5 new backend tests.
 
 - Redesigned Pricing and History nav links. Pricing ("Plans") uses persistent coral-tinted text (70% opacity → full coral on hover/active) with the underline-bar on active, making it visually distinct from the muted grey nav links. History uses the standard `NavLink` treatment. `PricingNavLink` extracted as a dedicated component.
 

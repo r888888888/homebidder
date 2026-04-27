@@ -69,6 +69,8 @@ def _compute_fair_value_ci(
     market_stats: dict[str, Any],
     total_adjustment: float,
     list_price: float,
+    sqft_missing: bool = False,
+    lot_missing: bool = False,
 ) -> dict[str, Any]:
     """
     Return a confidence interval for the fair value estimate.
@@ -113,6 +115,14 @@ def _compute_fair_value_ci(
     if mean_comp and median_comp and mean_comp / median_comp > 1.10:
         ci_pct += 1.0
         factors.append("skewed_comps")
+
+    # Missing size data — adjustments couldn't be applied, reducing estimate accuracy
+    if sqft_missing:
+        ci_pct += 2.0
+        factors.append("missing_sqft")
+    if lot_missing:
+        ci_pct += 1.0
+        factors.append("missing_lot_size")
 
     # Large lot/sqft adjustment applied — comps are less comparable
     if abs(total_adjustment) > 0.15:
@@ -306,6 +316,8 @@ def recommend_offer(
         market_stats=market_stats,
         total_adjustment=total_adjustment,
         list_price=list_price,
+        sqft_missing=sqft is None,
+        lot_missing=not is_condo and lot_size is None,
     )
 
     # --- Posture determination (lowest to highest priority) ---
