@@ -7,6 +7,8 @@ import { NeighborhoodCard, type NeighborhoodData } from "../components/Neighborh
 import { OfferRecommendationCard, type OfferData } from "../components/OfferRecommendationCard";
 import { RiskAnalysisCard, type RiskData } from "../components/RiskAnalysisCard";
 import { InvestmentCard, type InvestmentData } from "../components/InvestmentCard";
+import { InvestmentTeaserCard } from "../components/InvestmentTeaserCard";
+import { useAuth } from "../lib/AuthContext";
 import { FixerAnalysisCard, type FixerAnalysisData } from "../components/FixerAnalysisCard";
 import { CompsCard, type CompData } from "../components/CompsCard";
 import { PermitsCard, type PermitsData } from "../components/PermitsCard";
@@ -106,6 +108,9 @@ export function PermalinkPage() {
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>("decision");
   const toast = useToast();
+  const { user } = useAuth();
+  const isInvestorPlus =
+    user?.subscription_tier === "investor" || user?.subscription_tier === "agent";
 
   useEffect(() => {
     fetch(`${apiBase}/api/analyses/${id}`, { headers: authHeaders() })
@@ -290,7 +295,9 @@ export function PermalinkPage() {
                 <CompsCard comps={analysis.comps} />
               )}
               {analysis.investment_data && (
-                <InvestmentCard investment={analysis.investment_data} />
+                isInvestorPlus
+                  ? <InvestmentCard investment={analysis.investment_data} />
+                  : <InvestmentTeaserCard investment={analysis.investment_data} />
               )}
             </div>
           )}

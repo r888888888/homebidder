@@ -12,6 +12,16 @@ vi.mock("@tanstack/react-router", () => ({
   ),
 }));
 
+// Mock AuthContext — default to investor so existing tests see the full InvestmentCard
+const mockUseAuth = vi.fn();
+vi.mock("../lib/AuthContext", () => ({
+  useAuth: () => mockUseAuth(),
+}));
+
+beforeEach(() => {
+  mockUseAuth.mockReturnValue({ user: { subscription_tier: "investor" }, isLoading: false });
+});
+
 import { useParams } from "@tanstack/react-router";
 import { PermalinkPage } from "./analysis_.$id";
 
@@ -171,6 +181,33 @@ describe("PermalinkPage", () => {
     expect(screen.getByText(/good buy/i)).toBeInTheDocument();
   });
 
+  const INVESTMENT_DATA = {
+    purchase_price: 1250000,
+    projected_value_10yr: 1850000,
+    projected_value_20yr: 2730000,
+    projected_value_30yr: 4040000,
+    rate_30yr_fixed: 6.63,
+    as_of_date: "2026-03-26",
+    hpi_yoy_assumption_pct: 4.0,
+    monthly_buy_cost: 7820.0,
+    monthly_rent_equivalent: 3500.0,
+    monthly_cost_diff: 4320.0,
+    opportunity_cost_10yr: 1050000.0,
+    opportunity_cost_20yr: 3300000.0,
+    opportunity_cost_30yr: 8200000.0,
+    adu_potential: false,
+    adu_rent_estimate: null,
+    rent_controlled: false,
+    rent_control_city: null,
+    rent_control_implications: null,
+    nearest_bart_station: "16TH ST MISSION",
+    bart_distance_miles: 0.31,
+    transit_premium_likely: false,
+    nearest_muni_stop: null,
+    muni_distance_miles: null,
+    nearby_schools: [],
+  };
+
   it("renders CompsCard when comps are present and Market tab is clicked", async () => {
     const analysisWithComps = {
       ...ANALYSIS_DETAIL,
@@ -208,5 +245,37 @@ describe("PermalinkPage", () => {
       expect(screen.getByText(/comparable sales/i)).toBeInTheDocument()
     );
     expect(screen.getByText(/100 Comp St/i)).toBeInTheDocument();
+  });
+
+  it("shows full InvestmentCard (projections) for investor tier on Market tab", async () => {
+    mockUseAuth.mockReturnValue({ user: { subscription_tier: "investor" }, isLoading: false });
+    const detail = { ...ANALYSIS_DETAIL, investment_data: INVESTMENT_DATA };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify(detail), { status: 200 })
+    );
+    renderPage();
+    await waitFor(() => expect(screen.getByRole("tab", { name: /market/i })).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("tab", { name: /market/i }));
+    await waitFor(() =>
+      expect(screen.getByText(/10yr projected value/i)).toBeInTheDocument()
+    );
+    expect(screen.queryByText(/unlock investment projections/i)).not.toBeInTheDocument();
+  });
+
+  it("shows teaser card (no projections, upgrade CTA) for buyer tier on Market tab", async () => {
+    mockUseAuth.mockReturnValue({ user: { subscription_tier: "buyer" }, isLoading: false });
+    const detail = { ...ANALYSIS_DETAIL, investment_data: INVESTMENT_DATA };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify(detail), { status: 200 })
+    );
+    renderPage();
+    await waitFor(() => expect(screen.getByRole("tab", { name: /market/i })).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("tab", { name: /market/i }));
+    await waitFor(() =>
+      expect(screen.getByText(/unlock investment projections/i)).toBeInTheDocument()
+    );
+    expect(screen.queryByText(/10yr projected value/i)).not.toBeInTheDocument();
+    const upgradeLink = screen.getByRole("link", { name: /upgrade to investor/i });
+    expect(upgradeLink).toHaveAttribute("href", "/pricing");
   });
 });

@@ -13,6 +13,11 @@ vi.mock("@tanstack/react-router", () => ({
   ),
 }));
 
+// Mock AuthContext — investor tier so tests see the full InvestmentCard
+vi.mock("../lib/AuthContext", () => ({
+  useAuth: () => ({ user: { subscription_tier: "investor" }, isLoading: false }),
+}));
+
 import { useSearch } from "@tanstack/react-router";
 
 function renderAnalysisPage(address: string, buyerContext = "") {

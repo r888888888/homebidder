@@ -1,13 +1,22 @@
 # TODO
 
+- Tier differentiation — PDF export for Agent tier. Generate a printable, shareable single-page report (offer range, risk summary, comps, investment snapshot) that agents can email to clients. This is the clearest justification for the $30/mo price point.
+- Tier differentiation — history retention limits. Buyer: show only last 30 days of analyses. Investor: last 6 months. Agent: unlimited. Adds perceived upgrade value without removing real-time features.
+- Tier differentiation — full comparable sales table for Investor+. Buyer tier sees only the summary range (low/mid/high); Investor and Agent see the full comp table with address, sale date, price, and $/sqft.
+- Favorite analyses: users can mark analyses as favorites. Favorited analyses appear visually distinct on the history page (e.g. star icon, highlighted row).
+- Show more info in the frontend about how the fair value estimate was calculated.
 - Support inspection reports
 - Support pest inspection reports
 - Support disclosures
 - Factor in seasonality of sales
 - Regularly prune the database for stale data
 - Plan this new feature: a validation mode. The app should look at recently sold properties in SF and run analysis on each property. Then it should grade its performance. For poorly scoring analyses, use the LLM to hypothesize what caused the discrepancy.
+- Tier differentiation — bulk/batch analysis for Agent tier. Agent can submit a CSV of addresses and receive analyses for all of them. High-effort but strongest competitive differentiator for active agents touring many properties.
+- Tier differentiation — watchlist for Investor+. Save a set of addresses; one-click re-run to refresh an analysis as market conditions change.
 
 # DONE
+
+- Tier differentiation — gate Investment tab to Investor+ only. Buyer tier (and anonymous users) see an `InvestmentTeaserCard` with monthly cost summary (buy vs rent), ADU potential, rent control, transit, and schools, plus an "Unlock Investment Projections" upsell linking to /pricing. Investor and Agent tiers see the full `InvestmentCard` with 10/20/30yr appreciation projections and opportunity cost analysis. Applied in both `AnalysisStream` and `PermalinkPage`. 14 new frontend tests.
 
 - Payments & subscription tiers (4 phases). Three tiers: Buyer (free, 5/month), Investor ($10/month, 30/month), Agent ($30/month, 100/month). Anonymous users get 3/month (IP-based, monthly window). Superusers unlimited. Pre-existing users grandfathered to Investor tier. Stripe Checkout (hosted redirect, no embedded JS) for upgrades; webhook handles checkout.session.completed / subscription.updated / subscription.deleted. Customer billing portal via Stripe. New pricing page with plan cards; subscription section on profile page with tier badge, monthly usage meter, upgrade/manage billing buttons; structured 429 handling in analysis page (register prompt for anonymous, upgrade prompt for authenticated). 32 new backend tests, 26 new frontend tests.
 

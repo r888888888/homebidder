@@ -9,6 +9,8 @@ import { CompsCard, type CompData } from "./CompsCard";
 import { OfferRecommendationCard, type OfferData } from "./OfferRecommendationCard";
 import { RiskAnalysisCard, type RiskData } from "./RiskAnalysisCard";
 import { InvestmentCard, type InvestmentData } from "./InvestmentCard";
+import { InvestmentTeaserCard } from "./InvestmentTeaserCard";
+import { useAuth } from "../lib/AuthContext";
 import { PermitsCard, type PermitsData } from "./PermitsCard";
 import { FixerAnalysisCard, type FixerAnalysisData } from "./FixerAnalysisCard";
 import { ValidationBanner, type ValidationResult } from "./ValidationBanner";
@@ -107,6 +109,9 @@ function PanelSkeleton({ label }: { label: string }) {
 export function AnalysisStream({ events, isRunning }: Props) {
   const [activeTab, setActiveTab] = useState<TabId>("decision");
   const [copied, setCopied] = useState(false);
+  const { user } = useAuth();
+  const isInvestorPlus =
+    user?.subscription_tier === "investor" || user?.subscription_tier === "agent";
 
   async function handleCopyPermalink(id: number) {
     const url = `${window.location.origin}/analysis/${id}`;
@@ -248,7 +253,11 @@ export function AnalysisStream({ events, isRunning }: Props) {
             ) : (
               isRunning && <PanelSkeleton label="Fetching comparable sales…" />
             )}
-            {investmentData && <InvestmentCard investment={investmentData} />}
+            {investmentData && (
+              isInvestorPlus
+                ? <InvestmentCard investment={investmentData} />
+                : <InvestmentTeaserCard investment={investmentData} />
+            )}
           </div>
         )}
       </div>

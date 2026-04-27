@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { AnalysisStream } from "./AnalysisStream";
 
 // Mock TanStack Router Link so component tests don't need a router context
@@ -9,6 +9,16 @@ vi.mock("@tanstack/react-router", () => ({
     <a href={to}>{children}</a>
   ),
 }));
+
+// Mock AuthContext — default to investor so existing tests see the full InvestmentCard
+const mockUseAuth = vi.fn();
+vi.mock("../lib/AuthContext", () => ({
+  useAuth: () => mockUseAuth(),
+}));
+
+beforeEach(() => {
+  mockUseAuth.mockReturnValue({ user: { subscription_tier: "investor" }, isLoading: false });
+});
 
 const PROPERTY_RESULT = {
   address_input: "450 Sanchez St, San Francisco, CA 94114",
@@ -676,5 +686,55 @@ describe("AnalysisStream — tab layout", () => {
   it("does not show skeleton when not running and no data", () => {
     render(<AnalysisStream events={[]} isRunning={false} />);
     expect(screen.queryByText(/computing offer range/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("AnalysisStream — investment tab tier gating", () => {
+  const investmentEvents = [
+    {
+      type: "tool_result" as const,
+      tool: "compute_investment_metrics",
+      result: INVESTMENT_RESULT as unknown as Record<string, unknown>,
+    },
+  ];
+
+  it("shows full InvestmentCard (projections) for investor tier", async () => {
+    const user = userEvent.setup();
+    mockUseAuth.mockReturnValue({ user: { subscription_tier: "investor" }, isLoading: false });
+    render(<AnalysisStream events={investmentEvents} isRunning={false} />);
+    await user.click(screen.getByRole("tab", { name: /market/i }));
+    expect(screen.getByText(/10yr projected value/i)).toBeInTheDocument();
+    expect(screen.getByText(/10yr opp\. cost/i)).toBeInTheDocument();
+    expect(screen.queryByText(/unlock investment projections/i)).not.toBeInTheDocument();
+  });
+
+  it("shows full InvestmentCard (projections) for agent tier", async () => {
+    const user = userEvent.setup();
+    mockUseAuth.mockReturnValue({ user: { subscription_tier: "agent" }, isLoading: false });
+    render(<AnalysisStream events={investmentEvents} isRunning={false} />);
+    await user.click(screen.getByRole("tab", { name: /market/i }));
+    expect(screen.getByText(/10yr projected value/i)).toBeInTheDocument();
+    expect(screen.queryByText(/unlock investment projections/i)).not.toBeInTheDocument();
+  });
+
+  it("shows teaser card (no projections, upgrade CTA) for buyer tier", async () => {
+    const user = userEvent.setup();
+    mockUseAuth.mockReturnValue({ user: { subscription_tier: "buyer" }, isLoading: false });
+    render(<AnalysisStream events={investmentEvents} isRunning={false} />);
+    await user.click(screen.getByRole("tab", { name: /market/i }));
+    expect(screen.queryByText(/10yr projected value/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/10yr opp\. cost/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/unlock investment projections/i)).toBeInTheDocument();
+    const upgradeLink = screen.getByRole("link", { name: /upgrade to investor/i });
+    expect(upgradeLink).toHaveAttribute("href", "/pricing");
+  });
+
+  it("shows teaser card for anonymous user (no auth)", async () => {
+    const user = userEvent.setup();
+    mockUseAuth.mockReturnValue({ user: null, isLoading: false });
+    render(<AnalysisStream events={investmentEvents} isRunning={false} />);
+    await user.click(screen.getByRole("tab", { name: /market/i }));
+    expect(screen.queryByText(/10yr projected value/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/unlock investment projections/i)).toBeInTheDocument();
   });
 });
