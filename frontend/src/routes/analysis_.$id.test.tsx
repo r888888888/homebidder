@@ -350,4 +350,52 @@ describe("PermalinkPage", () => {
       })
     );
   });
+
+  const COMP_FIXTURE = {
+    address: "100 Comp St",
+    unit: null,
+    city: "San Francisco",
+    state: "CA",
+    zip_code: "94110",
+    sold_price: 1_100_000,
+    list_price: 1_050_000,
+    sold_date: "2026-02-01",
+    bedrooms: 3,
+    bathrooms: 2,
+    sqft: 1700,
+    lot_size: null,
+    price_per_sqft: 647,
+    pct_over_asking: 4.76,
+    distance_miles: 0.3,
+    url: "",
+    source: "homeharvest",
+  };
+
+  it("shows full comp table (with addresses) for investor tier on Market tab", async () => {
+    mockUseAuth.mockReturnValue({ user: { subscription_tier: "investor" }, isLoading: false });
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ ...ANALYSIS_DETAIL, comps: [COMP_FIXTURE] }), { status: 200 })
+    );
+    renderPage();
+    await waitFor(() => expect(screen.getByRole("tab", { name: /market/i })).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("tab", { name: /market/i }));
+    await waitFor(() => expect(screen.getByText(/100 Comp St/i)).toBeInTheDocument());
+    expect(screen.queryByText(/unlock comparable sales/i)).not.toBeInTheDocument();
+  });
+
+  it("shows teaser card (no addresses, upgrade CTA) for buyer tier on Market tab", async () => {
+    mockUseAuth.mockReturnValue({ user: { subscription_tier: "buyer" }, isLoading: false });
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ ...ANALYSIS_DETAIL, comps: [COMP_FIXTURE] }), { status: 200 })
+    );
+    renderPage();
+    await waitFor(() => expect(screen.getByRole("tab", { name: /market/i })).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("tab", { name: /market/i }));
+    await waitFor(() =>
+      expect(screen.getByText(/unlock comparable sales/i)).toBeInTheDocument()
+    );
+    expect(screen.queryByText(/100 Comp St/i)).not.toBeInTheDocument();
+    const upgradeLink = screen.getByRole("link", { name: /upgrade to investor/i });
+    expect(upgradeLink).toHaveAttribute("href", "/pricing");
+  });
 });

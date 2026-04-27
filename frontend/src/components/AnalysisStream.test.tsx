@@ -738,3 +738,51 @@ describe("AnalysisStream — investment tab tier gating", () => {
     expect(screen.getByText(/unlock investment projections/i)).toBeInTheDocument();
   });
 });
+
+describe("AnalysisStream — comps tab tier gating", () => {
+  const compsEvents = [
+    {
+      type: "tool_result" as const,
+      tool: "fetch_comps",
+      result: COMPS_RESULT as unknown as Record<string, unknown>,
+    },
+  ];
+
+  it("shows full comp table with addresses for investor tier", async () => {
+    const user = userEvent.setup();
+    mockUseAuth.mockReturnValue({ user: { subscription_tier: "investor" }, isLoading: false });
+    render(<AnalysisStream events={compsEvents} isRunning={false} />);
+    await user.click(screen.getByRole("tab", { name: /market/i }));
+    expect(screen.getByText(/100 Comp St/i)).toBeInTheDocument();
+    expect(screen.queryByText(/unlock comparable sales/i)).not.toBeInTheDocument();
+  });
+
+  it("shows full comp table with addresses for agent tier", async () => {
+    const user = userEvent.setup();
+    mockUseAuth.mockReturnValue({ user: { subscription_tier: "agent" }, isLoading: false });
+    render(<AnalysisStream events={compsEvents} isRunning={false} />);
+    await user.click(screen.getByRole("tab", { name: /market/i }));
+    expect(screen.getByText(/100 Comp St/i)).toBeInTheDocument();
+    expect(screen.queryByText(/unlock comparable sales/i)).not.toBeInTheDocument();
+  });
+
+  it("shows teaser card (no addresses, upgrade CTA) for buyer tier", async () => {
+    const user = userEvent.setup();
+    mockUseAuth.mockReturnValue({ user: { subscription_tier: "buyer" }, isLoading: false });
+    render(<AnalysisStream events={compsEvents} isRunning={false} />);
+    await user.click(screen.getByRole("tab", { name: /market/i }));
+    expect(screen.queryByText(/100 Comp St/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/unlock comparable sales/i)).toBeInTheDocument();
+    const upgradeLink = screen.getByRole("link", { name: /upgrade to investor/i });
+    expect(upgradeLink).toHaveAttribute("href", "/pricing");
+  });
+
+  it("shows teaser card for anonymous user (no auth)", async () => {
+    const user = userEvent.setup();
+    mockUseAuth.mockReturnValue({ user: null, isLoading: false });
+    render(<AnalysisStream events={compsEvents} isRunning={false} />);
+    await user.click(screen.getByRole("tab", { name: /market/i }));
+    expect(screen.queryByText(/100 Comp St/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/unlock comparable sales/i)).toBeInTheDocument();
+  });
+});

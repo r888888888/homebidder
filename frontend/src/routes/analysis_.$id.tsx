@@ -11,6 +11,7 @@ import { InvestmentTeaserCard } from "../components/InvestmentTeaserCard";
 import { useAuth } from "../lib/AuthContext";
 import { FixerAnalysisCard, type FixerAnalysisData } from "../components/FixerAnalysisCard";
 import { CompsCard, type CompData } from "../components/CompsCard";
+import { CompsTeaserCard } from "../components/CompsTeaserCard";
 import { PermitsCard, type PermitsData } from "../components/PermitsCard";
 import { CrimeCard, type CrimeData } from "../components/CrimeCard";
 import { PdfExportButton } from "../components/PdfExportButton";
@@ -297,7 +298,9 @@ export function PermalinkPage() {
           {activeTab === "market" && (
             <div className="tab-enter space-y-4">
               {analysis.comps.length > 0 && (
-                <CompsCard comps={analysis.comps} />
+                isInvestorPlus
+                  ? <CompsCard comps={analysis.comps} />
+                  : <CompsTeaserCard comps={analysis.comps} />
               )}
               {analysis.investment_data && (
                 isInvestorPlus

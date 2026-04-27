@@ -6,6 +6,7 @@ import remarkGfm from "remark-gfm";
 import { PropertySummaryCard, type PropertyData } from "./PropertySummaryCard";
 import { NeighborhoodCard, type NeighborhoodData } from "./NeighborhoodCard";
 import { CompsCard, type CompData } from "./CompsCard";
+import { CompsTeaserCard } from "./CompsTeaserCard";
 import { OfferRecommendationCard, type OfferData } from "./OfferRecommendationCard";
 import { RiskAnalysisCard, type RiskData } from "./RiskAnalysisCard";
 import { InvestmentCard, type InvestmentData } from "./InvestmentCard";
@@ -249,7 +250,9 @@ export function AnalysisStream({ events, isRunning }: Props) {
         {activeTab === "market" && (
           <div key="market" className="tab-enter space-y-4">
             {compsData ? (
-              <CompsCard comps={compsData} />
+              isInvestorPlus
+                ? <CompsCard comps={compsData} />
+                : <CompsTeaserCard comps={compsData} />
             ) : (
               isRunning && <PanelSkeleton label="Fetching comparable sales…" />
             )}
