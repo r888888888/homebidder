@@ -1,7 +1,6 @@
 # TODO
 
-- The links to the Pricing and History pages are a little nondescript. Improve the design better.
-- If a property is missing square footage/lot size data, then that should immediately flag low confidence.
+- If a property is missing square footage/lot size data, does it make sense to lower the confidence?
 - Favorite analyses: users can mark analyses as favorites. Favorited analyses appear visually distinct on the history page (e.g. star icon, highlighted row).
 - I want to support uploading inspection report PDFs. I'll attach an example. Brainstorm ideas for using this data, but one might be to configure the renovation line items based on the report.
 - Support pest inspection reports. Use the same strategy as immplementing insepection reports.
@@ -15,6 +14,8 @@
 - Duplex / multi-family fair value support: normalize property type to `"multi"` bucket for comp filtering, wire Redfin type code 6, add income premium adjustment in pricing (GRM-based, capped at 10%), offset monthly buy cost by second-unit rental income in investment metrics, re-run recommend_offer with rent data in orchestrator Phase 8. Plan at `.claude/plans/iterative-cuddling-pelican.md`. ~32 new tests.
 
 # DONE
+
+- Redesigned Pricing and History nav links. Pricing ("Plans") uses persistent coral-tinted text (70% opacity → full coral on hover/active) with the underline-bar on active, making it visually distinct from the muted grey nav links. History uses the standard `NavLink` treatment. `PricingNavLink` extracted as a dedicated component.
 
 - FAQ page at `/faq` explaining how HomeBidder's calculations work. Accordion-style layout with 6 sections (Fair Value Estimation, Offer Recommendation, Risk Analysis, Investment Analysis, Schools/Transit/Crime, Renovation Estimates) and 15 questions. FAQ link added to the footer. 7 new frontend tests.
 

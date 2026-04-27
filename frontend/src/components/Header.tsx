@@ -11,6 +11,7 @@ function getInitials(displayName: string | null | undefined, email: string): str
   return email[0].toUpperCase()
 }
 
+
 function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
   const matchRoute = useMatchRoute()
   const isActive = !!matchRoute({ to, fuzzy: false })
@@ -31,6 +32,33 @@ function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
         ].join(' ')}
       >
         {children}
+      </span>
+    </Link>
+  )
+}
+
+function PricingNavLink() {
+  const matchRoute = useMatchRoute()
+  const isActive = !!matchRoute({ to: '/pricing', fuzzy: false })
+  return (
+    <Link
+      to="/pricing"
+      className={[
+        'text-sm font-medium no-underline transition-colors',
+        isActive
+          ? 'text-[var(--coral)]'
+          : 'text-[var(--coral)]/70 hover:text-[var(--coral)]',
+      ].join(' ')}
+    >
+      <span
+        className={[
+          'relative pb-0.5',
+          isActive
+            ? 'after:absolute after:inset-x-0 after:-bottom-0.5 after:h-[2px] after:rounded-full after:bg-[var(--coral)]'
+            : '',
+        ].join(' ')}
+      >
+        Plans
       </span>
     </Link>
   )
@@ -89,7 +117,7 @@ export default function Header() {
         {/* Right-side nav */}
         <div className="ml-auto flex items-center gap-x-3">
           {/* Pricing — always visible */}
-          <NavLink to="/pricing">Pricing</NavLink>
+          <PricingNavLink />
 
           {/* History — only shown when logged in */}
           {!isLoading && user && (
