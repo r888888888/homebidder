@@ -25,6 +25,12 @@ export default function Footer() {
 
         <nav className="flex items-center gap-4">
           <Link
+            to="/faq"
+            className="text-xs text-[var(--ink-muted)] no-underline hover:text-[var(--ink-soft)]"
+          >
+            FAQ
+          </Link>
+          <Link
             to="/changelog"
             className="text-xs text-[var(--ink-muted)] no-underline hover:text-[var(--ink-soft)]"
           >

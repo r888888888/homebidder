@@ -1,6 +1,5 @@
 # TODO
 
-- Add an FAQ page about how some calculations are done.
 - The links to the Pricing and History pages are a little nondescript. Improve the design better.
 - If a property is missing square footage/lot size data, then that should immediately flag low confidence.
 - Favorite analyses: users can mark analyses as favorites. Favorited analyses appear visually distinct on the history page (e.g. star icon, highlighted row).
@@ -16,6 +15,8 @@
 - Duplex / multi-family fair value support: normalize property type to `"multi"` bucket for comp filtering, wire Redfin type code 6, add income premium adjustment in pricing (GRM-based, capped at 10%), offset monthly buy cost by second-unit rental income in investment metrics, re-run recommend_offer with rent data in orchestrator Phase 8. Plan at `.claude/plans/iterative-cuddling-pelican.md`. ~32 new tests.
 
 # DONE
+
+- FAQ page at `/faq` explaining how HomeBidder's calculations work. Accordion-style layout with 6 sections (Fair Value Estimation, Offer Recommendation, Risk Analysis, Investment Analysis, Schools/Transit/Crime, Renovation Estimates) and 15 questions. FAQ link added to the footer. 7 new frontend tests.
 
 - Redesigned pricing page. Three-tier cards (Buyer/Investor/Agent) with colored header bands (warm off-white → coral gradient → navy), per-tier feature checklists with coral highlights for premium features and greyed lock icons for locked ones, featured Investor card lifts off the grid with a coral ring shadow, anonymous-usage callout restyled as a pill badge, and a trust strip (Stripe / cancel anytime). All 9 existing tests pass unchanged.
 

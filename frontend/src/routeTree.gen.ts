@@ -14,6 +14,7 @@ import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as HistoryRouteImport } from './routes/history'
+import { Route as FaqRouteImport } from './routes/faq'
 import { Route as ChangelogRouteImport } from './routes/changelog'
 import { Route as AnalysisRouteImport } from './routes/analysis'
 import { Route as AdminRouteImport } from './routes/admin'
@@ -45,6 +46,11 @@ const LoginRoute = LoginRouteImport.update({
 const HistoryRoute = HistoryRouteImport.update({
   id: '/history',
   path: '/history',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FaqRoute = FaqRouteImport.update({
+  id: '/faq',
+  path: '/faq',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ChangelogRoute = ChangelogRouteImport.update({
@@ -88,6 +94,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRoute
   '/analysis': typeof AnalysisRoute
   '/changelog': typeof ChangelogRoute
+  '/faq': typeof FaqRoute
   '/history': typeof HistoryRoute
   '/login': typeof LoginRoute
   '/pricing': typeof PricingRoute
@@ -102,6 +109,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminRoute
   '/analysis': typeof AnalysisRoute
   '/changelog': typeof ChangelogRoute
+  '/faq': typeof FaqRoute
   '/history': typeof HistoryRoute
   '/login': typeof LoginRoute
   '/pricing': typeof PricingRoute
@@ -117,6 +125,7 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/analysis': typeof AnalysisRoute
   '/changelog': typeof ChangelogRoute
+  '/faq': typeof FaqRoute
   '/history': typeof HistoryRoute
   '/login': typeof LoginRoute
   '/pricing': typeof PricingRoute
@@ -133,6 +142,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/analysis'
     | '/changelog'
+    | '/faq'
     | '/history'
     | '/login'
     | '/pricing'
@@ -147,6 +157,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/analysis'
     | '/changelog'
+    | '/faq'
     | '/history'
     | '/login'
     | '/pricing'
@@ -161,6 +172,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/analysis'
     | '/changelog'
+    | '/faq'
     | '/history'
     | '/login'
     | '/pricing'
@@ -176,6 +188,7 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   AnalysisRoute: typeof AnalysisRoute
   ChangelogRoute: typeof ChangelogRoute
+  FaqRoute: typeof FaqRoute
   HistoryRoute: typeof HistoryRoute
   LoginRoute: typeof LoginRoute
   PricingRoute: typeof PricingRoute
@@ -221,6 +234,13 @@ declare module '@tanstack/react-router' {
       path: '/history'
       fullPath: '/history'
       preLoaderRoute: typeof HistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/faq': {
+      id: '/faq'
+      path: '/faq'
+      fullPath: '/faq'
+      preLoaderRoute: typeof FaqRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/changelog': {
@@ -280,6 +300,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRoute,
   AnalysisRoute: AnalysisRoute,
   ChangelogRoute: ChangelogRoute,
+  FaqRoute: FaqRoute,
   HistoryRoute: HistoryRoute,
   LoginRoute: LoginRoute,
   PricingRoute: PricingRoute,
