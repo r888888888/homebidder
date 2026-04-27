@@ -1,6 +1,5 @@
 # TODO
 
-- Improve the design for the pricing page.
 - Add an FAQ page about how some calculations are done.
 - The links to the Pricing and History pages are a little nondescript. Improve the design better.
 - If a property is missing square footage/lot size data, then that should immediately flag low confidence.
@@ -17,6 +16,8 @@
 - Duplex / multi-family fair value support: normalize property type to `"multi"` bucket for comp filtering, wire Redfin type code 6, add income premium adjustment in pricing (GRM-based, capped at 10%), offset monthly buy cost by second-unit rental income in investment metrics, re-run recommend_offer with rent data in orchestrator Phase 8. Plan at `.claude/plans/iterative-cuddling-pelican.md`. ~32 new tests.
 
 # DONE
+
+- Redesigned pricing page. Three-tier cards (Buyer/Investor/Agent) with colored header bands (warm off-white → coral gradient → navy), per-tier feature checklists with coral highlights for premium features and greyed lock icons for locked ones, featured Investor card lifts off the grid with a coral ring shadow, anonymous-usage callout restyled as a pill badge, and a trust strip (Stripe / cancel anytime). All 9 existing tests pass unchanged.
 
 - Tier differentiation — full comparable sales table for Investor+. Buyer tier (and anonymous users) see a `CompsTeaserCard` with comp count, low/mid/high price range, and median $/sqft, plus an "Unlock Comparable Sales" upsell linking to /pricing. Investor and Agent tiers see the full `CompsCard` with address, sale date, price, and $/sqft. Applied in both `AnalysisStream` and `PermalinkPage`. 9 new frontend tests (CompsTeaserCard) + 4 new gating tests in AnalysisStream + 2 new gating tests in PermalinkPage.
 
