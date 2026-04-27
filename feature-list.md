@@ -18,6 +18,8 @@
 
 # DONE
 
+- Add a robots.txt file. Replaced the allow-all placeholder with a proper robots.txt that permits crawling of public pages (`/`, `/pricing`, `/changelog`) and disallows user-specific or private routes (`/admin`, `/profile`, `/history`, `/analysis`, `/auth/`, `/api/`).
+
 - Log-based hedonic lot/sqft adjustments. Replaced linear `delta * coefficient` sizing adjustments with a log-linear model: `elasticity * ln(ratio)`. Lot elasticity set to 0.15 (doubling lot size → ~10.4% premium, grounded in Kok, Monkkonen & Quigley 2014 Bay Area empirics); sqft elasticity kept at 0.25 to preserve existing magnitude while fixing tail behavior. Hard clamp on lot narrowed from ±20%/25% to −15%/+20% since log form no longer produces runaway values on extreme ratios.
 
 - Show more info in the frontend about how the fair value estimate was calculated. New "How was this calculated?" collapsible section on the Offer Recommendation card showing: method used (comparable sales / price-per-sqft / list price), the comp anchor price, and individual size adjustments (lot, sq footage, TIC discount). Confidence interval factors ("Few comparable sales", "High price dispersion", etc.) shown inline under the CI badge. 11 new frontend tests.
