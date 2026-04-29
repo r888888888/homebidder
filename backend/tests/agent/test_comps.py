@@ -379,4 +379,82 @@ class TestSubjectResaleFilter:
 
         assert len(comps) == 1
 
+
+# ---------------------------------------------------------------------------
+# Bedroom filter fallback
+# ---------------------------------------------------------------------------
+
+class TestBedroomFilterFallback:
+    async def test_falls_back_without_bedrooms_when_strict_filter_returns_zero(self):
+        """Subject with anomalous BR/sqft (e.g. 6 BR / 1988 sqft) — every comp at the
+        same BR count exceeds the sqft tolerance. Should retry without the bedroom
+        filter and return sqft-matching comps."""
+        from agent.tools.comps import fetch_comps
+
+        # Subject: 6 BR, 1988 sqft, SFH. ±25% sqft → 1491–2485.
+        # Within ±1 BR (5–7): only one row, but it's 2658 sqft (over the tolerance).
+        too_large_same_br = {
+            **BASE_COMP_ROW, "street": "2479 31st Ave", "beds": 5, "sqft": 2658,
+            "style": "SINGLE_FAMILY",
+        }
+        # Lower BR but sqft-matching SFH.
+        sqft_match_lower_br = {
+            **BASE_COMP_ROW, "street": "2100 34th Ave", "beds": 4, "sqft": 1900,
+            "style": "SINGLE_FAMILY",
+        }
+        df = _make_df([too_large_same_br, sqft_match_lower_br])
+
+        with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+            result = await fetch_comps(
+                address="1950 45TH AVE",
+                city="San Francisco",
+                state="CA",
+                zip_code="94116",
+                subject_lat=SF_LAT,
+                subject_lon=SF_LON,
+                subject_sqft=1988,
+                subject_property_type="SINGLE_FAMILY",
+                bedrooms=6,
+            )
+        comps = result["comps"]
+
+        assert any(c["address"] == "2100 34th Ave" for c in comps), (
+            f"Expected 2100 34th Ave (sqft-match, lower BR) to be returned via fallback, got {[c['address'] for c in comps]}"
+        )
+
+    async def test_strict_filter_kept_when_it_returns_results(self):
+        """When the strict bedroom filter returns at least one comp, the fallback is
+        not triggered and lower-BR rows are still excluded."""
+        from agent.tools.comps import fetch_comps
+
+        same_br_match = {
+            **BASE_COMP_ROW, "street": "100 Same BR Way", "beds": 6, "sqft": 1900,
+            "style": "SINGLE_FAMILY",
+        }
+        lower_br_match = {
+            **BASE_COMP_ROW, "street": "200 Lower BR Way", "beds": 3, "sqft": 1800,
+            "style": "SINGLE_FAMILY",
+        }
+        df = _make_df([same_br_match, lower_br_match])
+
+        with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+            result = await fetch_comps(
+                address="1950 45TH AVE",
+                city="San Francisco",
+                state="CA",
+                zip_code="94116",
+                subject_lat=SF_LAT,
+                subject_lon=SF_LON,
+                subject_sqft=1988,
+                subject_property_type="SINGLE_FAMILY",
+                bedrooms=6,
+            )
+        comps = result["comps"]
+
+        addresses = [c["address"] for c in comps]
+        assert "100 Same BR Way" in addresses
+        assert "200 Lower BR Way" not in addresses
+
 # ---------------------------------------------------------------------------

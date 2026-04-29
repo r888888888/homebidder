@@ -1477,3 +1477,147 @@ class TestRedfinAutocomplete:
             result = await _redfin_autocomplete_url("450 Sanchez St, San Francisco, CA 94114")
 
         assert result is None
+
+
+# ---------------------------------------------------------------------------
+# ZIP-code fallback tests
+# ---------------------------------------------------------------------------
+
+CAROLINA_CENSUS_RESPONSE = {
+    "result": {
+        "addressMatches": [
+            {
+                "matchedAddress": "1063 CAROLINA ST, SAN FRANCISCO, CA, 94107",
+                "coordinates": {"x": -122.3995, "y": 37.7552},
+                "addressComponents": {
+                    "zip": "94107",
+                    "state": "CA",
+                    "county": "San Francisco",
+                },
+            }
+        ]
+    }
+}
+
+CAROLINA_ROW = {
+    "street": "1063 Carolina St",
+    "city": "San Francisco",
+    "state": "CA",
+    "zip_code": "94107",
+    "list_price": 998_000.0,
+    "beds": 2,
+    "full_baths": 1,
+    "half_baths": None,
+    "sqft": 1309,
+    "year_built": 1987,
+    "lot_sqft": 1200,
+    "style": "SINGLE_FAMILY",
+    "hoa_fee": None,
+    "days_on_mls": 3,
+    "list_date": "2026-04-01",
+    "neighborhoods": "Potrero Hill",
+    "price_history": [],
+    "property_url": "https://www.redfin.com/CA/San-Francisco/1063-Carolina-St-94107",
+}
+
+WRONG_ROW = {
+    **CAROLINA_ROW,
+    "street": "1063 Ashcroft Cir",
+    "city": "San Jose",
+    "list_price": 750_000.0,
+}
+
+
+class TestZipCodeFallback:
+    async def test_zip_fallback_called_when_direct_search_finds_nothing(self):
+        """When direct address lookups all return empty, ZIP-code fallback is invoked."""
+        from agent.tools.property_lookup import lookup_property_by_address
+
+        census_mock = MagicMock()
+        census_mock.raise_for_status = MagicMock()
+        census_mock.json.return_value = CAROLINA_CENSUS_RESPONSE
+
+        with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
+             patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock, return_value={}) as mock_hh, \
+             patch("agent.tools.property_lookup._homeharvest_zip_listing", new_callable=AsyncMock) as mock_zip, \
+             patch("agent.tools.property_lookup._redfin_autocomplete_url", new_callable=AsyncMock, return_value=None):
+
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.return_value = census_mock
+            mock_zip.return_value = {
+                "price": 998_000.0, "bedrooms": 2, "sqft": 1309,
+                "source": "homeharvest", "price_history": [],
+            }
+
+            result = await lookup_property_by_address("1063 Carolina St, San Francisco, CA 94107")
+
+        mock_zip.assert_called_once_with("94107", "1063 Carolina St, San Francisco, CA 94107")
+        assert result["price"] == 998_000.0
+        assert result["source"] == "homeharvest"
+
+    async def test_zip_fallback_not_called_when_direct_search_succeeds(self):
+        """ZIP fallback is skipped when a direct address search already found data."""
+        from agent.tools.property_lookup import lookup_property_by_address
+
+        census_mock = MagicMock()
+        census_mock.raise_for_status = MagicMock()
+        census_mock.json.return_value = CAROLINA_CENSUS_RESPONSE
+
+        with patch("agent.tools.property_lookup.httpx.AsyncClient") as mock_cls, \
+             patch("agent.tools.property_lookup._homeharvest_listing", new_callable=AsyncMock) as mock_hh, \
+             patch("agent.tools.property_lookup._homeharvest_zip_listing", new_callable=AsyncMock) as mock_zip, \
+             patch("agent.tools.property_lookup._redfin_autocomplete_url", new_callable=AsyncMock, return_value=None):
+
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get.return_value = census_mock
+            mock_hh.return_value = {
+                "price": 998_000.0, "bedrooms": 2, "source": "homeharvest", "price_history": [],
+            }
+
+            result = await lookup_property_by_address("1063 Carolina St, San Francisco, CA 94107")
+
+        mock_zip.assert_not_called()
+        assert result["source"] == "homeharvest"
+
+    async def test_homeharvest_zip_listing_selects_matching_address_from_zip_search(self):
+        """_homeharvest_zip_listing picks the row matching the query address from a ZIP-wide result."""
+        import pandas as pd
+        from agent.tools.property_lookup import _homeharvest_zip_listing
+
+        df = pd.DataFrame([WRONG_ROW, CAROLINA_ROW])
+
+        with patch("agent.tools.property_lookup.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+            result = await _homeharvest_zip_listing("94107", "1063 Carolina St, San Francisco, CA 94107")
+
+        assert result["price"] == 998_000.0
+        assert result["bedrooms"] == 2
+        assert result["sqft"] == 1309
+        assert result["source"] == "homeharvest"
+
+    async def test_homeharvest_zip_listing_returns_empty_when_no_address_match(self):
+        """_homeharvest_zip_listing returns {} when no row matches the query address."""
+        import pandas as pd
+        from agent.tools.property_lookup import _homeharvest_zip_listing
+
+        df = pd.DataFrame([WRONG_ROW])
+
+        with patch("agent.tools.property_lookup.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+            result = await _homeharvest_zip_listing("94107", "1063 Carolina St, San Francisco, CA 94107")
+
+        assert result == {}
+
+    async def test_homeharvest_zip_listing_returns_empty_on_exception(self):
+        """_homeharvest_zip_listing returns {} if scraping raises."""
+        from agent.tools.property_lookup import _homeharvest_zip_listing
+
+        with patch("agent.tools.property_lookup.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.side_effect = RuntimeError("network error")
+            result = await _homeharvest_zip_listing("94107", "1063 Carolina St, San Francisco, CA 94107")
+
+        assert result == {}

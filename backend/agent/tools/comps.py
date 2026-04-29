@@ -138,7 +138,7 @@ async def fetch_comps(
     subject_type_norm = _normalize_property_type(subject_property_type)
 
     try:
-        df = await asyncio.to_thread(_scrape_homeharvest_comps, zip_code, bedrooms, max_results)
+        df = await asyncio.to_thread(_scrape_homeharvest_comps, zip_code, max_results)
         if df is not None and not df.empty:
             comps, subject_sale = _process_df(
                 df,
@@ -148,7 +148,24 @@ async def fetch_comps(
                 subject_sqft,
                 max_results,
                 subject_type_norm,
+                bedrooms,
             )
+            # Fallback: subjects with anomalous BR/sqft profiles (e.g. 6 BR / 1988 sqft)
+            # can have zero comps where the same BR range and sqft tolerance overlap.
+            # Retry without the bedroom filter so sqft/type-similar comps still surface.
+            if not comps and bedrooms is not None:
+                comps, fallback_sale = _process_df(
+                    df,
+                    address,
+                    subject_lat,
+                    subject_lon,
+                    subject_sqft,
+                    max_results,
+                    subject_type_norm,
+                    None,
+                )
+                if subject_sale is None:
+                    subject_sale = fallback_sale
             return {"comps": comps, "subject_sale": subject_sale}
     except Exception:
         pass
@@ -170,24 +187,16 @@ async def fetch_comps(
     return {"comps": [], "subject_sale": None}
 
 
-def _scrape_homeharvest_comps(location: str, bedrooms: int | None, max_results: int):
+def _scrape_homeharvest_comps(location: str, max_results: int):
     """Synchronous — run via asyncio.to_thread. Returns a DataFrame or None."""
     from homeharvest import scrape_property
 
-    df = scrape_property(
+    return scrape_property(
         listing_type="sold",
         location=location,
         past_days=90,
         limit=max_results*3,
     )
-
-    if df is None or df.empty:
-        return df
-
-    if bedrooms is not None:
-        df = df[df["beds"].between(bedrooms - 1, bedrooms + 1, inclusive="both")]
-
-    return df
 
 
 def _fmt_date(val: Any) -> str | None:
@@ -208,6 +217,7 @@ def _process_df(
     subject_sqft: int | None,
     max_results: int,
     subject_property_type: str | None = None,
+    bedrooms: int | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
     """Convert homeharvest DataFrame to list of comp dicts with Phase 4 enrichments.
 
@@ -224,9 +234,14 @@ def _process_df(
         comp_address = _safe(row, "street", "")
         comp_unit = _safe(row, "unit_number") or _safe(row, "unit") or _safe(row, "apartment")
         comp_sold_date = _fmt_date(_safe(row, "last_sold_date"))
+        comp_beds = _safe(row, "beds")
 
         if subject_property_type:
             if comp_type_norm != subject_property_type:
+                continue
+
+        if bedrooms is not None:
+            if comp_beds is None or abs(comp_beds - bedrooms) > 1:
                 continue
 
         # Detect and capture the subject property's own recent sale (validation mode).

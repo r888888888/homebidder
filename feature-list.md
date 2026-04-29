@@ -1,14 +1,26 @@
 # TODO
-- I want to support uploading inspection report PDFs. I'll attach an example. Brainstorm ideas for using this data, but one might be to configure the renovation line items based on the report.
-- Support pest inspection reports. Use the same strategy as immplementing insepection reports.
+
 - Design the user profile page better.
+- Improve the lightbox user experience for the photo gallery. Some criticisms: the lightbox opens in a modal that i sometimes need to scroll. I need to click in the modal to dismiss it; clicking on the website background does not dismiss it.
+- Support properties that haven't been listed. Use available information to look up comps and propose a market value.
+- Distinguish between properties that are a single unit in a multi-family building, versus properties that are multiple units in a multi-family building.
+- Do a cost/benefit analysis of migrating from SQLite to PostgreSQL
+- When a user marks a property as seen, they should be able to note observations. Things like: Quality (terrible/bad/neutral/good/exceptional), location (bad/neutral/good). These would show up as fair value adjustment modifiers. Add a notes section that can be saved to the analysis.
+- Upload inspection report PDFs. User uploads a PDF on the analysis form; backend sends it directly to Claude as a document block for structured extraction (no text-extraction library needed). Parsed findings are threaded into the renovation tool to override scope and configure line items based on actual deficiencies. Two example PDFs in `example-docs/` with different formats (matrix-checkbox and table-based). Plan at `.claude/plans/cosmic-skipping-hearth.md`. ~37 new tests.
+- Investigate whether it's possible to pull permit history from Redfin or Realtor or Zillow.
+- Support pest inspection reports. Use the same strategy as immplementing insepection reports.
+- Support uploading 3R reports to capture permit details.
+- Investigate database backups
 - Support disclosures
 - Factor in seasonality of sales
+- De-emphasize unclosed permits. These are common and should not be considered a risk factor.
 - Regularly prune the database for stale data
 - Plan this new feature: a validation mode. The app should look at recently sold properties in SF and run analysis on each property. Then it should grade its performance. For poorly scoring analyses, use the LLM to hypothesize what caused the discrepancy.
 - Tier differentiation — bulk/batch analysis for Agent tier. Agent can submit a CSV of addresses and receive analyses for all of them. High-effort but strongest competitive differentiator for active agents touring many properties.
 - Tier differentiation — watchlist for Investor+. Save a set of addresses; one-click re-run to refresh an analysis as market conditions change.
+- Tier differentiation - add history search for Agent tier. I should be able to search for properties by the address.
 - Duplex / multi-family fair value support: normalize property type to `"multi"` bucket for comp filtering, wire Redfin type code 6, add income premium adjustment in pricing (GRM-based, capped at 10%), offset monthly buy cost by second-unit rental income in investment metrics, re-run recommend_offer with rent data in orchestrator Phase 8. Plan at `.claude/plans/iterative-cuddling-pelican.md`. ~32 new tests.
+- Buying Plan (optimal stopping theory): user declares buy-by date and expected viewings/week → derives fixed N and explore-phase threshold `floor(N/e)`. "Mark Seen" button on analysis detail captures Quality (terrible/bad/neutral/good/excellent) + Location (bad/neutral/good); normalized composite score drives the pure-secretary commit rule (in commit phase, recommend the next property strictly better than explore-phase max). Linear bid premium (1% × properties past threshold) layered on top of fair value as overbid-market calibration — display-time overlay only, never baked into stored fair value or PDF export. Single active plan per user (DB unique constraint on user_id). Investor+ tier gated. New tables `buying_plans` + `seen_properties` with `analysis_id` FK using `ondelete=SET NULL` plus `address_snapshot` so seen rows survive analysis deletion. New `/buying-plan` route with setup form / dashboard; `MarkSeenButton` and `BuyingPlanBadge` on analysis detail. Plan at `.claude/plans/1-there-s-no-need-snappy-seal.md`.
 
 # DONE
 
@@ -21,7 +33,6 @@
 - Superusers are functionally equivalent to Agent tier: unlimited retention in `_retention_cutoff`, `isInvestorPlus` and `isAgent` checks include `is_superuser` in `AnalysisStream` and `PermalinkPage`. 1 new backend test, 5 new frontend tests.
 
 - Favorite from analysis detail page: heart icon button added to the permalink page (`analysis_.$id.tsx`) header actions row and to the `AnalysisStream` saved strip. Clicking toggles `is_favorite` via `PATCH /api/analyses/{id}/favorite`. Button shows aria-label "Favorite"/"Unfavorite" and fills on active. 4 new permalink tests, 4 new stream tests.
-
 
 - Analysis page title redesign: address now takes full width as an `h1` on its own row; action buttons (Refresh, Copy link, New analysis, PDF Export) moved to a compact sub-row below the address in `text-xs`/`px-3 py-1.5`/`rounded-lg` style, consistent across both `analysis.tsx` (streaming) and `analysis_.$id.tsx` (permalink). Presentation-only change; no tests needed.
 
