@@ -1,9 +1,8 @@
 # TODO
 
+- De-emphasize unclosed permits. These are common and should not be considered a risk factor.
 - Support properties that haven't been listed. Use available information to look up comps and propose a market value.
 - Distinguish between properties that are a single unit in a multi-family building, versus properties that are multiple units in a multi-family building.
-- De-emphasize unclosed permits. These are common and should not be considered a risk factor.
-- Do a cost/benefit analysis of migrating from SQLite to PostgreSQL
 - Upload inspection report PDFs. User uploads a PDF on the analysis form; backend sends it directly to Claude as a document block for structured extraction (no text-extraction library needed). Parsed findings are threaded into the renovation tool to override scope and configure line items based on actual deficiencies. Two example PDFs in `example-docs/` with different formats (matrix-checkbox and table-based). Plan at `.claude/plans/cosmic-skipping-hearth.md`. ~37 new tests.
 - Investigate whether it's possible to pull permit history from Redfin or Realtor or Zillow.
 - Investigate if Fly supports email accounts. Set up a support email account and generate a Contact page.
@@ -11,6 +10,7 @@
 - Support uploading 3R reports to capture permit details.
 - Investigate database backups
 - Duplex / multi-family fair value support: normalize property type to `"multi"` bucket for comp filtering, wire Redfin type code 6, add income premium adjustment in pricing (GRM-based, capped at 10%), offset monthly buy cost by second-unit rental income in investment metrics, re-run recommend_offer with rent data in orchestrator Phase 8. Plan at `.claude/plans/iterative-cuddling-pelican.md`. ~32 new tests.
+- Allow any registered user to mark a property as seen. "Mark Seen" button on analysis detail captures Quality (terrible/bad/neutral/good/excellent) + Location (bad/neutral/good); add these up to an internal score for the property (to be used later).
 - Buying Plan (optimal stopping theory): user declares buy-by date and expected viewings/week → derives fixed N and explore-phase threshold `floor(N/e)`. "Mark Seen" button on analysis detail captures Quality (terrible/bad/neutral/good/excellent) + Location (bad/neutral/good); normalized composite score drives the pure-secretary commit rule (in commit phase, recommend the next property strictly better than explore-phase max). Linear bid premium (1% × properties past threshold) layered on top of fair value as overbid-market calibration — display-time overlay only, never baked into stored fair value or PDF export. Single active plan per user (DB unique constraint on user_id). Investor+ tier gated. New tables `buying_plans` + `seen_properties` with `analysis_id` FK using `ondelete=SET NULL` plus `address_snapshot` so seen rows survive analysis deletion. New `/buying-plan` route with setup form / dashboard; `MarkSeenButton` and `BuyingPlanBadge` on analysis detail. Plan at `.claude/plans/1-there-s-no-need-snappy-seal.md`.
 - Support disclosures
 - Factor in seasonality of sales
@@ -21,6 +21,8 @@
 - Tier differentiation - add history search for Agent tier. I should be able to search for properties by the address.
 
 # DONE
+
+- SQLite vs PostgreSQL cost/benefit analysis. Verdict: stay on SQLite. Current scale (~100 users, <1000 analyses) is well within SQLite's comfort zone. All queries are ORM-based (zero raw SQL) so migration effort is low (~2–3 days) when warranted. Key gaps to revisit: (1) backup/disaster recovery — a Fly volume loss means total data loss, worth a cron snapshot regardless of DB choice; (2) migrate when concurrent `/analyze` load causes visible write-lock waits, or when cross-analysis JSON queries are needed (e.g. validation mode), or when running multi-machine Fly deployments.
 
 - Lightbox UX improvements: render via React Portal (mounted on `document.body`) so the overlay covers the full viewport rather than being clipped by the ancestor `fade-up` CSS transform. Body scroll is now locked (`overflow: hidden`) while the lightbox is open and restored on close. Clicking the dark backdrop outside the photo dismisses the lightbox. 3 new frontend tests (backdrop click, scroll lock, scroll restore).
 
