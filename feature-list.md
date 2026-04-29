@@ -1,11 +1,9 @@
 # TODO
 
-- Design the user profile page better.
 - Improve the lightbox user experience for the photo gallery. Some criticisms: the lightbox opens in a modal that i sometimes need to scroll. I need to click in the modal to dismiss it; clicking on the website background does not dismiss it.
 - Support properties that haven't been listed. Use available information to look up comps and propose a market value.
 - Distinguish between properties that are a single unit in a multi-family building, versus properties that are multiple units in a multi-family building.
 - Do a cost/benefit analysis of migrating from SQLite to PostgreSQL
-- When a user marks a property as seen, they should be able to note observations. Things like: Quality (terrible/bad/neutral/good/exceptional), location (bad/neutral/good). These would show up as fair value adjustment modifiers. Add a notes section that can be saved to the analysis.
 - Upload inspection report PDFs. User uploads a PDF on the analysis form; backend sends it directly to Claude as a document block for structured extraction (no text-extraction library needed). Parsed findings are threaded into the renovation tool to override scope and configure line items based on actual deficiencies. Two example PDFs in `example-docs/` with different formats (matrix-checkbox and table-based). Plan at `.claude/plans/cosmic-skipping-hearth.md`. ~37 new tests.
 - Investigate whether it's possible to pull permit history from Redfin or Realtor or Zillow.
 - Support pest inspection reports. Use the same strategy as immplementing insepection reports.
@@ -23,6 +21,8 @@
 - Buying Plan (optimal stopping theory): user declares buy-by date and expected viewings/week → derives fixed N and explore-phase threshold `floor(N/e)`. "Mark Seen" button on analysis detail captures Quality (terrible/bad/neutral/good/excellent) + Location (bad/neutral/good); normalized composite score drives the pure-secretary commit rule (in commit phase, recommend the next property strictly better than explore-phase max). Linear bid premium (1% × properties past threshold) layered on top of fair value as overbid-market calibration — display-time overlay only, never baked into stored fair value or PDF export. Single active plan per user (DB unique constraint on user_id). Investor+ tier gated. New tables `buying_plans` + `seen_properties` with `analysis_id` FK using `ondelete=SET NULL` plus `address_snapshot` so seen rows survive analysis deletion. New `/buying-plan` route with setup form / dashboard; `MarkSeenButton` and `BuyingPlanBadge` on analysis detail. Plan at `.claude/plans/1-there-s-no-need-snappy-seal.md`.
 
 # DONE
+
+- Profile page redesign: card-based layout replacing flat section list. Account card shows avatar initials circle with navy gradient header and tier badge. Subscription card has a tier-colored header band (neutral/coral/navy for buyer/investor/agent), animated usage progress bar (green/amber/coral based on consumption), feature checklist for the current plan, and upgrade/manage-billing CTAs. Security section moved into a card with shield icon. Danger zone given a distinct red-tinted header band. 3 existing tests updated to use `getAllByText` (tier name now appears in both badge and subscription header). All 14 profile tests pass.
 
 - Removed low-value tests: deleted `backend/tests/db/test_models.py` (6 ORM column-existence checks), `frontend/src/routes/changelog.test.tsx` (3 static-content checks), removed 2 PRAGMA column-existence tests from `test_user_model.py`, 1 import/help invocation test from `test_prefetch_backend_data.py`, and 1 static link test from `Footer.test.tsx`. All remaining tests still pass (758 backend, 380 frontend).
 

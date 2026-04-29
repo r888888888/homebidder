@@ -212,21 +212,21 @@ describe("ProfilePage — subscription section", () => {
   it("shows 'Buyer' tier badge for buyer user", async () => {
     renderProfileWithTier("buyer");
     await waitFor(() => {
-      expect(screen.getByText(/buyer/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/buyer/i).length).toBeGreaterThan(0);
     });
   });
 
   it("shows 'Investor' tier badge for investor user", async () => {
     renderProfileWithTier("investor");
     await waitFor(() => {
-      expect(screen.getByText(/investor/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/investor/i).length).toBeGreaterThan(0);
     });
   });
 
   it("shows 'Agent' tier badge for agent user", async () => {
     renderProfileWithTier("agent");
     await waitFor(() => {
-      expect(screen.getByText(/agent/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/agent/i).length).toBeGreaterThan(0);
     });
   });
 
