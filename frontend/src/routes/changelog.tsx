@@ -15,6 +15,15 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "1.12.0",
+    date: "2026-04-29",
+    entries: [
+      { category: "Changed", text: "Profile page redesigned with card-based layout — account card with avatar initials circle and navy gradient header, subscription card with tier-colored header band and animated usage progress bar, security section in a card with shield icon, danger zone with distinct red-tinted header band" },
+      { category: "Fixed", text: "Lightbox now renders via React Portal mounted on document.body — overlay is no longer clipped by ancestor CSS transforms; body scroll locked while lightbox is open; clicking the dark backdrop outside the photo dismisses the lightbox" },
+      { category: "Fixed", text: "Improved comp and property lookup reliability with fallback strategies for address matching" },
+    ],
+  },
+  {
     version: "1.11.0",
     date: "2026-04-27",
     entries: [

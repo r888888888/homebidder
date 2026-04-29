@@ -5,6 +5,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-04-29
+
+### Changed
+- Profile page redesigned with card-based layout — account card with avatar initials circle and navy gradient header, subscription card with tier-colored header band and animated usage progress bar, security section in a card with shield icon, danger zone with distinct red-tinted header band
+
+### Fixed
+- Lightbox now renders via React Portal mounted on document.body — overlay is no longer clipped by ancestor CSS transforms; body scroll locked while lightbox is open; clicking the dark backdrop outside the photo dismisses the lightbox
+- Improved comp and property lookup reliability with fallback strategies for address matching
+
 ## [1.11.0] - 2026-04-27
 
 ### Added
