@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 
 export interface PropertyData {
   address_input?: string | null;
@@ -205,6 +206,15 @@ export function PropertySummaryCard({ property }: Props) {
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
   }, [lightboxIndex, property.photos]);
+
+  useEffect(() => {
+    if (lightboxIndex === null) {
+      document.body.style.overflow = "";
+    } else {
+      document.body.style.overflow = "hidden";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [lightboxIndex]);
   const displayAddress = property.address_input?.trim() || property.address_matched;
   const matchedAddressDisplay = normalizeMatchedAddressWithUnit(
     property.address_input,
@@ -339,7 +349,7 @@ export function PropertySummaryCard({ property }: Props) {
             </div>
           );
         })()}
-        {lightboxIndex !== null && property.photos && (() => {
+        {lightboxIndex !== null && property.photos && createPortal((() => {
           const photos = property.photos!;
           const idx = lightboxIndex;
           return (
@@ -375,7 +385,8 @@ export function PropertySummaryCard({ property }: Props) {
               <img
                 src={photos[idx]}
                 alt={`Property photo ${idx + 1}`}
-                className="max-h-[85vh] max-w-[90vw] rounded object-contain shadow-2xl"
+                className="max-h-screen max-w-screen rounded object-contain shadow-2xl"
+                style={{ maxHeight: "90dvh", maxWidth: "90dvw" }}
                 onClick={(e) => e.stopPropagation()}
               />
               {idx < photos.length - 1 && (
@@ -395,7 +406,7 @@ export function PropertySummaryCard({ property }: Props) {
               </div>
             </div>
           );
-        })()}
+        })(), document.body)}
         {property.listing_description && (() => {
           const isLong = property.listing_description.length > 180;
           return (

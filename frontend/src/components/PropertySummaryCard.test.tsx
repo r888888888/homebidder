@@ -416,6 +416,50 @@ describe("PropertySummaryCard", () => {
         "https://ap.rdcpix.com/abc/img1.jpg"
       );
     });
+
+    it("closes lightbox when backdrop overlay is clicked", () => {
+      render(
+        <PropertySummaryCard
+          property={{
+            ...BASE_PROPERTY,
+            photos: ["https://ap.rdcpix.com/abc/img1.jpg"],
+          }}
+        />
+      );
+      fireEvent.click(screen.getAllByRole("button", { name: /Property photo/i })[0]);
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      // Click the backdrop (the dialog element itself, not the image or buttons)
+      fireEvent.click(screen.getByRole("dialog"));
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    it("locks body scroll when lightbox opens", () => {
+      render(
+        <PropertySummaryCard
+          property={{
+            ...BASE_PROPERTY,
+            photos: ["https://ap.rdcpix.com/abc/img1.jpg"],
+          }}
+        />
+      );
+      fireEvent.click(screen.getAllByRole("button", { name: /Property photo/i })[0]);
+      expect(document.body.style.overflow).toBe("hidden");
+    });
+
+    it("restores body scroll when lightbox is closed", () => {
+      render(
+        <PropertySummaryCard
+          property={{
+            ...BASE_PROPERTY,
+            photos: ["https://ap.rdcpix.com/abc/img1.jpg"],
+          }}
+        />
+      );
+      fireEvent.click(screen.getAllByRole("button", { name: /Property photo/i })[0]);
+      expect(document.body.style.overflow).toBe("hidden");
+      fireEvent.click(screen.getByRole("button", { name: /close/i }));
+      expect(document.body.style.overflow).toBe("");
+    });
   });
 
   describe("AVM estimate display", () => {
