@@ -1,6 +1,4 @@
 # TODO
-
-- De-emphasize unclosed permits. These are common and should not be considered a risk factor.
 - Support properties that haven't been listed. Use available information to look up comps and propose a market value.
 - Distinguish between properties that are a single unit in a multi-family building, versus properties that are multiple units in a multi-family building.
 - Upload inspection report PDFs. User uploads a PDF on the analysis form; backend sends it directly to Claude as a document block for structured extraction (no text-extraction library needed). Parsed findings are threaded into the renovation tool to override scope and configure line items based on actual deficiencies. Two example PDFs in `example-docs/` with different formats (matrix-checkbox and table-based). Plan at `.claude/plans/cosmic-skipping-hearth.md`. ~37 new tests.
@@ -21,6 +19,8 @@
 - Tier differentiation - add history search for Agent tier. I should be able to search for properties by the address.
 
 # DONE
+
+- De-emphasize unclosed permits: open/filed permits no longer receive a "negative" impact badge (fallback logic now returns neutral); the `"open_over_365_days"` flag is no longer generated; both LLM prompts now explicitly state open permits are common in SF and not inherently a risk; PermitsCard adds a contextual note. 4 new backend tests.
 
 - SQLite vs PostgreSQL cost/benefit analysis. Verdict: stay on SQLite. Current scale (~100 users, <1000 analyses) is well within SQLite's comfort zone. All queries are ORM-based (zero raw SQL) so migration effort is low (~2–3 days) when warranted. Key gaps to revisit: (1) backup/disaster recovery — a Fly volume loss means total data loss, worth a cron snapshot regardless of DB choice; (2) migrate when concurrent `/analyze` load causes visible write-lock waits, or when cross-analysis JSON queries are needed (e.g. validation mode), or when running multi-machine Fly deployments.
 

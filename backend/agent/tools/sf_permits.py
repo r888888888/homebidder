@@ -146,9 +146,10 @@ async def _summarize_permit_with_llm(
         "You are analyzing a San Francisco building permit record.\n"
         "Return JSON only with keys: summary, impact.\n"
         "summary: one plain-English sentence describing what this permit covers.\n"
-        "impact: either 'positive' or 'negative' from a home-buyer perspective.\n"
-        "Use conservative judgment. If the work indicates upgrades/safety/completion, lean positive.\n"
-        "If it suggests unresolved issues, violations, or risky unknown scope, lean negative.\n"
+        "impact: 'positive' if the work clearly improves or upgrades the home; 'negative' only for violations, "
+        "enforcement actions, expired permits, or permits placed on hold — not simply because the permit is open. "
+        "Open or in-progress permits are very common in SF (finalization often takes months or years) and "
+        "are NOT inherently negative. Omit impact (return empty string) when the permit is merely open/filed.\n"
         f"Permit details: {detail_text or 'none'}\n"
     )
 
@@ -206,10 +207,11 @@ def _fallback_permit_summary_and_impact(permit: dict[str, Any]) -> tuple[str | N
     status_l = status.lower()
     if any(term in status_l for term in ("complete", "completed", "final", "issued")):
         impact = "positive"
-    elif any(term in status_l for term in ("expired", "cancel", "hold", "suspend", "open")):
+    elif any(term in status_l for term in ("expired", "cancel", "hold", "suspend")):
         impact = "negative"
     else:
-        impact = "negative"
+        # Open/filed/in-progress permits are common in SF and are not inherently a risk.
+        impact = None
 
     return summary, impact
 
@@ -234,8 +236,6 @@ def _fallback_overall_summary(result: dict[str, Any]) -> str:
     activity = "Permit history: " + (", ".join(parts) + "." if parts else "no recent activity.")
 
     flag_notes = []
-    if "open_over_365_days" in flags:
-        flag_notes.append("at least one permit open more than 1 year")
     if "recent_complaints" in flags:
         flag_notes.append("recent complaint activity")
 
@@ -278,7 +278,10 @@ async def _summarize_permits_overall_with_llm(
         "Return JSON only with key: summary\n"
         "summary: 1-2 plain-English sentences a buyer would want to know. "
         "Reference specific work done (e.g. roof replacement, kitchen remodel, electrical upgrade) "
-        "and call out major improvements or risks. Be direct and buyer-focused.\n"
+        "and call out major improvements or concerns. Be direct and buyer-focused. "
+        "Important: open or in-progress permits are extremely common in SF — permit finalization often "
+        "takes months or years — and should NOT be treated as risks. Only call out complaints, "
+        "code violations, or enforcement actions as concerns.\n"
     )
 
     try:
@@ -702,8 +705,6 @@ async def fetch_sf_permits(
                 pass
 
     flags: list[str] = []
-    if oldest_open_permit_age_days is not None and oldest_open_permit_age_days > 365:
-        flags.append("open_over_365_days")
     if complaints_open_count > 0 or complaints_recent_3y > 0:
         flags.append("recent_complaints")
     if not permits:

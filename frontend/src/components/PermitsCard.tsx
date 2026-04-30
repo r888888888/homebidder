@@ -46,7 +46,8 @@ export interface PermitsData {
 }
 
 function flagLabel(flag: string): string {
-  if (flag === "open_over_365_days") return "Open permit older than 1 year";
+  if (flag === "open_over_365_days")
+    return "Open permit older than 1 year (common in SF)";
   if (flag === "recent_structural_work")
     return "Major permit activity in last 10 years";
   if (flag === "recent_complaints") return "Recent complaint activity";
@@ -176,7 +177,8 @@ export function PermitsCard({ permits }: Props) {
           Permit History
         </p>
         <p className="text-xs text-[var(--ink-soft)]">
-          San Francisco property history from {sourceLabel(permits.source)}
+          San Francisco property history from {sourceLabel(permits.source)}.
+          Open permits are common in older SF homes and are typically not a cause for concern.
         </p>
         {permits.llm_overall_summary && (
           <p

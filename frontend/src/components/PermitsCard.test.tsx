@@ -52,7 +52,7 @@ describe("PermitsCard", () => {
 
     expect(screen.getByText(/permit history/i)).toBeInTheDocument();
     expect(screen.getByText(/department of building inspection/i)).toBeInTheDocument();
-    expect(screen.getByText(/open permits/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/open permits/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/480 days/i)).toBeInTheDocument();
     expect(screen.getByText(/open permit older than 1 year/i)).toBeInTheDocument();
   });

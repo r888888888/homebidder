@@ -335,3 +335,87 @@ class TestFetchSfPermits:
         assert permit["llm_summary"] is not None
         assert permit["llm_impact"] in ("positive", "negative")
         mock_log.warning.assert_called()
+
+
+_EID_OLD_OPEN_PERMIT_HTML = """
+<table id="InfoReq1_dgEID">
+<tr bgcolor="#EFEBEF"><th>Permit #</th><th>Block</th><th>Lot</th><th>Street #</th><th>Street Name</th><th>Unit</th><th>Current Stage</th><th>Stage Date</th></tr>
+<tr bgcolor="White">
+<td><a href="default.aspx?page=EID_PermitDetails&amp;PermitNo=E202201234567">E202201234567</a></td>
+<td>7107</td><td>057</td><td>319</td><td>PLYMOUTH AV</td><td>&nbsp;</td><td>OPEN</td><td>1/15/2022</td>
+</tr>
+</table>
+"""
+
+
+class TestDeemphasizeOpenPermits:
+    """Open permits are common in SF and should not be flagged as risks."""
+
+    def test_open_status_fallback_impact_is_neutral(self):
+        """A permit with 'open' status should have no impact classification, not 'negative'."""
+        from agent.tools.sf_permits import _fallback_permit_summary_and_impact
+
+        permit = {
+            "permit_number": "B12345",
+            "permit_type": "building",
+            "status": "open",
+            "address": None,
+            "work_description": None,
+        }
+        _, impact = _fallback_permit_summary_and_impact(permit)
+        assert impact is None
+
+    def test_filed_status_fallback_impact_is_neutral(self):
+        """A permit with 'filed' (pending) status should have no impact classification."""
+        from agent.tools.sf_permits import _fallback_permit_summary_and_impact
+
+        permit = {
+            "permit_number": "B99999",
+            "permit_type": "electrical",
+            "status": "filed",
+            "address": None,
+            "work_description": None,
+        }
+        _, impact = _fallback_permit_summary_and_impact(permit)
+        assert impact is None
+
+    def test_expired_status_fallback_impact_is_negative(self):
+        """Expired permits are still flagged negative (actual problem, not just open)."""
+        from agent.tools.sf_permits import _fallback_permit_summary_and_impact
+
+        permit = {
+            "permit_number": "P54321",
+            "permit_type": "plumbing",
+            "status": "expired",
+            "address": None,
+            "work_description": None,
+        }
+        _, impact = _fallback_permit_summary_and_impact(permit)
+        assert impact == "negative"
+
+    async def test_old_open_permit_does_not_generate_open_over_365_flag(self):
+        """An open permit older than 1 year should NOT generate the 'open_over_365_days' flag."""
+        from agent.tools.sf_permits import fetch_sf_permits
+
+        with patch("agent.tools.sf_permits.httpx.AsyncClient") as mock_cls:
+            mock_client = AsyncMock()
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            mock_client.get.side_effect = [
+                _http_html_mock(_ADDRESS_LIST_HTML),
+                _http_html_mock(_SELECTED_ADDRESS_HTML),
+                _http_html_mock(_EID_OLD_OPEN_PERMIT_HTML),
+                _http_html_mock(_PID_PANEL_HTML),
+                _http_html_mock(_BID_PANEL_HTML),
+                _http_html_mock(_CTS_PANEL_HTML),
+                _http_html_mock(_EID_DETAIL_HTML),
+            ]
+
+            result = await fetch_sf_permits(
+                address_matched="319 PLYMOUTH AVE, SAN FRANCISCO, CA, 94112",
+                unit=None,
+            )
+
+        assert "open_over_365_days" not in result["flags"]
+        assert result["open_permits_count"] == 1
