@@ -884,3 +884,76 @@ class TestRecommendOfferUnlisted:
         assert result["offer_recommended"] > 0
         assert result["offer_high"] > 0
 
+
+# ---------------------------------------------------------------------------
+# recommend_offer — multifamily subtype widens CI
+# ---------------------------------------------------------------------------
+
+MULTIFAMILY_SIGNAL = {
+    "label": "Duplex / Triplex / Multi-Family",
+    "category": "structure_multifamily",
+    "direction": "negative",
+    "weight_pct": -0.5,
+    "matched_phrases": [r"\bduplex\b"],
+}
+
+_STATS_WITH_COMP = {
+    **BASE_STATS,
+    "median_sale_price": 1_100_000,
+    "median_comp_sqft": 1500,
+    "median_lot_size": 2500,
+    "median_pct_over_asking": 0.0,
+}
+
+
+class TestMultifamilySubtypeWidensCI:
+    """whole_multifamily and unit_in_multifamily add CI factors and widen the interval."""
+
+    def test_whole_multifamily_widens_ci_vs_sfh(self):
+        listing_sfh = {**BASE_LISTING, "property_type": "SINGLE_FAMILY"}
+        listing_whole = {**BASE_LISTING, "property_type": "DUPLEX"}
+        ci_sfh = recommend_offer(listing_sfh, _STATS_WITH_COMP)["fair_value_confidence_interval"]["ci_pct"]
+        ci_whole = recommend_offer(listing_whole, _STATS_WITH_COMP)["fair_value_confidence_interval"]["ci_pct"]
+        assert ci_whole > ci_sfh
+
+    def test_unit_in_multifamily_widens_ci_vs_sfh(self):
+        listing_sfh = {**BASE_LISTING, "property_type": "SINGLE_FAMILY"}
+        listing_unit = {**BASE_LISTING, "property_type": "DUPLEX", "unit": "2"}
+        ci_sfh = recommend_offer(listing_sfh, _STATS_WITH_COMP)["fair_value_confidence_interval"]["ci_pct"]
+        ci_unit = recommend_offer(listing_unit, _STATS_WITH_COMP)["fair_value_confidence_interval"]["ci_pct"]
+        assert ci_unit > ci_sfh
+
+    def test_whole_multifamily_adds_ci_factor(self):
+        listing = {**BASE_LISTING, "property_type": "DUPLEX"}
+        result = recommend_offer(listing, _STATS_WITH_COMP)
+        factors = result["fair_value_confidence_interval"]["factors"]
+        assert "whole_multifamily" in factors
+
+    def test_unit_in_multifamily_adds_ci_factor(self):
+        listing = {**BASE_LISTING, "property_type": "DUPLEX", "unit": "2"}
+        result = recommend_offer(listing, _STATS_WITH_COMP)
+        factors = result["fair_value_confidence_interval"]["factors"]
+        assert "unit_in_multifamily" in factors
+
+    def test_sfh_does_not_add_multifamily_ci_factors(self):
+        listing = {**BASE_LISTING, "property_type": "SINGLE_FAMILY"}
+        result = recommend_offer(listing, _STATS_WITH_COMP)
+        factors = result["fair_value_confidence_interval"]["factors"]
+        assert "whole_multifamily" not in factors
+        assert "unit_in_multifamily" not in factors
+
+    def test_fair_value_breakdown_includes_multifamily_subtype_for_whole(self):
+        listing = {**BASE_LISTING, "property_type": "DUPLEX"}
+        result = recommend_offer(listing, _STATS_WITH_COMP)
+        assert result["fair_value_breakdown"].get("multifamily_subtype") == "whole_multifamily"
+
+    def test_fair_value_breakdown_includes_multifamily_subtype_for_unit(self):
+        listing = {**BASE_LISTING, "property_type": "DUPLEX", "unit": "2"}
+        result = recommend_offer(listing, _STATS_WITH_COMP)
+        assert result["fair_value_breakdown"].get("multifamily_subtype") == "unit_in_multifamily"
+
+    def test_fair_value_breakdown_has_none_subtype_for_sfh(self):
+        listing = {**BASE_LISTING, "property_type": "SINGLE_FAMILY"}
+        result = recommend_offer(listing, _STATS_WITH_COMP)
+        assert result["fair_value_breakdown"].get("multifamily_subtype") is None
+

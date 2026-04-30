@@ -7,6 +7,8 @@ from datetime import datetime, timedelta
 from math import log
 from typing import Any
 
+from agent.tools.risk import classify_multifamily_subtype
+
 
 DEFAULT_MORTGAGE_RATE_PCT = 6.5
 DEFAULT_MORTGAGE_TERM_YEARS = 30
@@ -72,6 +74,7 @@ def _compute_fair_value_ci(
     sqft_missing: bool = False,
     lot_missing: bool = False,
     no_list_price: bool = False,
+    multifamily_subtype: str | None = None,
 ) -> dict[str, Any]:
     """
     Return a confidence interval for the fair value estimate.
@@ -129,6 +132,17 @@ def _compute_fair_value_ci(
     if lot_missing:
         ci_pct += 1.0
         factors.append("missing_lot_size")
+
+    # Multi-family structure — comp pool is shallower for these ownership types
+    if multifamily_subtype == "whole_multifamily":
+        ci_pct += 2.0
+        factors.append("whole_multifamily")
+    elif multifamily_subtype == "unit_in_multifamily":
+        ci_pct += 1.0
+        factors.append("unit_in_multifamily")
+    elif multifamily_subtype == "ambiguous":
+        ci_pct += 1.0
+        factors.append("ambiguous_multifamily")
 
     # Large lot/sqft adjustment applied — comps are less comparable
     if abs(total_adjustment) > 0.15:
@@ -262,6 +276,8 @@ def recommend_offer(
     )
     TIC_DISCOUNT = -0.07  # TIC properties trade at ~7% discount vs. comparable fee-simple
 
+    multifamily_subtype = classify_multifamily_subtype(listing, description_signals)
+
     if median_comp:
         fair_value = median_comp
 
@@ -316,6 +332,9 @@ def recommend_offer(
     else:
         return {"error": "Insufficient data: no listing price, no comparable sales, and no price-per-sqft data available to estimate market value"}
 
+    # Add multifamily_subtype to fair_value_breakdown (all paths)
+    fair_value_breakdown["multifamily_subtype"] = multifamily_subtype
+
     # --- Fair value confidence interval ---
     fair_value_ci = _compute_fair_value_ci(
         fair_value=fair_value,
@@ -326,6 +345,7 @@ def recommend_offer(
         sqft_missing=sqft is None,
         lot_missing=not is_condo and lot_size is None,
         no_list_price=list_price is None,
+        multifamily_subtype=multifamily_subtype,
     )
 
     # --- Posture determination (lowest to highest priority) ---

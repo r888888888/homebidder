@@ -218,7 +218,16 @@ def _assess_tic_ownership(description_signals: dict | None) -> dict:
 _MULTIFAMILY_TYPES = {"DUPLEX", "TRIPLEX", "MULTI_FAMILY", "MULTI-FAMILY", "2_FAMILY", "3_FAMILY"}
 
 
-def _assess_multifamily_structure(listing: dict, description_signals: dict | None) -> dict:
+def classify_multifamily_subtype(listing: dict, description_signals: dict | None) -> str | None:
+    """
+    Classify the multi-family ownership structure.
+
+    Returns:
+      "unit_in_multifamily"  — one unit within a multi-unit building (e.g. unit 2 of a duplex)
+      "whole_multifamily"    — the entire multi-unit building (investment/income property)
+      "ambiguous"            — multi-family indicated by description but type is unconfirmed
+      None                   — not a multi-family property
+    """
     property_type = (listing.get("property_type") or "").upper()
     has_unit = bool(listing.get("unit"))
 
@@ -227,35 +236,56 @@ def _assess_multifamily_structure(listing: dict, description_signals: dict | Non
     signals = (description_signals or {}).get("detected_signals") or []
     has_multifamily_signal = any(s.get("category") == "structure_multifamily" for s in signals)
 
+    if not is_multifamily_type and not has_multifamily_signal:
+        return None
+
     if is_multifamily_type and has_unit:
-        return _factor(
-            "multifamily_structure", "low",
-            f"Property type ({property_type}) and unit number suggest this is one unit within a "
-            "multi-unit building — similar to a condo or TIC arrangement. "
-            "Verify financing options, shared structural expenses, and any co-ownership agreements "
-            "before making an offer."
-        )
+        return "unit_in_multifamily"
 
     if is_multifamily_type:
-        return _factor(
+        return "whole_multifamily"
+
+    # Description signal present but property_type is not a recognized multi-family type
+    return "ambiguous"
+
+
+def _assess_multifamily_structure(listing: dict, description_signals: dict | None) -> dict:
+    subtype = classify_multifamily_subtype(listing, description_signals)
+    property_type = (listing.get("property_type") or "").upper()
+
+    if subtype == "unit_in_multifamily":
+        factor = _factor(
             "multifamily_structure", "low",
-            f"Property is listed as {property_type}. If this is a multi-unit investment property, "
-            "standard owner-occupant financing may not apply — confirm with your lender. "
-            "Factor in potential rental income and shared maintenance obligations."
+            f"Property type ({property_type}) and unit number indicate this is one unit within a "
+            "multi-unit building. Comp-based pricing may be less precise — fewer true comparable "
+            "sales exist for this ownership structure. Verify financing options (portfolio loans "
+            "may be required), shared structural expenses, and any co-ownership agreements before "
+            "making an offer.",
+        )
+    elif subtype == "whole_multifamily":
+        factor = _factor(
+            "multifamily_structure", "low",
+            f"Property is listed as {property_type} — likely a whole multi-unit building. "
+            "Income-approach valuation (rent multiplier, cap rate) is more appropriate than "
+            "comparable sales alone. Standard owner-occupant financing may not apply; confirm "
+            "investment property loan terms with your lender and factor in rental income and "
+            "shared maintenance obligations.",
+        )
+    elif subtype == "ambiguous":
+        factor = _factor(
+            "multifamily_structure", "low",
+            "Listing description suggests this may be part of a duplex, triplex, or multi-family "
+            "structure. Confirm whether you are purchasing a single unit within the building or "
+            "the entire building — this affects financing options, comp selection, and valuation.",
+        )
+    else:
+        factor = _factor(
+            "multifamily_structure", "low",
+            "No multi-family structure indicators detected in the property type or listing description.",
         )
 
-    if has_multifamily_signal:
-        return _factor(
-            "multifamily_structure", "low",
-            "Listing description suggests this may be part of a duplex, triplex, or multi-family structure. "
-            "Verify the ownership type (whole building vs. individual unit), financing options, "
-            "and any shared expenses or co-ownership agreements."
-        )
-
-    return _factor(
-        "multifamily_structure", "low",
-        "No multi-family structure indicators detected in the property type or listing description."
-    )
+    factor["subtype"] = subtype
+    return factor
 
 
 def _assess_highway_proximity(ces: dict | None) -> dict:

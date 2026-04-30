@@ -1054,3 +1054,119 @@ class TestMultifamilyStructureRiskFactor:
         )
         names = {f["name"] for f in result["factors"]}
         assert "multifamily_structure" in names
+
+
+class TestClassifyMultifamilySubtype:
+    """Tests for classify_multifamily_subtype() — the subtype classification function."""
+
+    def test_duplex_with_unit_number_is_unit_in_multifamily(self):
+        from agent.tools.risk import classify_multifamily_subtype
+
+        listing = make_listing(property_type="DUPLEX", unit="2")
+        result = classify_multifamily_subtype(listing, EMPTY_DESCRIPTION_SIGNALS)
+        assert result == "unit_in_multifamily"
+
+    def test_triplex_with_unit_number_is_unit_in_multifamily(self):
+        from agent.tools.risk import classify_multifamily_subtype
+
+        listing = make_listing(property_type="TRIPLEX", unit="1")
+        result = classify_multifamily_subtype(listing, EMPTY_DESCRIPTION_SIGNALS)
+        assert result == "unit_in_multifamily"
+
+    def test_duplex_without_unit_number_is_whole_multifamily(self):
+        from agent.tools.risk import classify_multifamily_subtype
+
+        listing = make_listing(property_type="DUPLEX")
+        result = classify_multifamily_subtype(listing, EMPTY_DESCRIPTION_SIGNALS)
+        assert result == "whole_multifamily"
+
+    def test_multi_family_without_unit_number_is_whole_multifamily(self):
+        from agent.tools.risk import classify_multifamily_subtype
+
+        listing = make_listing(property_type="MULTI_FAMILY")
+        result = classify_multifamily_subtype(listing, EMPTY_DESCRIPTION_SIGNALS)
+        assert result == "whole_multifamily"
+
+    def test_sfh_with_no_signal_returns_none(self):
+        from agent.tools.risk import classify_multifamily_subtype
+
+        listing = make_listing(property_type="SINGLE_FAMILY")
+        result = classify_multifamily_subtype(listing, EMPTY_DESCRIPTION_SIGNALS)
+        assert result is None
+
+    def test_sfh_with_multifamily_description_signal_returns_ambiguous(self):
+        from agent.tools.risk import classify_multifamily_subtype
+
+        listing = make_listing(property_type="SINGLE_FAMILY")
+        result = classify_multifamily_subtype(listing, MULTIFAMILY_DESCRIPTION_SIGNALS)
+        assert result == "ambiguous"
+
+    def test_no_description_signals_sfh_returns_none(self):
+        from agent.tools.risk import classify_multifamily_subtype
+
+        listing = make_listing(property_type="SINGLE_FAMILY")
+        result = classify_multifamily_subtype(listing, None)
+        assert result is None
+
+    def test_two_family_type_without_unit_is_whole_multifamily(self):
+        from agent.tools.risk import classify_multifamily_subtype
+
+        listing = make_listing(property_type="2_FAMILY")
+        result = classify_multifamily_subtype(listing, EMPTY_DESCRIPTION_SIGNALS)
+        assert result == "whole_multifamily"
+
+
+class TestMultifamilyFactorSubtypeField:
+    """Tests that the multifamily_structure risk factor includes a subtype field."""
+
+    def test_unit_in_multifamily_factor_has_subtype_field(self):
+        from agent.tools.risk import assess_risk
+
+        listing = make_listing(property_type="DUPLEX", unit="2")
+        result = assess_risk(
+            listing=listing,
+            market_stats=make_market_stats(),
+            offer_result=make_offer_result(),
+            description_signals=EMPTY_DESCRIPTION_SIGNALS,
+        )
+        factor = next(f for f in result["factors"] if f["name"] == "multifamily_structure")
+        assert factor.get("subtype") == "unit_in_multifamily"
+
+    def test_whole_multifamily_factor_has_subtype_field(self):
+        from agent.tools.risk import assess_risk
+
+        listing = make_listing(property_type="DUPLEX")
+        result = assess_risk(
+            listing=listing,
+            market_stats=make_market_stats(),
+            offer_result=make_offer_result(),
+            description_signals=EMPTY_DESCRIPTION_SIGNALS,
+        )
+        factor = next(f for f in result["factors"] if f["name"] == "multifamily_structure")
+        assert factor.get("subtype") == "whole_multifamily"
+
+    def test_ambiguous_multifamily_factor_has_subtype_field(self):
+        from agent.tools.risk import assess_risk
+
+        listing = make_listing(property_type="SINGLE_FAMILY")
+        result = assess_risk(
+            listing=listing,
+            market_stats=make_market_stats(),
+            offer_result=make_offer_result(),
+            description_signals=MULTIFAMILY_DESCRIPTION_SIGNALS,
+        )
+        factor = next(f for f in result["factors"] if f["name"] == "multifamily_structure")
+        assert factor.get("subtype") == "ambiguous"
+
+    def test_non_multifamily_factor_has_none_subtype(self):
+        from agent.tools.risk import assess_risk
+
+        listing = make_listing(property_type="SINGLE_FAMILY")
+        result = assess_risk(
+            listing=listing,
+            market_stats=make_market_stats(),
+            offer_result=make_offer_result(),
+            description_signals=EMPTY_DESCRIPTION_SIGNALS,
+        )
+        factor = next(f for f in result["factors"] if f["name"] == "multifamily_structure")
+        assert factor.get("subtype") is None

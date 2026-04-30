@@ -2,6 +2,7 @@ export interface RiskFactor {
   name: string;
   level: "low" | "moderate" | "high" | "n/a";
   description: string;
+  subtype?: string | null;
 }
 
 export interface RiskData {
@@ -29,6 +30,8 @@ const FACTOR_LABELS: Record<string, string> = {
   highway_proximity: "Highway Proximity (CalEnviroScreen)",
   air_quality: "Air Quality / PM2.5 (CalEnviroScreen)",
   environmental_contamination: "Environmental Contamination (CalEnviroScreen)",
+  multifamily_structure: "Multi-Family Structure",
+  tic_ownership: "Tenancy-in-Common (TIC)",
 };
 
 const OVERALL_STYLES: Record<string, { bg: string; text: string; border: string }> = {

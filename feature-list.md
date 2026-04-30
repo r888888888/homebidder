@@ -1,5 +1,4 @@
 # TODO
-- Distinguish between properties that are a single unit in a multi-family building, versus properties that are multiple units in a multi-family building.
 - Upload inspection report PDFs. User uploads a PDF on the analysis form; backend sends it directly to Claude as a document block for structured extraction (no text-extraction library needed). Parsed findings are threaded into the renovation tool to override scope and configure line items based on actual deficiencies. Two example PDFs in `example-docs/` with different formats (matrix-checkbox and table-based). Plan at `.claude/plans/cosmic-skipping-hearth.md`. ~37 new tests.
 - Investigate whether it's possible to pull permit history from Redfin or Realtor or Zillow.
 - Investigate if Fly supports email accounts. Set up a support email account and generate a Contact page.
@@ -18,6 +17,8 @@
 - Tier differentiation - add history search for Agent tier. I should be able to search for properties by the address.
 
 # DONE
+
+- Multi-family ownership subtype distinction: new `classify_multifamily_subtype()` function in `risk.py` returns `"unit_in_multifamily"`, `"whole_multifamily"`, `"ambiguous"`, or `None` based on property_type and unit-number presence. `_assess_multifamily_structure()` now routes each subtype to specific, actionable messaging (unit: financing/shared-expense warnings; whole: income-approach note; ambiguous: confirm ownership type). Risk factor dict now includes a `subtype` field. `recommend_offer()` detects the subtype and passes it to `_compute_fair_value_ci()` which widens the CI by +2% for `whole_multifamily` (shallower income-property comp pool) and +1% for `unit_in_multifamily` (fewer unit-in-building comps); subtype is also recorded in `fair_value_breakdown`. `RiskFactor` interface gains optional `subtype` field; `FACTOR_LABELS` adds human-readable labels for `multifamily_structure` and `tic_ownership`. 20 new backend tests.
 
 - Unlisted (off-market) property support: `recommend_offer()` no longer requires a list price. When `price` is `None`, fair value is derived from comp median (primary) or ppsf×sqft (fallback); the `list_price_fallback` branch is only reached when a list price exists. Posture and offer range calculations fully guard against `None` list price. A `no_list_price` CI factor (+3% half-width) is added and labelled in the frontend. `is_unlisted: bool` field added to the offer result and `OfferData` interface; "List Price" display shows "Not listed" when unlisted. Narrative prompt updated to guide Claude to lead with comp-based market value for unlisted properties. 11 new backend tests, 2 new frontend tests.
 
