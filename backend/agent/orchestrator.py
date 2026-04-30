@@ -72,7 +72,7 @@ Investment analysis will also be computed automatically after risk assessment:
 SYSTEM_PROMPT_NARRATIVE = """You are HomeBidder, an expert real estate analyst helping home buyers make competitive, data-driven offers in the SF Bay Area.
 
 You have already gathered all the data. Write a 4–6 paragraph narrative for the buyer covering these topics in order:
-1. Property overview — what it is, list price, and how the AVM estimate compares.
+1. Property overview — what it is, list price (or "not currently listed" if unlisted), and how the estimated fair value compares. For unlisted properties, lead with the comp-based market value estimate instead.
 2. Market context — how competitive this market is, overbid trends, days on market, and what the comps say about value. Cite specific comp addresses and sale prices.
 3. Offer recommendation — what to bid and why. Interpret the confidence level and explain the reasoning; do not just restate the numbers.
 4. Key risks — the most important flags from the risk assessment (hazards, environmental, permit issues, HOA, etc.). Skip minor items.

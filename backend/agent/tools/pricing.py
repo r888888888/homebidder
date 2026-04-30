@@ -68,9 +68,10 @@ def _compute_fair_value_ci(
     method: str,
     market_stats: dict[str, Any],
     total_adjustment: float,
-    list_price: float,
+    list_price: float | None,
     sqft_missing: bool = False,
     lot_missing: bool = False,
+    no_list_price: bool = False,
 ) -> dict[str, Any]:
     """
     Return a confidence interval for the fair value estimate.
@@ -82,6 +83,11 @@ def _compute_fair_value_ci(
     """
     ci_pct = 5.0
     factors: list[str] = []
+
+    # No list price — estimate is purely comp/AVM-based
+    if no_list_price:
+        ci_pct += 3.0
+        factors.append("no_list_price")
 
     # Method penalty
     if method == "ppsf_fallback":
@@ -239,13 +245,12 @@ def recommend_offer(
     median_overbid: float | None = market_stats.get("median_pct_over_asking")
     pct_sold_over_asking: float | None = market_stats.get("pct_sold_over_asking")
 
-    if not list_price:
-        return {"error": "Listing price unknown"}
-
     # Estimated fair value:
     # - Anchor to comp median price (Bay Area land-scarcity friendly)
     # - Apply bounded lot-size and sqft adjustments when available
-    # - Use ppsf*sqft only as fallback when comp median is missing
+    # - Use ppsf*sqft as fallback when comp median is missing
+    # - Use list_price as last resort when both comps and ppsf/sqft are unavailable
+    # - Return an error only when all sources are absent (unlisted + no comps + no ppsf/sqft)
     total_adjustment = 0.0  # tracked for CI width calculation
 
     property_type_raw = (listing.get("property_type") or "").lower()
@@ -297,7 +302,7 @@ def recommend_offer(
             "sqft_adjustment_pct": None,
             "tic_adjustment_pct": round(tic_adjustment_pct * 100, 2) if tic_adjustment_pct is not None else None,
         }
-    else:
+    elif list_price:
         tic_adjustment_pct = TIC_DISCOUNT if is_tic else None
         fair_value = round(list_price * (1 + (tic_adjustment_pct or 0.0)))
         total_adjustment = 0.0
@@ -308,6 +313,8 @@ def recommend_offer(
             "sqft_adjustment_pct": None,
             "tic_adjustment_pct": round(tic_adjustment_pct * 100, 2) if tic_adjustment_pct is not None else None,
         }
+    else:
+        return {"error": "Insufficient data: no listing price, no comparable sales, and no price-per-sqft data available to estimate market value"}
 
     # --- Fair value confidence interval ---
     fair_value_ci = _compute_fair_value_ci(
@@ -318,20 +325,24 @@ def recommend_offer(
         list_price=list_price,
         sqft_missing=sqft is None,
         lot_missing=not is_condo and lot_size is None,
+        no_list_price=list_price is None,
     )
 
     # --- Posture determination (lowest to highest priority) ---
 
-    # 1. Spread heuristic
-    spread = fair_value - list_price
-    spread_pct = spread / list_price
-
-    if spread_pct >= 0.05:
-        posture = "competitive"
-    elif spread_pct <= -0.05:
-        posture = "negotiating"
+    # 1. Spread heuristic (only when list price is known)
+    spread_pct: float | None = None
+    if list_price:
+        spread = fair_value - list_price
+        spread_pct = spread / list_price
+        if spread_pct >= 0.05:
+            posture = "competitive"
+        elif spread_pct <= -0.05:
+            posture = "negotiating"
+        else:
+            posture = "at-market"
     else:
-        posture = "at-market"
+        posture = "at-market"  # default for unlisted; refined by market data below
 
     # 2. Bay Area overbid stats override
     if median_overbid is not None and median_overbid > 5:
@@ -369,15 +380,26 @@ def recommend_offer(
         base_low = round(fair_value * (1 - band_pct) / 1000) * 1000
         base_high = round(fair_value * (1 + band_pct) / 1000) * 1000
         low = min(base_low, recommended)
-        high = max(base_high, recommended, round(list_price / 1000) * 1000)
+        if list_price:
+            high = max(base_high, recommended, round(list_price / 1000) * 1000)
+        else:
+            high = max(base_high, recommended)
     elif posture == "negotiating":
         low = round(fair_value * 0.95 / 1000) * 1000
         recommended = round(fair_value * 0.98 / 1000) * 1000
-        high = round(list_price * 0.99 / 1000) * 1000
+        if list_price:
+            high = round(list_price * 0.99 / 1000) * 1000
+        else:
+            high = round(fair_value * 1.01 / 1000) * 1000
     else:  # at-market
-        low = round(list_price * 0.97 / 1000) * 1000
-        recommended = round(list_price / 1000) * 1000
-        high = round(list_price * 1.02 / 1000) * 1000
+        if list_price:
+            low = round(list_price * 0.97 / 1000) * 1000
+            recommended = round(list_price / 1000) * 1000
+            high = round(list_price * 1.02 / 1000) * 1000
+        else:
+            low = round(fair_value * (1 - band_pct) / 1000) * 1000
+            recommended = round(fair_value / 1000) * 1000
+            high = round(fair_value * (1 + band_pct) / 1000) * 1000
 
     # --- Offer review advisory ---
     offer_review_advisory = None
@@ -422,6 +444,7 @@ def recommend_offer(
 
     return {
         "list_price": list_price,
+        "is_unlisted": list_price is None,
         "fair_value_estimate": fair_value,
         "fair_value_breakdown": fair_value_breakdown,
         "fair_value_confidence_interval": fair_value_ci,
@@ -430,7 +453,7 @@ def recommend_offer(
         "offer_high": high,
         "posture": posture,
         "offer_range_band_pct": round(band_pct * 100, 2),
-        "spread_vs_list_pct": round(spread_pct * 100, 1),
+        "spread_vs_list_pct": round(spread_pct * 100, 1) if spread_pct is not None else None,
         "condition_signals": condition_signals,
         "median_pct_over_asking": median_overbid,
         "pct_sold_over_asking": pct_sold_over_asking,

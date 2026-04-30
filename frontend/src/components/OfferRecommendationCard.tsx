@@ -17,6 +17,7 @@ export interface FairValueBreakdown {
 export interface OfferData {
   fair_value_breakdown?: FairValueBreakdown | null;
   list_price: number | null;
+  is_unlisted?: boolean;
   fair_value_estimate: number | null;
   fair_value_confidence_interval?: FairValueCI | null;
   offer_low: number | null;
@@ -97,6 +98,7 @@ const CI_FACTOR_LABELS: Record<string, string> = {
   large_adjustment: "Large size adjustment applied",
   ppsf_fallback: "No comps available — using price per sq ft",
   list_price_fallback: "No comps or sq ft data — using list price",
+  no_list_price: "No active listing — estimate based on comparable sales",
 };
 
 function fmtAdj(n: number): string {
@@ -233,7 +235,10 @@ export function OfferRecommendationCard({ offer }: Props) {
           </div>
           <div>
             <p className="text-xs text-[var(--ink-muted)] mb-0.5">List Price</p>
-            <p className="font-semibold text-[var(--ink)]">{fmtUsd(offer.list_price)}</p>
+            {offer.is_unlisted
+              ? <p className="font-semibold text-[var(--ink-muted)] italic">Not listed</p>
+              : <p className="font-semibold text-[var(--ink)]">{fmtUsd(offer.list_price)}</p>
+            }
           </div>
         </div>
 

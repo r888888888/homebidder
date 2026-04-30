@@ -318,4 +318,38 @@ describe("OfferRecommendationCard", () => {
     expect(screen.queryByText(/why the range/i)).not.toBeInTheDocument();
   });
 
+  it("renders 'no_list_price' CI factor label for unlisted properties", () => {
+    render(
+      <OfferRecommendationCard
+        offer={{
+          ...BASE,
+          list_price: null,
+          is_unlisted: true,
+          spread_vs_list_pct: null,
+          fair_value_confidence_interval: {
+            ...BASE.fair_value_confidence_interval!,
+            factors: ["no_list_price"],
+          },
+        }}
+      />
+    );
+    expect(
+      screen.getByText(/No active listing — estimate based on comparable sales/i)
+    ).toBeInTheDocument();
+  });
+
+  it("shows 'Not listed' for list price when property is unlisted", () => {
+    render(
+      <OfferRecommendationCard
+        offer={{
+          ...BASE,
+          list_price: null,
+          is_unlisted: true,
+          spread_vs_list_pct: null,
+        }}
+      />
+    );
+    expect(screen.getByText(/not listed/i)).toBeInTheDocument();
+  });
+
 });

@@ -790,3 +790,97 @@ class TestMissingSizeDataLowersConfidence:
         factors = result["fair_value_confidence_interval"]["factors"]
         assert "missing_lot_size" not in factors
 
+
+# ---------------------------------------------------------------------------
+# recommend_offer — unlisted (off-market) properties
+# ---------------------------------------------------------------------------
+
+UNLISTED_STATS_WITH_COMPS = {
+    "comp_count": 8,
+    "median_sale_price": 1_100_000,
+    "median_price_per_sqft": 733.0,
+    "median_comp_sqft": 1500,
+    "price_stdev": 80_000,
+}
+
+
+class TestRecommendOfferUnlisted:
+    def test_unlisted_with_comps_returns_offer_range(self):
+        """Unlisted property with comps should produce a valid offer range."""
+        listing = {"sqft": 1500}  # no price
+        result = recommend_offer(listing, UNLISTED_STATS_WITH_COMPS)
+        assert "error" not in result
+        assert result["offer_low"] < result["offer_recommended"] <= result["offer_high"]
+
+    def test_unlisted_is_flagged_in_result(self):
+        """is_unlisted=True when price is None."""
+        listing = {}
+        stats = {"median_sale_price": 1_000_000, "comp_count": 5}
+        result = recommend_offer(listing, stats)
+        assert result.get("is_unlisted") is True
+
+    def test_listed_not_flagged_as_unlisted(self):
+        """is_unlisted=False when price is present."""
+        result = recommend_offer(BASE_LISTING, BASE_STATS)
+        assert result.get("is_unlisted") is False
+
+    def test_unlisted_list_price_is_none(self):
+        """list_price in result is None for an unlisted property."""
+        listing = {}
+        stats = {"median_sale_price": 1_000_000, "comp_count": 5}
+        result = recommend_offer(listing, stats)
+        assert result["list_price"] is None
+
+    def test_unlisted_spread_vs_list_pct_is_none(self):
+        """spread_vs_list_pct is None when there is no list price."""
+        listing = {}
+        stats = {"median_sale_price": 1_000_000, "comp_count": 5}
+        result = recommend_offer(listing, stats)
+        assert result["spread_vs_list_pct"] is None
+
+    def test_unlisted_fair_value_from_comp_median(self):
+        """Fair value anchors on comp median for an unlisted property."""
+        listing = {}
+        stats = {"median_sale_price": 1_200_000, "comp_count": 5}
+        result = recommend_offer(listing, stats)
+        assert result["fair_value_estimate"] == pytest.approx(1_200_000, abs=50_000)
+
+    def test_unlisted_ppsf_fallback_when_no_comp_median(self):
+        """Unlisted property uses ppsf×sqft when no comp median is available."""
+        listing = {"sqft": 1_500}
+        stats = {"median_price_per_sqft": 700.0, "comp_count": 3}
+        result = recommend_offer(listing, stats)
+        assert "error" not in result
+        assert result["fair_value_estimate"] == pytest.approx(1_050_000, abs=10_000)
+
+    def test_unlisted_no_data_returns_error(self):
+        """Unlisted property with no comps and no ppsf/sqft returns an error."""
+        result = recommend_offer({}, {})
+        assert "error" in result
+
+    def test_unlisted_ci_wider_than_equivalent_listed(self):
+        """CI should be wider for unlisted than for the same property with a list price."""
+        listed_listing = {"price": 1_100_000, "sqft": 1500}
+        unlisted_listing = {"sqft": 1500}
+        stats = UNLISTED_STATS_WITH_COMPS
+        unlisted_ci = recommend_offer(unlisted_listing, stats)["fair_value_confidence_interval"]["ci_pct"]
+        listed_ci = recommend_offer(listed_listing, stats)["fair_value_confidence_interval"]["ci_pct"]
+        assert unlisted_ci > listed_ci
+
+    def test_unlisted_has_no_list_price_ci_factor(self):
+        """no_list_price factor appears in CI factors for unlisted properties."""
+        listing = {}
+        stats = {"median_sale_price": 1_000_000, "comp_count": 5}
+        result = recommend_offer(listing, stats)
+        factors = result["fair_value_confidence_interval"]["factors"]
+        assert "no_list_price" in factors
+
+    def test_unlisted_offer_range_is_comp_based(self):
+        """For an unlisted property, all three offer prices are comp-anchored (positive)."""
+        listing = {}
+        stats = {"median_sale_price": 1_000_000, "comp_count": 5}
+        result = recommend_offer(listing, stats)
+        assert result["offer_low"] > 0
+        assert result["offer_recommended"] > 0
+        assert result["offer_high"] > 0
+
