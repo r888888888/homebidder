@@ -5,6 +5,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+## [1.13.1] - 2026-04-30
+
+### Fixed
+- Property summary card no longer shows a wrong-city property when Realtor.com's geocoding quirk returns a same-street-name listing from a different city — homeharvest row selection now validates ZIP code against the Census-geocoded ZIP and rejects mismatches
+
 ## [1.13.0] - 2026-04-30
 
 ### Added

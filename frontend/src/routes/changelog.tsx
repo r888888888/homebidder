@@ -15,6 +15,13 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "1.13.1",
+    date: "2026-04-30",
+    entries: [
+      { category: "Fixed", text: "Property summary card no longer shows a wrong-city property when Realtor.com's geocoding quirk returns a same-street-name listing from a different city — homeharvest row selection now validates ZIP code against the Census-geocoded ZIP and rejects mismatches" },
+    ],
+  },
+  {
     version: "1.13.0",
     date: "2026-04-30",
     entries: [
