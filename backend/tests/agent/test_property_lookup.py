@@ -1048,6 +1048,48 @@ class TestSelectBestHomeharvest:
         result = _select_best_homeharvest_row(df, "1250 Ellis St #2, San Francisco, CA 94109")
         assert result is None
 
+    def test_rejects_row_with_wrong_zip_even_when_street_matches(self):
+        """
+        When a row has the exact same street address but a different ZIP code than
+        expected_zip, it should be rejected (ZIP mismatch penalty overrides the
+        street-match score).
+
+        This is the bug behind '1950 45th Ave, SF, CA' showing the wrong property:
+        Realtor.com's geocoding quirk returns a '1950 45th Ave' from a different
+        city; without ZIP validation the row scores +4 (exact street match) and
+        passes the best_score <= 0 guard, so the wrong property is displayed.
+        """
+        from agent.tools.property_lookup import _select_best_homeharvest_row
+
+        rows = [
+            {**HOMEHARVEST_ROW, "street": "1950 45th Ave", "zip_code": "94601", "property_url": ""},  # Oakland ZIP
+        ]
+        df = _make_homeharvest_df(rows)
+        result = _select_best_homeharvest_row(df, "1950 45th Ave, SF, CA", expected_zip="94116")
+        assert result is None
+
+    def test_accepts_row_when_zip_matches_expected(self):
+        """Correct-ZIP rows still pass when expected_zip is provided."""
+        from agent.tools.property_lookup import _select_best_homeharvest_row
+
+        rows = [
+            {**HOMEHARVEST_ROW, "street": "1950 45th Ave", "zip_code": "94116", "property_url": ""},
+        ]
+        df = _make_homeharvest_df(rows)
+        result = _select_best_homeharvest_row(df, "1950 45th Ave, SF, CA", expected_zip="94116")
+        assert result is not None
+
+    def test_accepts_row_when_row_zip_is_missing(self):
+        """When the row has no ZIP code, no penalty is applied (benefit of doubt)."""
+        from agent.tools.property_lookup import _select_best_homeharvest_row
+
+        rows = [
+            {**HOMEHARVEST_ROW, "street": "1950 45th Ave", "zip_code": None, "property_url": ""},
+        ]
+        df = _make_homeharvest_df(rows)
+        result = _select_best_homeharvest_row(df, "1950 45th Ave, SF, CA", expected_zip="94116")
+        assert result is not None
+
 
 # ---------------------------------------------------------------------------
 # AVM estimate integration

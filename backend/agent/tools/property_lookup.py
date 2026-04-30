@@ -55,9 +55,11 @@ async def lookup_property_by_address(address: str) -> dict[str, Any]:
     # address so condo/unit listings can be found.
     candidates = _listing_lookup_candidates(address, geo["address_matched"])
 
+    geo_zip = geo.get("zip_code") or None
+
     listing: dict[str, Any] = {}
     for candidate in candidates:
-        listing_candidate = await _homeharvest_listing(candidate)
+        listing_candidate = await _homeharvest_listing(candidate, expected_zip=geo_zip)
         if listing_candidate:
             listing = listing_candidate
             break
@@ -68,7 +70,7 @@ async def lookup_property_by_address(address: str) -> dict[str, Any]:
     if not listing and _extract_unit_token(address):
         base_address = _strip_unit_designator(address)
         if base_address:
-            listing = await _homeharvest_nearby_unit_listing(base_address, address)
+            listing = await _homeharvest_nearby_unit_listing(base_address, address, expected_zip=geo_zip)
 
     # ZIP-code fallback: homeharvest sometimes returns a wrong property when
     # given a full address (Realtor.com geocoding quirk). Searching by ZIP
@@ -229,11 +231,13 @@ async def _redfin_autocomplete_url(address: str) -> str | None:
 # Step 2a — homeharvest listing data
 # ---------------------------------------------------------------------------
 
-async def _homeharvest_listing(matched_address: str) -> dict[str, Any]:
+async def _homeharvest_listing(matched_address: str, expected_zip: str | None = None) -> dict[str, Any]:
     """
     Fetch active/recent listing data via homeharvest.
     Falls back to recently sold data when no active listing is found.
     Returns an empty dict if nothing is found or if homeharvest raises.
+    expected_zip: when provided, rows from a different ZIP are penalised so
+    Realtor.com geocoding quirks cannot return a wrong-city property.
     """
     # Try active for-sale listing first
     try:
@@ -242,7 +246,7 @@ async def _homeharvest_listing(matched_address: str) -> dict[str, Any]:
         df = None
 
     if df is not None and not df.empty:
-        row = _select_best_homeharvest_row(df, matched_address)
+        row = _select_best_homeharvest_row(df, matched_address, expected_zip=expected_zip)
         if row is not None:
             # If the row has no meaningful listing data (e.g. a building-level APARTMENT
             # record returned by the search), treat it as no listing found.
@@ -293,10 +297,10 @@ async def _homeharvest_listing(matched_address: str) -> dict[str, Any]:
                 }
 
     # Fallback: recently sold listing provides property characteristics for off-market homes
-    return await _homeharvest_sold_listing(matched_address)
+    return await _homeharvest_sold_listing(matched_address, expected_zip=expected_zip)
 
 
-async def _homeharvest_sold_listing(matched_address: str, query_address: str | None = None) -> dict[str, Any]:
+async def _homeharvest_sold_listing(matched_address: str, query_address: str | None = None, expected_zip: str | None = None) -> dict[str, Any]:
     """
     Fallback: look up recently sold data when no active for-sale listing is found.
     matched_address is the search location; query_address (if provided) is used for
@@ -311,7 +315,7 @@ async def _homeharvest_sold_listing(matched_address: str, query_address: str | N
     if df is None or df.empty:
         return {}
 
-    row = _select_best_homeharvest_row(df, query_address if query_address is not None else matched_address)
+    row = _select_best_homeharvest_row(df, query_address if query_address is not None else matched_address, expected_zip=expected_zip)
     if row is None:
         return {}
 
@@ -365,7 +369,7 @@ async def _homeharvest_sold_listing(matched_address: str, query_address: str | N
     }
 
 
-async def _homeharvest_nearby_unit_listing(base_address: str, query_address: str) -> dict[str, Any]:
+async def _homeharvest_nearby_unit_listing(base_address: str, query_address: str, expected_zip: str | None = None) -> dict[str, Any]:
     """
     Fallback for unit addresses: search nearby for-sale listings around the
     building and choose the row that best matches the requested unit.
@@ -378,7 +382,7 @@ async def _homeharvest_nearby_unit_listing(base_address: str, query_address: str
     if df is None or df.empty:
         return {}
 
-    row = _select_best_homeharvest_row(df, query_address)
+    row = _select_best_homeharvest_row(df, query_address, expected_zip=expected_zip)
     if row is None:
         return {}
 
@@ -651,10 +655,15 @@ def _same_street_number(base1: str, base2: str) -> bool:
     return _first(base1) == _first(base2)
 
 
-def _select_best_homeharvest_row(df: Any, query_address: str):
+def _select_best_homeharvest_row(df: Any, query_address: str, expected_zip: str | None = None):
     """
     Choose the best-matching homeharvest row for query_address.
     Important for multi-unit buildings where top result may be another unit.
+
+    expected_zip: when provided, rows whose zip_code differs from expected_zip
+    receive a -10 penalty, making them unable to pass the best_score <= 0 guard.
+    This prevents Realtor.com geocoding quirks from returning a same-street-name
+    property from a completely different city.
 
     Returns None when no row has any address overlap with the query, so callers
     can return {} rather than displaying a completely wrong property.
@@ -716,6 +725,13 @@ def _select_best_homeharvest_row(df: Any, query_address: str):
             # No unit in query: mildly prefer bare-address rows so a unit listing
             # doesn't beat a bare-address row on a tie.
             score -= 1
+
+        # ZIP validation: penalise rows from a different city so they can't pass
+        # the best_score <= 0 guard even if the street name matches exactly.
+        if expected_zip:
+            row_zip = str(_safe(row, "zip_code", "") or "").strip()
+            if row_zip and row_zip != expected_zip:
+                score -= 10
 
         if score > best_score:
             best_score = score
