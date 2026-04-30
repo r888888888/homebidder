@@ -15,6 +15,15 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "1.13.0",
+    date: "2026-04-30",
+    entries: [
+      { category: "Added", text: "Distinguish single-unit vs whole-building multi-family properties in valuation and offer analysis" },
+      { category: "Added", text: "Support unlisted (off-market) properties in offer analysis" },
+      { category: "Added", text: "De-emphasize unclosed permits as common and typically non-blocking in SF" },
+    ],
+  },
+  {
     version: "1.12.0",
     date: "2026-04-29",
     entries: [

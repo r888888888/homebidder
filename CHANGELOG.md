@@ -5,6 +5,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-04-30
+
+### Added
+- Distinguish single-unit vs whole-building multi-family properties in valuation and offer analysis
+- Support unlisted (off-market) properties in offer analysis
+- De-emphasize unclosed permits as common and typically non-blocking in SF
+
 ## [1.12.0] - 2026-04-29
 
 ### Changed
