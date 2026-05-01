@@ -298,3 +298,88 @@ class TestModelSelection:
         from agent.orchestrator import MODEL_TOOLS, MODEL_NARRATIVE
 
         assert MODEL_TOOLS != MODEL_NARRATIVE
+
+
+# ---------------------------------------------------------------------------
+# TestInspectionFindingsOrchestrator
+# ---------------------------------------------------------------------------
+
+_INSPECTION_FINDINGS = {
+    "property_address": "318 Avalon Ave, San Francisco, CA 94112",
+    "inspector": "Alonzo Inspections",
+    "inspection_date": "2024-03-15",
+    "systems": [
+        {
+            "name": "Plumbing - Waste Lines",
+            "status": "deficient",
+            "severity": "high",
+            "findings": "Active leak",
+            "renovation_category": "plumbing",
+        }
+    ],
+    "summary": "1 deficiency found.",
+}
+
+
+class TestInspectionFindingsOrchestrator:
+    async def test_inspection_findings_threaded_to_renovation_tool(self):
+        """When run_agent receives inspection_findings, they are forwarded to
+        estimate_renovation_cost so the tool sees them."""
+        from agent.orchestrator import _run_phase9_renovation
+        from unittest.mock import AsyncMock, patch
+
+        offer = {"fair_value_estimate": 1_100_000, "offer_recommended": 900_000}
+        listing = {"sqft": 1400, "year_built": 1952, "description_signals": {"detected_signals": []}}
+
+        async def _fake_events():
+            pass
+
+        captured_kwargs = {}
+
+        async def fake_estimate(*args, **kwargs):
+            captured_kwargs.update(kwargs)
+            return None  # result doesn't matter for this test
+
+        state = {}
+        with patch("agent.orchestrator.estimate_renovation_cost", fake_estimate):
+            async for _ in _run_phase9_renovation(
+                listing, offer, buyer_context="", state=state,
+                inspection_findings=_INSPECTION_FINDINGS,
+            ):
+                pass
+
+        assert captured_kwargs.get("inspection_findings") == _INSPECTION_FINDINGS
+
+    async def test_inspection_sse_event_emitted_when_findings_present(self):
+        """When inspection_findings are passed and renovation runs, an inspection_report
+        SSE tool_result event is emitted before the renovation tool_call."""
+        from agent.orchestrator import _run_phase9_renovation
+        from unittest.mock import AsyncMock, patch
+
+        offer = {"fair_value_estimate": 1_100_000, "offer_recommended": 900_000}
+        listing = {"sqft": 1400, "year_built": 1952, "description_signals": {"detected_signals": []}}
+
+        renovation_result = {
+            "is_fixer": True, "verdict": "comparable", "savings_mid": 0,
+            "line_items": [{"category": "Plumbing repipe", "low": 15000, "high": 35000}],
+        }
+
+        async def fake_estimate(*args, **kwargs):
+            return renovation_result
+
+        state = {}
+        events = []
+        with patch("agent.orchestrator.estimate_renovation_cost", fake_estimate):
+            async for chunk in _run_phase9_renovation(
+                listing, offer, buyer_context="", state=state,
+                inspection_findings=_INSPECTION_FINDINGS,
+            ):
+                if chunk.startswith("data: "):
+                    events.append(json.loads(chunk[6:]))
+
+        inspection_events = [
+            e for e in events
+            if e.get("type") == "tool_result" and e.get("tool") == "inspection_report"
+        ]
+        assert len(inspection_events) == 1
+        assert inspection_events[0]["result"] == _INSPECTION_FINDINGS

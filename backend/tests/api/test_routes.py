@@ -2,12 +2,12 @@ import pytest
 from unittest.mock import patch
 
 
-async def _mock_run_agent(address, buyer_context="", db=None, force_refresh=False, user_id=None):
+async def _mock_run_agent(address, buyer_context="", db=None, force_refresh=False, user_id=None, inspection_findings=None):
     import json
     yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
 
-async def _mock_run_agent_with_analysis_id(address, buyer_context="", db=None, force_refresh=False, user_id=None):
+async def _mock_run_agent_with_analysis_id(address, buyer_context="", db=None, force_refresh=False, user_id=None, inspection_findings=None):
     import json
     yield f"data: {json.dumps({'type': 'status', 'text': 'Starting...'})}\n\n"
     yield f"data: {json.dumps({'type': 'analysis_id', 'id': 42})}\n\n"
@@ -571,3 +571,66 @@ async def test_get_analysis_renovation_data_null_when_absent(client):
     data = resp.json()
     assert "renovation_data" in data
     assert data["renovation_data"] is None
+
+
+# --- /api/upload/inspection-report endpoint ---
+
+_FAKE_PDF = b"%PDF-1.4 fake content"
+
+_PARSED_FINDINGS = {
+    "property_address": "318 Avalon Ave, San Francisco, CA 94112",
+    "inspector": "Alonzo Inspections",
+    "inspection_date": "2024-03-15",
+    "systems": [
+        {
+            "name": "Plumbing - Waste Lines",
+            "status": "deficient",
+            "severity": "high",
+            "findings": "Active leak",
+            "renovation_category": "plumbing",
+        }
+    ],
+    "summary": "1 deficiency found.",
+}
+
+
+async def test_upload_inspection_report_accepts_valid_pdf(client):
+    """Valid PDF + successful parse → 200 with findings."""
+    with patch("api.routes.parse_inspection_report", return_value=_PARSED_FINDINGS):
+        resp = await client.post(
+            "/api/upload/inspection-report",
+            files={"file": ("report.pdf", _FAKE_PDF, "application/pdf")},
+        )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["inspector"] == "Alonzo Inspections"
+    assert len(data["systems"]) == 1
+
+
+async def test_upload_inspection_report_rejects_non_pdf(client):
+    """Non-PDF content type → 400."""
+    resp = await client.post(
+        "/api/upload/inspection-report",
+        files={"file": ("report.docx", b"fake docx bytes", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
+    )
+    assert resp.status_code == 400
+
+
+async def test_upload_inspection_report_rejects_oversized(client):
+    """File over 10 MB → 413."""
+    big_pdf = b"%PDF-1.4 " + b"x" * (10 * 1024 * 1024 + 1)
+    resp = await client.post(
+        "/api/upload/inspection-report",
+        files={"file": ("big.pdf", big_pdf, "application/pdf")},
+    )
+    assert resp.status_code == 413
+
+
+async def test_upload_inspection_report_returns_422_on_parse_failure(client):
+    """Parser returns None → 422."""
+    with patch("api.routes.parse_inspection_report", return_value=None):
+        resp = await client.post(
+            "/api/upload/inspection-report",
+            files={"file": ("report.pdf", _FAKE_PDF, "application/pdf")},
+        )
+    assert resp.status_code == 422

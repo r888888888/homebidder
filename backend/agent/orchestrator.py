@@ -271,6 +271,7 @@ async def _persist_analysis(
     crime_result: dict | None = None,
     buyer_context: str = "",
     user_id=None,
+    inspection_findings: dict | None = None,
 ) -> int:
     """Write Listing, Analysis, and Comp records to DB and return analysis id."""
     from sqlalchemy import select
@@ -341,6 +342,7 @@ async def _persist_analysis(
         permits_data_json=json.dumps(permits_result) if permits_result else None,
         renovation_data_json=json.dumps(renovation_result) if renovation_result else None,
         crime_data_json=json.dumps(crime_result) if crime_result else None,
+        inspection_data_json=json.dumps(inspection_findings) if inspection_findings else None,
         buyer_context=buyer_context or None,
         user_id=user_id,
     )
@@ -444,6 +446,10 @@ async def _stream_cached_analysis(analysis) -> AsyncIterator[str]:
         data = json.loads(analysis.permits_data_json)
         yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'fetch_sf_permits', 'input': {}})}\n\n"
         yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'fetch_sf_permits', 'result': data})}\n\n"
+
+    if analysis.inspection_data_json:
+        data = json.loads(analysis.inspection_data_json)
+        yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'inspection_report', 'result': data})}\n\n"
 
     if analysis.renovation_data_json:
         data = json.loads(analysis.renovation_data_json)
@@ -619,12 +625,14 @@ async def _run_phase9_renovation(
     offer_result: dict,
     buyer_context: str,
     state: dict,
+    inspection_findings: dict | None = None,
 ) -> AsyncIterator[str]:
     """
     Phase 9 — LLM-based renovation cost estimation.
 
     Only runs when a fair_value_estimate is present; guards against missing API key
     and tool failures internally. Populates state["renovation"] on success.
+    When inspection_findings are provided, emits an inspection_report SSE event first.
     """
     fv_estimate = offer_result.get("fair_value_estimate")
     log.info(
@@ -635,9 +643,16 @@ async def _run_phase9_renovation(
     if not fv_estimate:
         return
 
+    if inspection_findings:
+        yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'inspection_report', 'result': inspection_findings})}\n\n"
+
     yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'estimate_renovation_cost', 'input': {}})}\n\n"
     try:
-        renovation_result = await estimate_renovation_cost(listing, offer_result, buyer_context=buyer_context)
+        renovation_result = await estimate_renovation_cost(
+            listing, offer_result,
+            buyer_context=buyer_context,
+            inspection_findings=inspection_findings,
+        )
     except Exception as exc:
         log.warning("Phase 9 estimate_renovation_cost failed: %s", exc)
         return
@@ -653,7 +668,7 @@ async def _run_phase9_renovation(
         )
 
 
-async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | None = None, force_refresh: bool = False, user_id=None) -> AsyncIterator[str]:
+async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | None = None, force_refresh: bool = False, user_id=None, inspection_findings: dict | None = None) -> AsyncIterator[str]:
     """
     Run the full agent loop for a property address.
     Yields SSE-formatted text chunks as the agent reasons.
@@ -792,6 +807,7 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
                         crime_result=phase6_crime,
                         buyer_context=buyer_context,
                         user_id=user_id,
+                        inspection_findings=inspection_findings,
                     )
                     log.info("Analysis persisted: id=%d", analysis_id)
                     yield f"data: {json.dumps({'type': 'analysis_id', 'id': analysis_id})}\n\n"
@@ -925,7 +941,10 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
 
                 # Phase 9: renovation cost estimation
                 phase9_state: dict = {}
-                async for chunk in _run_phase9_renovation(listing, offer_result, buyer_context, phase9_state):
+                async for chunk in _run_phase9_renovation(
+                    listing, offer_result, buyer_context, phase9_state,
+                    inspection_findings=inspection_findings,
+                ):
                     yield chunk
                 renovation_result_persist = phase9_state.get("renovation")
 

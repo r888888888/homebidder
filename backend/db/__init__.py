@@ -52,6 +52,7 @@ _ANALYSES_MIGRATIONS: list[tuple[str, str]] = [
     ("buyer_context",         "TEXT"),
     ("user_id",               "CHAR(36)"),
     ("is_favorite",           "INTEGER NOT NULL DEFAULT 0"),
+    ("inspection_data_json",  "TEXT"),
 ]
 
 _COMPS_MIGRATIONS: list[tuple[str, str]] = [

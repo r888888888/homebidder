@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { AnalysisForm } from "../components/AnalysisForm";
+import type { InspectionFindings } from "../components/InspectionReportCard";
 import { apiBase } from "../lib/api";
 import { authHeaders } from "../lib/auth";
 
@@ -74,7 +75,12 @@ export function HomePage() {
       .catch(() => {});
   }, []);
 
-  function handleSubmit(address: string, buyerContext: string) {
+  function handleSubmit(address: string, buyerContext: string, inspectionFindings: InspectionFindings | null) {
+    if (inspectionFindings) {
+      sessionStorage.setItem("inspection_findings", JSON.stringify(inspectionFindings));
+    } else {
+      sessionStorage.removeItem("inspection_findings");
+    }
     navigate({ to: "/analysis", search: { address, buyerContext } });
   }
 

@@ -259,3 +259,15 @@ describe("FixerAnalysisCard persistence", () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 });
+
+describe("FixerAnalysisCard — inspection_informed badge", () => {
+  it("shows badge when inspection_informed is true", () => {
+    render(<FixerAnalysisCard data={{ ...BASE, inspection_informed: true }} />);
+    expect(screen.getByText(/informed by inspection report/i)).toBeTruthy();
+  });
+
+  it("does not show badge when inspection_informed is absent", () => {
+    render(<FixerAnalysisCard data={BASE} />);
+    expect(screen.queryByText(/informed by inspection report/i)).toBeNull();
+  });
+});

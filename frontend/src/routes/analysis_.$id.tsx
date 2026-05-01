@@ -15,6 +15,7 @@ import { CompsCard, type CompData } from "../components/CompsCard";
 import { CompsTeaserCard } from "../components/CompsTeaserCard";
 import { PermitsCard, type PermitsData } from "../components/PermitsCard";
 import { CrimeCard, type CrimeData } from "../components/CrimeCard";
+import { InspectionReportCard, type InspectionFindings } from "../components/InspectionReportCard";
 import { PdfExportButton } from "../components/PdfExportButton";
 import { useToast } from "../components/Toast";
 import { apiBase } from "../lib/api";
@@ -42,6 +43,7 @@ export interface AnalysisDetail {
   renovation_data: (FixerAnalysisData & { disabled_indices?: number[] }) | null;
   permits_data: PermitsData | null;
   crime_data: CrimeData | null;
+  inspection_data: InspectionFindings | null;
   comps: CompData[];
   is_favorite: boolean;
 }
@@ -313,6 +315,9 @@ export function PermalinkPage() {
                   neighborhood={analysis.neighborhood_data}
                   neighborhoodName={(analysis.property_data?.neighborhoods as string | null) ?? null}
                 />
+              )}
+              {analysis.inspection_data && (
+                <InspectionReportCard data={analysis.inspection_data} />
               )}
             </div>
           )}

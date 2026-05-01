@@ -1,5 +1,4 @@
 # TODO
-- Upload inspection report PDFs. User uploads a PDF on the analysis form; backend sends it directly to Claude as a document block for structured extraction (no text-extraction library needed). Parsed findings are threaded into the renovation tool to override scope and configure line items based on actual deficiencies. Two example PDFs in `example-docs/` with different formats (matrix-checkbox and table-based). Plan at `.claude/plans/cosmic-skipping-hearth.md`. ~37 new tests.
 - Investigate whether it's possible to pull permit history from Redfin or Realtor or Zillow.
 - Investigate if Fly supports email accounts. Set up a support email account and generate a Contact page.
 - Support pest inspection reports. Use the same strategy as immplementing insepection reports.
@@ -17,6 +16,8 @@
 - Tier differentiation - add history search for Agent tier. I should be able to search for properties by the address.
 
 # DONE
+
+- Inspection report PDF upload. User uploads a PDF on the analysis form; backend POSTs to `POST /api/upload/inspection-report` which sends the PDF directly to Claude as a `document` content block for structured extraction. Parsed findings (per-system severity/status/category) override item likelihoods in the renovation tool and inject an `<inspection_findings>` XML block into the LLM prompt. `inspection_informed: true` flag surfaces on the FixerAnalysisCard. Findings persisted in `inspection_data_json` DB column and replayed from cache. `InspectionReportCard` shows color-coded system badges on the Property tab. 19 new backend tests, 20 new frontend tests.
 
 - Multi-family ownership subtype distinction: new `classify_multifamily_subtype()` function in `risk.py` returns `"unit_in_multifamily"`, `"whole_multifamily"`, `"ambiguous"`, or `None` based on property_type and unit-number presence. `_assess_multifamily_structure()` now routes each subtype to specific, actionable messaging (unit: financing/shared-expense warnings; whole: income-approach note; ambiguous: confirm ownership type). Risk factor dict now includes a `subtype` field. `recommend_offer()` detects the subtype and passes it to `_compute_fair_value_ci()` which widens the CI by +2% for `whole_multifamily` (shallower income-property comp pool) and +1% for `unit_in_multifamily` (fewer unit-in-building comps); subtype is also recorded in `fair_value_breakdown`. `RiskFactor` interface gains optional `subtype` field; `FACTOR_LABELS` adds human-readable labels for `multifamily_structure` and `tic_ownership`. 20 new backend tests.
 

@@ -57,13 +57,13 @@ async def _register_and_login(client, email: str, password: str = "pass123"):
     return token, user_id
 
 
-async def _mock_run_agent_with_analysis_id(address, buyer_context="", db=None, force_refresh=False, user_id=None):
+async def _mock_run_agent_with_analysis_id(address, buyer_context="", db=None, force_refresh=False, user_id=None, inspection_findings=None):
     """Mock that always yields an analysis_id event with id=1."""
     yield f"data: {json.dumps({'type': 'analysis_id', 'id': 1})}\n\n"
     yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
 
-async def _mock_run_agent(address, buyer_context="", db=None, force_refresh=False, user_id=None):
+async def _mock_run_agent(address, buyer_context="", db=None, force_refresh=False, user_id=None, inspection_findings=None):
     yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
 
@@ -81,7 +81,7 @@ async def test_analyze_with_auth_sets_user_id(client):
     # Track the user_id passed into run_agent
     captured_user_id = []
 
-    async def _capturing_mock(address, buyer_context="", db=None, force_refresh=False, user_id=None):
+    async def _capturing_mock(address, buyer_context="", db=None, force_refresh=False, user_id=None, inspection_findings=None):
         captured_user_id.append(user_id)
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
@@ -102,7 +102,7 @@ async def test_analyze_without_auth_passes_none_user_id(client):
     """When an unauthenticated request runs /api/analyze, user_id passed to run_agent is None."""
     captured_user_id = []
 
-    async def _capturing_mock(address, buyer_context="", db=None, force_refresh=False, user_id=None):
+    async def _capturing_mock(address, buyer_context="", db=None, force_refresh=False, user_id=None, inspection_findings=None):
         captured_user_id.append(user_id)
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
 

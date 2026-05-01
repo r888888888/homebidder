@@ -129,6 +129,7 @@ class Analysis(Base):
     permits_data_json: Mapped[str | None] = mapped_column(Text)
     renovation_data_json: Mapped[str | None] = mapped_column(Text)
     crime_data_json: Mapped[str | None] = mapped_column(Text)
+    inspection_data_json: Mapped[str | None] = mapped_column(Text)
     buyer_context: Mapped[str | None] = mapped_column(Text)
     is_favorite: Mapped[bool] = mapped_column(default=False, server_default="0", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

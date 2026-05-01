@@ -963,3 +963,156 @@ class TestCenturyOldSFHItems:
             await estimate_renovation_cost(prop, _make_offer())
         prompt_text = mock_client.messages.create.call_args[1]["messages"][0]["content"]
         assert "termite" in prompt_text.lower() or "dry rot" in prompt_text.lower()
+
+
+# ---------------------------------------------------------------------------
+# TestInspectionFindings — inspection_findings parameter integration
+# ---------------------------------------------------------------------------
+
+_INSPECTION_FINDINGS = {
+    "property_address": "318 Avalon Ave, San Francisco, CA 94112",
+    "inspector": "Alonzo Inspections",
+    "inspection_date": "2024-03-15",
+    "systems": [
+        {
+            "name": "Plumbing - Waste Lines",
+            "status": "deficient",
+            "severity": "high",
+            "findings": "Active leak in waste lines",
+            "renovation_category": "plumbing",
+        },
+        {
+            "name": "Windows",
+            "status": "deficient",
+            "severity": "moderate",
+            "findings": "Fogged double-pane units",
+            "renovation_category": "windows",
+        },
+        {
+            "name": "Roof",
+            "status": "serviceable",
+            "severity": "low",
+            "findings": "",
+            "renovation_category": "roof",
+        },
+    ],
+    "summary": "2 deficiencies found.",
+}
+
+
+class TestInspectionFindings:
+    async def test_inspection_forces_renovation_to_run_without_fixer_signals(self):
+        """No fixer signals in listing, but inspection findings → renovation runs."""
+        from agent.tools.renovation import estimate_renovation_cost
+        prop = _make_property(detected_signals=[])  # no fixer signals
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}), \
+             patch("agent.tools.renovation.anthropic.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_cls.return_value = mock_client
+            mock_client.messages.create.return_value = _make_llm_response(_GOOD_LLM_JSON)
+            result = await estimate_renovation_cost(
+                prop, _make_offer(), inspection_findings=_INSPECTION_FINDINGS
+            )
+        assert result is not None
+
+    async def test_high_severity_makes_item_likely(self):
+        """High-severity deficiency for 'plumbing' → plumbing appears in LIKELY section of LLM prompt."""
+        from agent.tools.renovation import estimate_renovation_cost
+        prop = _make_property(detected_signals=[])
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}), \
+             patch("agent.tools.renovation.anthropic.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_cls.return_value = mock_client
+            mock_client.messages.create.return_value = _make_llm_response(_GOOD_LLM_JSON)
+            await estimate_renovation_cost(
+                prop, _make_offer(), inspection_findings=_INSPECTION_FINDINGS
+            )
+        prompt_text = mock_client.messages.create.call_args[1]["messages"][0]["content"]
+        # Plumbing should appear in LIKELY section (before POSSIBLE)
+        likely_idx = prompt_text.find("LIKELY")
+        possible_idx = prompt_text.find("POSSIBLE")
+        plumbing_idx = prompt_text.lower().find("plumbing")
+        assert likely_idx != -1
+        assert plumbing_idx != -1
+        assert plumbing_idx < possible_idx, "High-severity plumbing should be in LIKELY section"
+
+    async def test_moderate_severity_upgrades_unlikely_to_possible(self):
+        """Moderate 'windows' deficiency on a non-fixer property → windows appears in POSSIBLE section."""
+        from agent.tools.renovation import estimate_renovation_cost
+        # Use a newer property where windows would be "unlikely" by default
+        prop = _make_property(year_built=1990, detected_signals=[])
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}), \
+             patch("agent.tools.renovation.anthropic.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_cls.return_value = mock_client
+            mock_client.messages.create.return_value = _make_llm_response(_GOOD_LLM_JSON)
+            await estimate_renovation_cost(
+                prop, _make_offer(), inspection_findings=_INSPECTION_FINDINGS
+            )
+        prompt_text = mock_client.messages.create.call_args[1]["messages"][0]["content"]
+        possible_idx = prompt_text.find("POSSIBLE")
+        windows_idx = prompt_text.lower().find("windows")
+        assert possible_idx != -1
+        assert windows_idx != -1
+        assert windows_idx > possible_idx, "Moderate windows should appear at or after POSSIBLE section"
+
+    async def test_serviceable_systems_unchanged(self):
+        """Serviceable 'roof' in inspection findings does not upgrade roof to likely/possible
+        if it would otherwise be unlikely (cosmetic scope)."""
+        from agent.tools.renovation import estimate_renovation_cost
+        # Force cosmetic scope via buyer_context — roof defaults to "unlikely" in cosmetic scope
+        only_serviceable = {
+            **_INSPECTION_FINDINGS,
+            "systems": [{"name": "Roof", "status": "serviceable", "severity": "low",
+                          "findings": "", "renovation_category": "roof"}],
+        }
+        prop = _make_property(year_built=2005, detected_signals=[])
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}), \
+             patch("agent.tools.renovation.anthropic.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_cls.return_value = mock_client
+            mock_client.messages.create.return_value = _make_llm_response(_GOOD_LLM_JSON)
+            await estimate_renovation_cost(
+                prop, _make_offer(),
+                buyer_context="just cosmetic updates, painting and carpet only",
+                inspection_findings=only_serviceable,
+            )
+        prompt_text = mock_client.messages.create.call_args[1]["messages"][0]["content"]
+        # Roof should not appear in LIKELY or POSSIBLE items section (cosmetic scope → unlikely)
+        # The XML block (<inspection_findings>) comes after the items sections
+        xml_start = prompt_text.find("<inspection_findings>")
+        items_section = prompt_text[:xml_start] if xml_start != -1 else prompt_text
+        assert "Roof replacement" not in items_section, (
+            "Serviceable roof should not appear in LIKELY/POSSIBLE items section"
+        )
+
+    async def test_inspection_findings_appear_in_llm_prompt(self):
+        """Inspection findings are injected as an XML block in the LLM prompt."""
+        from agent.tools.renovation import estimate_renovation_cost
+        prop = _make_property(detected_signals=[])
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}), \
+             patch("agent.tools.renovation.anthropic.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_cls.return_value = mock_client
+            mock_client.messages.create.return_value = _make_llm_response(_GOOD_LLM_JSON)
+            await estimate_renovation_cost(
+                prop, _make_offer(), inspection_findings=_INSPECTION_FINDINGS
+            )
+        prompt_text = mock_client.messages.create.call_args[1]["messages"][0]["content"]
+        assert "<inspection_findings>" in prompt_text
+        assert "Active leak in waste lines" in prompt_text
+
+    async def test_inspection_informed_flag_in_result(self):
+        """Result dict contains inspection_informed: True when findings are passed."""
+        from agent.tools.renovation import estimate_renovation_cost
+        prop = _make_property(detected_signals=[])
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}), \
+             patch("agent.tools.renovation.anthropic.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_cls.return_value = mock_client
+            mock_client.messages.create.return_value = _make_llm_response(_GOOD_LLM_JSON)
+            result = await estimate_renovation_cost(
+                prop, _make_offer(), inspection_findings=_INSPECTION_FINDINGS
+            )
+        assert result is not None
+        assert result.get("inspection_informed") is True

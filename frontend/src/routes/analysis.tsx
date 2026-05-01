@@ -46,10 +46,16 @@ export function AnalysisPage() {
     async function stream() {
       let res: Response;
       try {
+        const inspectionFindings = (() => {
+          const raw = sessionStorage.getItem("inspection_findings");
+          if (!raw) return null;
+          sessionStorage.removeItem("inspection_findings");
+          try { return JSON.parse(raw); } catch { return null; }
+        })();
         res = await fetch(`${apiBase}/api/analyze`, {
           method: "POST",
           headers: { "Content-Type": "application/json", ...authHeaders() },
-          body: JSON.stringify({ address, buyer_context: buyerContext, force_refresh: refreshKey > 0 }),
+          body: JSON.stringify({ address, buyer_context: buyerContext, force_refresh: refreshKey > 0, inspection_findings: inspectionFindings }),
           signal: controller.signal,
         });
       } catch {

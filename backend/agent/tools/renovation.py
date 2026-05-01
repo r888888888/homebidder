@@ -369,10 +369,56 @@ def _extract_json_object(text: str) -> dict[str, Any] | None:
 # Main estimation function
 # ---------------------------------------------------------------------------
 
+def _apply_inspection_overrides(
+    item_likelihood: dict[str, str],
+    inspection_findings: dict,
+) -> list[str]:
+    """
+    Upgrade item likelihoods based on inspection findings.
+    High severity deficiency → "likely".
+    Moderate severity deficiency on an item currently "unlikely" → "possible".
+    Returns list of reasoning strings for logging.
+    """
+    reasoning: list[str] = []
+    for system in inspection_findings.get("systems") or []:
+        status = system.get("status", "serviceable")
+        severity = system.get("severity", "low")
+        slug = system.get("renovation_category")
+        if not slug or slug not in RENOVATION_BENCHMARKS:
+            continue
+        if status == "serviceable":
+            continue
+        current = item_likelihood.get(slug, "unlikely")
+        if severity == "high":
+            if current != "likely":
+                item_likelihood[slug] = "likely"
+                reasoning.append(f"inspection: {slug} → likely (high severity)")
+        elif severity in ("moderate", "safety_hazard"):
+            if current == "unlikely":
+                item_likelihood[slug] = "possible"
+                reasoning.append(f"inspection: {slug} → possible (moderate severity)")
+    return reasoning
+
+
+def _build_inspection_xml(inspection_findings: dict) -> str:
+    """Render inspection findings as an XML block for the LLM prompt."""
+    lines = ["<inspection_findings>"]
+    for system in inspection_findings.get("systems") or []:
+        status = system.get("status", "")
+        severity = system.get("severity", "")
+        name = system.get("name", "")
+        findings = system.get("findings", "")
+        if status != "serviceable" and findings:
+            lines.append(f"  [{severity.upper()}] {name}: {findings}")
+    lines.append("</inspection_findings>")
+    return "\n" + "\n".join(lines) + "\n"
+
+
 async def estimate_renovation_cost(
     property_data: dict[str, Any],
     offer_result: dict[str, Any],
     buyer_context: str = "",
+    inspection_findings: dict | None = None,
 ) -> dict[str, Any] | None:
     try:
         api_key = settings.anthropic_api_key
@@ -418,6 +464,12 @@ async def estimate_renovation_cost(
     hazmat_tier = scope_profile["hazmat_tier"]
     age_era = scope_profile["age_era"]
     scope_reasoning = scope_profile["scope_reasoning"]
+
+    # Apply inspection overrides before building prompt sections
+    if inspection_findings:
+        override_reasons = _apply_inspection_overrides(item_likelihood, inspection_findings)
+        if override_reasons:
+            scope_reasoning = scope_reasoning + override_reasons
 
     # Build prompt sections: only likely + possible items
     likely_lines: list[str] = []
@@ -475,6 +527,7 @@ async def estimate_renovation_cost(
         f"{bedrooms or 'unknown'} bed / {bathrooms or 'unknown'} bath\n"
         f"Fixer signals: {', '.join(fixer_phrases) if fixer_phrases else 'general fixer condition'}\n"
         + (f"<buyer_notes>\n{buyer_context}\n</buyer_notes>\n" if buyer_context.strip() else "")
+        + (_build_inspection_xml(inspection_findings) if inspection_findings else "")
         + "\nReturn JSON only (4–7 line items):\n"
         '{"line_items": [{"category": "...", "low": <int>, "high": <int>}], "scope_notes": "..."}\n'
         "Include only items that make sense for this scope. Integers only for costs."
@@ -559,4 +612,5 @@ async def estimate_renovation_cost(
             "Get contractor bids before committing."
         ),
         "llm_model": model,
+        **({"inspection_informed": True} if inspection_findings else {}),
     }

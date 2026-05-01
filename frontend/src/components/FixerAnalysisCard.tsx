@@ -25,6 +25,7 @@ export interface FixerAnalysisData {
   scope_notes?: string | null;
   disclaimer: string;
   disabled_indices?: number[];
+  inspection_informed?: boolean;
 }
 
 interface Props {
@@ -112,7 +113,14 @@ export function FixerAnalysisCard({ data, analysisId, initialDisabledIndices }: 
     <div className="card p-6">
       {/* Header */}
       <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-base font-semibold text-[var(--ink)]">Fixer Analysis</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-base font-semibold text-[var(--ink)]">Fixer Analysis</h3>
+          {data.inspection_informed && (
+            <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">
+              Informed by inspection report
+            </span>
+          )}
+        </div>
         <span
           className={`rounded-full border px-3 py-0.5 text-xs font-medium ${VERDICT_STYLES[verdict]}`}
         >

@@ -1,7 +1,7 @@
 import json
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, UploadFile, File
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,10 +9,13 @@ from sqlalchemy import select
 
 from db import get_db
 from agent.orchestrator import run_agent
+from agent.tools.inspection import parse_inspection_report
 from api.rate_limit import check_and_record_rate_limit
 from api.sanitize import sanitize_buyer_context
 from api.auth import current_optional_user
 from db.models import User
+
+_MAX_INSPECTION_PDF_BYTES = 10 * 1024 * 1024  # 10 MB
 
 
 def _retention_cutoff(user: User | None) -> tuple[datetime | None, int | None]:
@@ -37,6 +40,7 @@ class AnalyzeRequest(BaseModel):
     address: str = Field(max_length=200)
     buyer_context: str = Field(default="", max_length=500)
     force_refresh: bool = False
+    inspection_findings: dict | None = None
 
     @field_validator("address", "buyer_context", mode="before")
     @classmethod
@@ -60,7 +64,7 @@ async def analyze_listing(
     user_id = user.id if user is not None else None
 
     async def event_stream():
-        async for chunk in run_agent(req.address, req.buyer_context, db=db, force_refresh=req.force_refresh, user_id=user_id):
+        async for chunk in run_agent(req.address, req.buyer_context, db=db, force_refresh=req.force_refresh, user_id=user_id, inspection_findings=req.inspection_findings):
             yield chunk
 
     return StreamingResponse(
@@ -71,6 +75,32 @@ async def analyze_listing(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.post("/upload/inspection-report")
+async def upload_inspection_report(
+    file: UploadFile = File(...),
+    user: User | None = Depends(current_optional_user),
+):
+    """
+    Accept a home inspection report PDF, parse it with Claude, and return
+    structured findings. The PDF is not stored; only the parsed JSON is returned.
+    """
+    if file.content_type != "application/pdf":
+        raise HTTPException(status_code=400, detail="Only PDF files are accepted.")
+
+    pdf_bytes = await file.read()
+    if len(pdf_bytes) > _MAX_INSPECTION_PDF_BYTES:
+        raise HTTPException(status_code=413, detail="PDF exceeds the 10 MB size limit.")
+
+    findings = await parse_inspection_report(pdf_bytes)
+    if findings is None:
+        raise HTTPException(
+            status_code=422,
+            detail="Could not extract findings from the PDF. Ensure the file is a valid home inspection report.",
+        )
+
+    return findings
 
 
 @router.get("/analyses")
@@ -160,6 +190,7 @@ async def get_analysis(analysis_id: int, db: AsyncSession = Depends(get_db)):
         "renovation_data": json.loads(analysis.renovation_data_json) if analysis.renovation_data_json else None,
         "permits_data": json.loads(analysis.permits_data_json) if analysis.permits_data_json else None,
         "crime_data": json.loads(analysis.crime_data_json) if analysis.crime_data_json else None,
+        "inspection_data": json.loads(analysis.inspection_data_json) if analysis.inspection_data_json else None,
         "comps": [
             {
                 "address": c.address,
