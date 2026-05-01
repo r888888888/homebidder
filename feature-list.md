@@ -1,5 +1,5 @@
 # TODO
-- Investigate whether it's possible to pull permit history from Redfin or Realtor or Zillow.
+- Expand permit coverage beyond SF to Oakland and San Jose via Accela Citizen Access portals (`aca-prod.accela.com/OAKLAND`, `permits.sanjoseca.gov/search/`). Mirror the DBI scraping pattern; fall back to empty result for other cities. Evaluate Shovels.ai as a multi-city API alternative if Accela scraping is brittle.
 - Investigate if Fly supports email accounts. Set up a support email account and generate a Contact page.
 - Support pest inspection reports. Use the same strategy as immplementing insepection reports.
 - Support uploading 3R reports to capture permit details.
@@ -16,6 +16,8 @@
 - Tier differentiation - add history search for Agent tier. I should be able to search for properties by the address.
 
 # DONE
+
+- Investigated permit history from Redfin, Realtor.com, and Zillow. Verdict: not viable. None expose public permit APIs; permit history is not prominently surfaced on their pages; anti-bot measures make scraping unreliable. Where they do show permits (primarily Zillow), data originates from enterprise providers (BuildFax, DataTrace) behind B2B licensing. Best actionable alternatives: Oakland Accela portal (`aca-prod.accela.com/OAKLAND`), San Jose permit portal (`permits.sanjoseca.gov/search/`), or Shovels.ai for multi-city API coverage. Replaced this investigation item with a concrete implementation task above.
 
 - Inspection report PDF upload. User uploads a PDF on the analysis form; backend POSTs to `POST /api/upload/inspection-report` which sends the PDF directly to Claude as a `document` content block for structured extraction. Parsed findings (per-system severity/status/category) override item likelihoods in the renovation tool and inject an `<inspection_findings>` XML block into the LLM prompt. `inspection_informed: true` flag surfaces on the FixerAnalysisCard. Findings persisted in `inspection_data_json` DB column and replayed from cache. `InspectionReportCard` shows color-coded system badges on the Property tab. 19 new backend tests, 20 new frontend tests.
 
