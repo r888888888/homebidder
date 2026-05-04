@@ -957,3 +957,75 @@ class TestMultifamilySubtypeWidensCI:
         result = recommend_offer(listing, _STATS_WITH_COMP)
         assert result["fair_value_breakdown"].get("multifamily_subtype") is None
 
+
+# ---------------------------------------------------------------------------
+# recommend_offer — GRM-based income premium for whole multi-family
+# ---------------------------------------------------------------------------
+
+class TestIncomePremiumMultifamily:
+    """whole_multifamily with second_unit_rent gets a GRM-based income premium
+    applied to fair_value, capped at 10%."""
+
+    def test_income_premium_raises_fair_value_for_whole_multifamily(self):
+        """Providing second_unit_rent for a whole duplex raises fair_value."""
+        listing = {**BASE_LISTING, "property_type": "DUPLEX"}  # whole_multifamily
+        result_no_rent = recommend_offer(listing, _STATS_WITH_COMP)
+        result_with_rent = recommend_offer(listing, _STATS_WITH_COMP, second_unit_rent=2500)
+        assert result_with_rent["fair_value_estimate"] > result_no_rent["fair_value_estimate"]
+
+    def test_income_premium_capped_at_10_pct_of_fair_value(self):
+        """Income premium cannot exceed 10% of the base fair value."""
+        listing = {**BASE_LISTING, "property_type": "DUPLEX"}
+        base = recommend_offer(listing, _STATS_WITH_COMP)["fair_value_estimate"]
+        # second_unit_rent=$3000: GRM premium would be $648k, far above 10%
+        result = recommend_offer(listing, _STATS_WITH_COMP, second_unit_rent=3000)
+        income_premium = result["fair_value_estimate"] - base
+        assert income_premium <= base * 0.10 + 1000  # +1000 for rounding tolerance
+
+    def test_income_premium_below_cap_uses_grm_formula(self):
+        """When GRM premium is below 10% cap, the full GRM value is applied."""
+        listing = {**BASE_LISTING, "property_type": "DUPLEX"}
+        base = recommend_offer(listing, _STATS_WITH_COMP)["fair_value_estimate"]
+        # second_unit_rent=$400/mo: 400*12*18=$86,400 < 10% of 1.1M ($110k) → no cap
+        result = recommend_offer(listing, _STATS_WITH_COMP, second_unit_rent=400)
+        income_premium = result["fair_value_estimate"] - base
+        # Should be close to 400 * 12 * 18 = 86,400
+        assert income_premium == pytest.approx(86_400, abs=5000)
+
+    def test_income_premium_not_applied_for_unit_in_multifamily(self):
+        """A unit within a building (owner-occupant, no second unit income) gets no premium."""
+        listing = {**BASE_LISTING, "property_type": "DUPLEX", "unit": "2"}
+        result_no_rent = recommend_offer(listing, _STATS_WITH_COMP)
+        result_with_rent = recommend_offer(listing, _STATS_WITH_COMP, second_unit_rent=2500)
+        assert result_with_rent["fair_value_estimate"] == result_no_rent["fair_value_estimate"]
+
+    def test_income_premium_not_applied_for_sfh(self):
+        """SFH gets no income premium even if second_unit_rent is provided."""
+        listing = {**BASE_LISTING, "property_type": "SINGLE_FAMILY"}
+        result_no_rent = recommend_offer(listing, _STATS_WITH_COMP)
+        result_with_rent = recommend_offer(listing, _STATS_WITH_COMP, second_unit_rent=2500)
+        assert result_with_rent["fair_value_estimate"] == result_no_rent["fair_value_estimate"]
+
+    def test_income_premium_absent_when_no_second_unit_rent(self):
+        """Without second_unit_rent, fair_value is unchanged for a whole duplex."""
+        listing = {**BASE_LISTING, "property_type": "DUPLEX"}
+        result = recommend_offer(listing, _STATS_WITH_COMP)
+        bd = result["fair_value_breakdown"]
+        assert bd.get("income_premium") is None
+
+    def test_income_premium_appears_in_breakdown_when_applied(self):
+        """income_premium and income_premium_pct appear in breakdown for whole duplex."""
+        listing = {**BASE_LISTING, "property_type": "DUPLEX"}
+        result = recommend_offer(listing, _STATS_WITH_COMP, second_unit_rent=2500)
+        bd = result["fair_value_breakdown"]
+        assert bd.get("income_premium") is not None
+        assert bd.get("income_premium") > 0
+        assert bd.get("income_premium_pct") is not None
+        assert bd.get("income_premium_pct") > 0
+
+    def test_offer_range_invariant_holds_after_income_premium(self):
+        """offer_low <= offer_recommended <= offer_high must hold after income premium."""
+        listing = {**BASE_LISTING, "property_type": "DUPLEX"}
+        result = recommend_offer(listing, _STATS_WITH_COMP, second_unit_rent=2500)
+        assert result["offer_low"] <= result["offer_recommended"] <= result["offer_high"]
+

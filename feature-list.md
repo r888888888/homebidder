@@ -1,10 +1,7 @@
 # TODO
-- Expand permit coverage beyond SF to Oakland and San Jose via Accela Citizen Access portals (`aca-prod.accela.com/OAKLAND`, `permits.sanjoseca.gov/search/`). Mirror the DBI scraping pattern; fall back to empty result for other cities. Evaluate Shovels.ai as a multi-city API alternative if Accela scraping is brittle.
-- Investigate if Fly supports email accounts. Set up a support email account and generate a Contact page.
 - Support pest inspection reports. Use the same strategy as immplementing insepection reports.
 - Support uploading 3R reports to capture permit details.
 - Investigate database backups
-- Duplex / multi-family fair value support: normalize property type to `"multi"` bucket for comp filtering, wire Redfin type code 6, add income premium adjustment in pricing (GRM-based, capped at 10%), offset monthly buy cost by second-unit rental income in investment metrics, re-run recommend_offer with rent data in orchestrator Phase 8. Plan at `.claude/plans/iterative-cuddling-pelican.md`. ~32 new tests.
 - Allow any registered user to mark a property as seen. "Mark Seen" button on analysis detail captures Quality (terrible/bad/neutral/good/excellent) + Location (bad/neutral/good); add these up to an internal score for the property (to be used later). Quality covers things like roof damage, signs of water intrusion, foundation cracks, janky unpermitted rooms, builder quality fixtures, high quality fixtures, hardwood floors, etc. Location includes factors outside the house like walkability, transit access, noise level, pollution level, visible poverty, hills.
 - Buying Plan (optimal stopping theory): user declares buy-by date and expected viewings/week → derives fixed N and explore-phase threshold `floor(N/e)`. "Mark Seen" button on analysis detail captures Quality (terrible/bad/neutral/good/excellent) + Location (bad/neutral/good); normalized composite score drives the pure-secretary commit rule (in commit phase, recommend the next property strictly better than explore-phase max). Linear bid premium (1% × properties past threshold) layered on top of fair value as overbid-market calibration — display-time overlay only, never baked into stored fair value or PDF export. Single active plan per user (DB unique constraint on user_id). Investor+ tier gated. New tables `buying_plans` + `seen_properties` with `analysis_id` FK using `ondelete=SET NULL` plus `address_snapshot` so seen rows survive analysis deletion. New `/buying-plan` route with setup form / dashboard; `MarkSeenButton` and `BuyingPlanBadge` on analysis detail. Plan at `.claude/plans/1-there-s-no-need-snappy-seal.md`.
 - Support disclosures
@@ -16,6 +13,11 @@
 - Tier differentiation - add history search for Agent tier. I should be able to search for properties by the address.
 
 # DONE
+
+- Duplex / multi-family fair value support: normalize property type to `"multi"` bucket for comp filtering, wire Redfin type code 6, add income premium adjustment in pricing (GRM-based, capped at 10%), offset monthly buy cost by second-unit rental income in investment metrics, re-run recommend_offer with rent data in orchestrator Phase 8. 36 new tests.
+
+- Expand permit coverage beyond SF to Oakland and San Jose via Accela Citizen Access portals (`aca-prod.accela.com/OAKLAND`, `permits.sanjoseca.gov/search/`). Mirror the DBI scraping pattern; fall back to empty result for other cities. Evaluate Shovels.ai as a multi-city API alternative if Accela scraping is brittle.
+- Investigate if Fly supports email accounts. Set up a support email account and generate a Contact page.
 
 - Investigated permit history from Redfin, Realtor.com, and Zillow. Verdict: not viable. None expose public permit APIs; permit history is not prominently surfaced on their pages; anti-bot measures make scraping unreliable. Where they do show permits (primarily Zillow), data originates from enterprise providers (BuildFax, DataTrace) behind B2B licensing. Best actionable alternatives: Oakland Accela portal (`aca-prod.accela.com/OAKLAND`), San Jose permit portal (`permits.sanjoseca.gov/search/`), or Shovels.ai for multi-city API coverage. Replaced this investigation item with a concrete implementation task above.
 

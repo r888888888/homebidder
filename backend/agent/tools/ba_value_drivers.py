@@ -12,6 +12,7 @@ import httpx
 
 from config import settings
 from .rentcast_avm import fetch_rentcast_rent_estimate
+from .risk import classify_multifamily_subtype
 
 BART_CACHE_PATH = str(Path(__file__).parent.parent.parent / "data" / "bart_stations.json")
 BART_CACHE_TTL = 30 * 86_400  # 30 days
@@ -510,6 +511,13 @@ async def fetch_ba_value_drivers(
 
     adu_rent_estimate = round(zip_median_rent * 0.65, 2) if (is_adu_candidate and zip_median_rent is not None) else None
 
+    # Estimate second-unit rental income for whole multi-family buildings (duplex, triplex, etc.).
+    # Only applies when the buyer owns the entire building — not for a unit within a building.
+    multifamily_subtype = classify_multifamily_subtype(property, property.get("description_signals"))
+    second_unit_rent_estimate: float | None = None
+    if multifamily_subtype == "whole_multifamily" and zip_median_rent is not None:
+        second_unit_rent_estimate = round(zip_median_rent * 0.65, 2)
+
     rent_control = _rent_control(property.get("city"), property.get("year_built"))
 
     lat = property.get("latitude")
@@ -543,6 +551,7 @@ async def fetch_ba_value_drivers(
     return {
         "adu_potential": is_adu_candidate,
         "adu_rent_estimate": adu_rent_estimate,
+        "second_unit_rent_estimate": second_unit_rent_estimate,
         "zip_median_rent": zip_median_rent,
         "rent_estimate_source": rent_estimate_source,
         "rent_range_low": rent_range_low,

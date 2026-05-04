@@ -85,6 +85,7 @@ def compute_investment_metrics(
 
     # Opportunity cost vs. renting
     zip_median_rent = _optional_float(ba_value_drivers.get("zip_median_rent"))
+    second_unit_rent = _optional_float(ba_value_drivers.get("second_unit_rent_estimate"))
 
     if price > 0 and zip_median_rent is not None:
         loan = price * (1 - _DOWN_PAYMENT_PCT)
@@ -92,11 +93,17 @@ def compute_investment_metrics(
         monthly_maintenance = price * _MAINTENANCE_ANNUAL_PCT / 12
         monthly_buy_cost = round(monthly_mortgage + monthly_maintenance, 2)
         monthly_cost_diff = round(monthly_buy_cost - zip_median_rent, 2)
-        opportunity_cost_10yr = _opportunity_cost_fv(monthly_buy_cost, zip_median_rent, 10)
-        opportunity_cost_20yr = _opportunity_cost_fv(monthly_buy_cost, zip_median_rent, 20)
-        opportunity_cost_30yr = _opportunity_cost_fv(monthly_buy_cost, zip_median_rent, 30)
+        # For whole multi-family, rental income from the second unit offsets the monthly cost.
+        if second_unit_rent is not None and second_unit_rent > 0:
+            monthly_net_buy_cost = round(monthly_buy_cost - second_unit_rent, 2)
+        else:
+            monthly_net_buy_cost = monthly_buy_cost
+        opportunity_cost_10yr = _opportunity_cost_fv(monthly_net_buy_cost, zip_median_rent, 10)
+        opportunity_cost_20yr = _opportunity_cost_fv(monthly_net_buy_cost, zip_median_rent, 20)
+        opportunity_cost_30yr = _opportunity_cost_fv(monthly_net_buy_cost, zip_median_rent, 30)
     else:
         monthly_buy_cost = None
+        monthly_net_buy_cost = None
         monthly_cost_diff = None
         opportunity_cost_10yr = None
         opportunity_cost_20yr = None
@@ -111,6 +118,8 @@ def compute_investment_metrics(
         "as_of_date": as_of_date,
         "hpi_yoy_assumption_pct": yoy_pct,
         "monthly_buy_cost": monthly_buy_cost,
+        "monthly_net_buy_cost": monthly_net_buy_cost,
+        "second_unit_rent_income": second_unit_rent,
         "monthly_rent_equivalent": zip_median_rent,
         "monthly_cost_diff": monthly_cost_diff,
         "opportunity_cost_10yr": opportunity_cost_10yr,

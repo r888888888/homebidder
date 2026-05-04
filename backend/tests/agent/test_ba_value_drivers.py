@@ -4,6 +4,7 @@ Tests for ba_value_drivers.py.
 
 import json
 import os
+import pytest
 from unittest.mock import AsyncMock, Mock, MagicMock, patch
 
 
@@ -827,3 +828,148 @@ class TestDalyCitySchoolCoverage:
         assert "Daly City" in school["name"], (
             f"Nearest elementary for Daly City is '{school['name']}' — expected a Daly City school"
         )
+
+
+# ---------------------------------------------------------------------------
+# fetch_ba_value_drivers — second_unit_rent_estimate for whole multi-family
+# ---------------------------------------------------------------------------
+
+class TestSecondUnitRentEstimate:
+    """fetch_ba_value_drivers emits second_unit_rent_estimate for whole_multifamily
+    properties and None for SFH or unit_in_multifamily."""
+
+    def _make_mock_census_client(self, zip_median_rent: float):
+        from unittest.mock import AsyncMock, MagicMock
+
+        response_data = [["B25064_001E", "zip code tabulation area"],
+                         [str(int(zip_median_rent)), "94110"]]
+        mock_response = MagicMock()
+        mock_response.json.return_value = response_data
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client.get = AsyncMock(return_value=mock_response)
+        return mock_client
+
+    async def test_second_unit_rent_estimate_present_for_whole_multifamily(self):
+        """DUPLEX (whole building) gets second_unit_rent_estimate = 0.65 × zip_median_rent."""
+        import os
+        from unittest.mock import patch
+        from agent.tools.ba_value_drivers import fetch_ba_value_drivers
+
+        property_data = {
+            "property_type": "DUPLEX",
+            "city": "San Francisco",
+            "year_built": 1950,
+            "latitude": None,
+            "longitude": None,
+        }
+        mock_client = self._make_mock_census_client(4000.0)
+
+        with patch.dict(os.environ, {"CENSUS_API_KEY": "testkey"}), \
+             patch("agent.tools.ba_value_drivers.httpx.AsyncClient", return_value=mock_client), \
+             patch("agent.tools.ba_value_drivers.fetch_rentcast_rent_estimate", new_callable=AsyncMock, return_value=None):
+            result = await fetch_ba_value_drivers(property_data, "94110")
+
+        assert result.get("second_unit_rent_estimate") is not None
+        assert result["second_unit_rent_estimate"] == pytest.approx(4000.0 * 0.65, abs=1)
+
+    async def test_second_unit_rent_estimate_absent_for_sfh(self):
+        """SFH properties do not have a second unit; estimate must be None."""
+        import os
+        from unittest.mock import patch
+        from agent.tools.ba_value_drivers import fetch_ba_value_drivers
+
+        property_data = {
+            "property_type": "SINGLE_FAMILY",
+            "lot_size": 2500,
+            "city": "San Francisco",
+            "year_built": 1980,
+            "latitude": None,
+            "longitude": None,
+        }
+        mock_client = self._make_mock_census_client(3500.0)
+
+        with patch.dict(os.environ, {"CENSUS_API_KEY": "testkey"}), \
+             patch("agent.tools.ba_value_drivers.httpx.AsyncClient", return_value=mock_client), \
+             patch("agent.tools.ba_value_drivers.fetch_rentcast_rent_estimate", new_callable=AsyncMock, return_value=None):
+            result = await fetch_ba_value_drivers(property_data, "94110")
+
+        assert result.get("second_unit_rent_estimate") is None
+
+    async def test_second_unit_rent_estimate_absent_for_unit_in_multifamily(self):
+        """Unit within a building (e.g. #2 in a duplex) doesn't own the other unit."""
+        import os
+        from unittest.mock import patch
+        from agent.tools.ba_value_drivers import fetch_ba_value_drivers
+
+        property_data = {
+            "property_type": "DUPLEX",
+            "unit": "2",  # has a unit → unit_in_multifamily
+            "city": "San Francisco",
+            "year_built": 1960,
+            "latitude": None,
+            "longitude": None,
+        }
+        mock_client = self._make_mock_census_client(3500.0)
+
+        with patch.dict(os.environ, {"CENSUS_API_KEY": "testkey"}), \
+             patch("agent.tools.ba_value_drivers.httpx.AsyncClient", return_value=mock_client), \
+             patch("agent.tools.ba_value_drivers.fetch_rentcast_rent_estimate", new_callable=AsyncMock, return_value=None):
+            result = await fetch_ba_value_drivers(property_data, "94110")
+
+        assert result.get("second_unit_rent_estimate") is None
+
+    async def test_second_unit_rent_estimate_absent_when_no_zip_median(self):
+        """When zip_median_rent cannot be determined, estimate is None."""
+        import os
+        from unittest.mock import patch, AsyncMock, MagicMock
+        from agent.tools.ba_value_drivers import fetch_ba_value_drivers
+
+        property_data = {
+            "property_type": "DUPLEX",
+            "city": "San Francisco",
+            "year_built": 1950,
+            "latitude": None,
+            "longitude": None,
+        }
+
+        # Census returns no data
+        mock_response = MagicMock()
+        mock_response.json.return_value = [["B25064_001E", "zip code tabulation area"]]
+        mock_response.raise_for_status = MagicMock()
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client.get = AsyncMock(return_value=mock_response)
+
+        with patch.dict(os.environ, {"CENSUS_API_KEY": "testkey"}), \
+             patch("agent.tools.ba_value_drivers.httpx.AsyncClient", return_value=mock_client), \
+             patch("agent.tools.ba_value_drivers.fetch_rentcast_rent_estimate", new_callable=AsyncMock, return_value=None):
+            result = await fetch_ba_value_drivers(property_data, "94110")
+
+        assert result.get("second_unit_rent_estimate") is None
+
+    async def test_triplex_also_gets_second_unit_rent_estimate(self):
+        """TRIPLEX (whole building) is also classified as whole_multifamily."""
+        import os
+        from unittest.mock import patch
+        from agent.tools.ba_value_drivers import fetch_ba_value_drivers
+
+        property_data = {
+            "property_type": "TRIPLEX",
+            "city": "Oakland",
+            "year_built": 1940,
+            "latitude": None,
+            "longitude": None,
+        }
+        mock_client = self._make_mock_census_client(3000.0)
+
+        with patch.dict(os.environ, {"CENSUS_API_KEY": "testkey"}), \
+             patch("agent.tools.ba_value_drivers.httpx.AsyncClient", return_value=mock_client), \
+             patch("agent.tools.ba_value_drivers.fetch_rentcast_rent_estimate", new_callable=AsyncMock, return_value=None):
+            result = await fetch_ba_value_drivers(property_data, "94601")
+
+        assert result.get("second_unit_rent_estimate") is not None

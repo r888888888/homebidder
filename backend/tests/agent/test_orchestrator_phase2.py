@@ -575,3 +575,82 @@ class TestSfPermitAutoFetch:
         permit_events = [e for e in events if e.get("tool") == "fetch_sf_permits"]
         assert not permit_events
         mock_permits.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Phase 8 — re-run recommend_offer with second_unit_rent for whole multi-family
+# ---------------------------------------------------------------------------
+
+async def _drain_phase8(listing, market_stats, offer_result, ba_drivers, mortgage_rates):
+    """Helper: run _run_phase8_investment and return (state, list of parsed SSE payloads)."""
+    from agent.orchestrator import _run_phase8_investment
+
+    state: dict = {}
+    events = []
+    with patch("agent.orchestrator.fetch_mortgage_rates", new_callable=AsyncMock, return_value=mortgage_rates), \
+         patch("agent.orchestrator.fetch_ba_value_drivers", new_callable=AsyncMock, return_value=ba_drivers), \
+         patch("agent.orchestrator.get_current_mortgage_rate_pct", new_callable=AsyncMock, return_value=mortgage_rates.get("rate_30yr_fixed", 6.5)):
+        async for chunk in _run_phase8_investment(listing, {}, offer_result, state, market_stats=market_stats):
+            if chunk.startswith("data: "):
+                events.append(json.loads(chunk[6:]))
+    return state, events
+
+
+class TestPhase8MultifamilyOfferRerun:
+    """After BA value drivers return second_unit_rent_estimate for a whole duplex,
+    Phase 8 must re-run recommend_offer with the rent and emit an updated SSE event."""
+
+    RATES = {"rate_30yr_fixed": 6.5, "as_of_date": "2026-04-01", "source": "Freddie Mac"}
+    MARKET = {
+        "comp_count": 5,
+        "median_sale_price": 1_100_000,
+        "median_price_per_sqft": 733.0,
+        "median_comp_sqft": 1500,
+        "median_lot_size": 2500,
+    }
+    OFFER = {"fair_value_estimate": 1_100_000, "posture": "at-market", "offer_recommended": 1_100_000}
+    DUPLEX_LISTING = {"property_type": "DUPLEX", "zip_code": "94110", "price": 1_200_000, "sqft": 1500}
+    SFH_LISTING = {"property_type": "SINGLE_FAMILY", "zip_code": "94110", "price": 1_200_000, "sqft": 1500}
+
+    async def test_phase8_emits_second_recommend_offer_event_for_whole_multifamily(self):
+        """When ba_value_drivers returns second_unit_rent_estimate for a whole duplex,
+        a second recommend_offer tool_result event is emitted."""
+        ba_drivers = {"zip_median_rent": 3500.0, "second_unit_rent_estimate": 2500.0}
+        state, events = await _drain_phase8(self.DUPLEX_LISTING, self.MARKET, self.OFFER, ba_drivers, self.RATES)
+
+        offer_events = [e for e in events if e.get("type") == "tool_result" and e.get("tool") == "recommend_offer"]
+        assert len(offer_events) >= 1, "Phase 8 should emit an updated recommend_offer event"
+
+    async def test_phase8_skips_rerun_for_sfh(self):
+        """SFH produces no second recommend_offer event in Phase 8."""
+        ba_drivers = {"zip_median_rent": 3500.0, "second_unit_rent_estimate": None}
+        state, events = await _drain_phase8(self.SFH_LISTING, self.MARKET, self.OFFER, ba_drivers, self.RATES)
+
+        offer_events = [e for e in events if e.get("type") == "tool_result" and e.get("tool") == "recommend_offer"]
+        assert len(offer_events) == 0, "SFH Phase 8 should not re-emit recommend_offer"
+
+    async def test_phase8_updated_fair_value_reflects_income_premium(self):
+        """The re-run recommend_offer event has a higher fair_value_estimate (income premium applied)."""
+        ba_drivers = {"zip_median_rent": 3500.0, "second_unit_rent_estimate": 2500.0}
+        state, events = await _drain_phase8(self.DUPLEX_LISTING, self.MARKET, self.OFFER, ba_drivers, self.RATES)
+
+        offer_events = [e for e in events if e.get("type") == "tool_result" and e.get("tool") == "recommend_offer"]
+        assert len(offer_events) >= 1
+        updated_fv = offer_events[-1]["result"].get("fair_value_estimate")
+        assert updated_fv > self.OFFER["fair_value_estimate"], "Updated fair value must exceed initial"
+
+    async def test_phase8_investment_uses_updated_fair_value(self):
+        """compute_investment_metrics uses the income-adjusted fair value from the re-run."""
+        ba_drivers = {"zip_median_rent": 3500.0, "second_unit_rent_estimate": 2500.0}
+        state, _ = await _drain_phase8(self.DUPLEX_LISTING, self.MARKET, self.OFFER, ba_drivers, self.RATES)
+        investment = state.get("investment", {})
+        # purchase_price should be the updated (higher) fair value
+        assert investment.get("purchase_price", 0) > self.OFFER["fair_value_estimate"]
+
+    async def test_phase8_skips_rerun_when_second_unit_rent_is_none(self):
+        """When second_unit_rent_estimate is None even for a duplex, no rerun occurs."""
+        ba_drivers = {"zip_median_rent": 3500.0, "second_unit_rent_estimate": None}
+        state, events = await _drain_phase8(self.DUPLEX_LISTING, self.MARKET, self.OFFER, ba_drivers, self.RATES)
+
+        offer_events = [e for e in events if e.get("type") == "tool_result" and e.get("tool") == "recommend_offer"]
+        assert len(offer_events) == 0

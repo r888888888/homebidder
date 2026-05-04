@@ -21,6 +21,13 @@ DEFAULT_DOWN_PAYMENT_PCT = 20.0
 LOT_ELASTICITY = 0.15   # doubling lot size → ~10.4% price premium
 SQFT_ELASTICITY = 0.25  # keeps existing magnitude; log form fixes tail behavior
 
+# Gross Rent Multiplier for Bay Area small multi-family (price / annual gross rent).
+# Capitalizes second-unit rental income into a fair value premium for whole buildings.
+GRM_TYPICAL = 18
+
+# Income premium cap: never add more than this fraction of fair value for rental income.
+INCOME_PREMIUM_CAP = 0.10
+
 
 def _clamp(value: float, low: float, high: float) -> float:
     return max(low, min(value, high))
@@ -231,6 +238,7 @@ def recommend_offer(
     market_stats: dict[str, Any],
     buyer_context: str = "",
     mortgage_rate_pct: float = DEFAULT_MORTGAGE_RATE_PCT,
+    second_unit_rent: float | None = None,
 ) -> dict[str, Any]:
     """
     Produce an offer range based on listing price vs. comp market data.
@@ -334,6 +342,19 @@ def recommend_offer(
 
     # Add multifamily_subtype to fair_value_breakdown (all paths)
     fair_value_breakdown["multifamily_subtype"] = multifamily_subtype
+
+    # --- GRM-based income premium for whole multi-family ---
+    # When the buyer owns the entire building they can rent the second unit,
+    # adding capitalized rental income to the fair value.
+    income_premium: int | None = None
+    income_premium_pct: float | None = None
+    if multifamily_subtype == "whole_multifamily" and second_unit_rent is not None:
+        income_premium_uncapped = second_unit_rent * 12 * GRM_TYPICAL
+        income_premium = round(min(income_premium_uncapped, fair_value * INCOME_PREMIUM_CAP))
+        income_premium_pct = round(income_premium / fair_value * 100, 2)
+        fair_value = round(fair_value + income_premium)
+    fair_value_breakdown["income_premium"] = income_premium
+    fair_value_breakdown["income_premium_pct"] = income_premium_pct
 
     # --- Fair value confidence interval ---
     fair_value_ci = _compute_fair_value_ci(

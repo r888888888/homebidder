@@ -430,3 +430,92 @@ class TestComputeInvestmentMetrics:
         assert result["rent_range_low"] is None
         assert result["rent_range_high"] is None
 
+
+# ---------------------------------------------------------------------------
+# compute_investment_metrics — second-unit rent income offset
+# ---------------------------------------------------------------------------
+
+class TestSecondUnitRentOffset:
+    """When ba_value_drivers includes second_unit_rent_estimate (whole multi-family),
+    monthly_net_buy_cost is reduced and opportunity_cost reflects the offset."""
+
+    BASE_DRIVERS = {"zip_median_rent": 3500.0}
+
+    def test_monthly_net_buy_cost_field_present_when_second_unit_rent_provided(self):
+        from agent.tools.investment import compute_investment_metrics
+
+        result = compute_investment_metrics(
+            property={"price": 1_200_000},
+            mortgage_rates={"rate_30yr_fixed": 6.5},
+            hpi_trend={},
+            ba_value_drivers={**self.BASE_DRIVERS, "second_unit_rent_estimate": 2500.0},
+        )
+        assert "monthly_net_buy_cost" in result
+        assert result["monthly_net_buy_cost"] is not None
+
+    def test_monthly_net_buy_cost_equals_gross_minus_second_unit_rent(self):
+        from agent.tools.investment import compute_investment_metrics
+
+        result = compute_investment_metrics(
+            property={"price": 1_200_000},
+            mortgage_rates={"rate_30yr_fixed": 6.5},
+            hpi_trend={},
+            ba_value_drivers={**self.BASE_DRIVERS, "second_unit_rent_estimate": 2500.0},
+        )
+        expected_net = round(result["monthly_buy_cost"] - 2500.0, 2)
+        assert result["monthly_net_buy_cost"] == pytest.approx(expected_net, abs=1)
+
+    def test_second_unit_rent_income_field_in_output(self):
+        from agent.tools.investment import compute_investment_metrics
+
+        result = compute_investment_metrics(
+            property={"price": 1_200_000},
+            mortgage_rates={"rate_30yr_fixed": 6.5},
+            hpi_trend={},
+            ba_value_drivers={**self.BASE_DRIVERS, "second_unit_rent_estimate": 2500.0},
+        )
+        assert result["second_unit_rent_income"] == pytest.approx(2500.0)
+
+    def test_opportunity_cost_lower_with_second_unit_rent(self):
+        """Second-unit rental income lowers net ownership cost → lower opportunity cost."""
+        from agent.tools.investment import compute_investment_metrics
+
+        result_no_second = compute_investment_metrics(
+            property={"price": 1_200_000},
+            mortgage_rates={"rate_30yr_fixed": 6.5},
+            hpi_trend={},
+            ba_value_drivers=self.BASE_DRIVERS,
+        )
+        result_with_second = compute_investment_metrics(
+            property={"price": 1_200_000},
+            mortgage_rates={"rate_30yr_fixed": 6.5},
+            hpi_trend={},
+            ba_value_drivers={**self.BASE_DRIVERS, "second_unit_rent_estimate": 2500.0},
+        )
+        assert result_with_second["opportunity_cost_10yr"] < result_no_second["opportunity_cost_10yr"]
+        assert result_with_second["opportunity_cost_20yr"] < result_no_second["opportunity_cost_20yr"]
+
+    def test_no_second_unit_rent_monthly_net_equals_gross(self):
+        """Without second_unit_rent_estimate, monthly_net_buy_cost == monthly_buy_cost."""
+        from agent.tools.investment import compute_investment_metrics
+
+        result = compute_investment_metrics(
+            property={"price": 1_200_000},
+            mortgage_rates={"rate_30yr_fixed": 6.5},
+            hpi_trend={},
+            ba_value_drivers=self.BASE_DRIVERS,
+        )
+        assert result["monthly_net_buy_cost"] == result["monthly_buy_cost"]
+
+    def test_second_unit_rent_income_none_when_not_in_drivers(self):
+        """second_unit_rent_income is None when ba_value_drivers has no estimate."""
+        from agent.tools.investment import compute_investment_metrics
+
+        result = compute_investment_metrics(
+            property={"price": 1_200_000},
+            mortgage_rates={"rate_30yr_fixed": 6.5},
+            hpi_trend={},
+            ba_value_drivers=self.BASE_DRIVERS,
+        )
+        assert result["second_unit_rent_income"] is None
+

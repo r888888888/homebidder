@@ -457,4 +457,85 @@ class TestBedroomFilterFallback:
         assert "100 Same BR Way" in addresses
         assert "200 Lower BR Way" not in addresses
 
+
+# ---------------------------------------------------------------------------
+# Multi-family "multi" bucket normalization
+# ---------------------------------------------------------------------------
+
+class TestNormalizePropertyTypeMulti:
+    @pytest.mark.parametrize("raw_type,expected", [
+        ("DUPLEX",       "multi"),
+        ("TRIPLEX",      "multi"),
+        ("MULTI_FAMILY", "multi"),
+        ("multi-family", "multi"),
+        ("2_FAMILY",     "multi"),
+        ("3_FAMILY",     "multi"),
+    ])
+    def test_multifamily_types_normalize_to_multi(self, raw_type, expected):
+        from agent.tools.comps import _normalize_property_type
+        assert _normalize_property_type(raw_type) == expected
+
+    def test_sfh_unaffected_by_multi_bucket_addition(self):
+        from agent.tools.comps import _normalize_property_type
+        assert _normalize_property_type("SINGLE_FAMILY") == "sfh"
+
+    def test_condo_unaffected_by_multi_bucket_addition(self):
+        from agent.tools.comps import _normalize_property_type
+        assert _normalize_property_type("CONDO") == "condo"
+
+    def test_redfin_filter_returns_code_6_for_multi(self):
+        from agent.tools.comps import _redfin_sf_filter_value
+        assert _redfin_sf_filter_value("multi") == "6"
+
+    def test_redfin_filter_all_types_when_unrecognized(self):
+        from agent.tools.comps import _redfin_sf_filter_value
+        assert _redfin_sf_filter_value(None) == "1,2,3,6,13"
+
+
+class TestMultiPropertyTypeFilter:
+    async def test_duplex_subject_only_gets_duplex_comps(self):
+        """When subject type is DUPLEX, non-multi comps are filtered out."""
+        from agent.tools.comps import fetch_comps
+
+        duplex_comp = {**BASE_COMP_ROW, "street": "1 Duplex St", "style": "DUPLEX"}
+        sfh_comp = {**BASE_COMP_ROW, "street": "2 House St", "style": "SINGLE_FAMILY"}
+        df = _make_df([duplex_comp, sfh_comp])
+
+        with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+            result = await fetch_comps(
+                address="300 Multi Ave",
+                city="San Francisco",
+                state="CA",
+                zip_code="94110",
+                subject_lat=SF_LAT,
+                subject_lon=SF_LON,
+                subject_property_type="DUPLEX",
+            )
+        comps = result["comps"]
+        assert len(comps) == 1
+        assert comps[0]["address"] == "1 Duplex St"
+
+    async def test_triplex_comps_match_duplex_subject(self):
+        """TRIPLEX comps (also normalized to 'multi') are included for a DUPLEX subject."""
+        from agent.tools.comps import fetch_comps
+
+        triplex_comp = {**BASE_COMP_ROW, "street": "5 Triplex Rd", "style": "TRIPLEX"}
+        df = _make_df([triplex_comp])
+
+        with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+            result = await fetch_comps(
+                address="300 Multi Ave",
+                city="San Francisco",
+                state="CA",
+                zip_code="94110",
+                subject_lat=SF_LAT,
+                subject_lon=SF_LON,
+                subject_property_type="DUPLEX",
+            )
+        comps = result["comps"]
+        assert len(comps) == 1
+        assert comps[0]["address"] == "5 Triplex Rd"
+
 # ---------------------------------------------------------------------------

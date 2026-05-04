@@ -452,7 +452,7 @@ def _int(val: Any) -> int | None:
 
 
 def _normalize_property_type(value: str | None) -> str | None:
-    """Normalize raw property type labels to one of: sfh, condo, townhome."""
+    """Normalize raw property type labels to one of: sfh, condo, townhome, multi."""
     if not value:
         return None
     v = str(value).strip().lower()
@@ -462,6 +462,9 @@ def _normalize_property_type(value: str | None) -> str | None:
         return "townhome"
     if any(token in v for token in ("single", "sfh", "sfr", "house")):
         return "sfh"
+    if any(token in v for token in ("duplex", "triplex", "multi", "2_family", "3_family",
+                                    "two_family", "three_family")):
+        return "multi"
     return None
 
 
@@ -568,4 +571,6 @@ def _redfin_sf_filter_value(subject_property_type: str | None) -> str:
         return "2"
     if subject_property_type == "townhome":
         return "3"
+    if subject_property_type == "multi":
+        return "6"
     return "1,2,3,6,13"

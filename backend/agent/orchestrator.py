@@ -578,12 +578,17 @@ async def _run_phase8_investment(
     offer_result: dict,
     state: dict,
     user_id=None,
+    market_stats: dict | None = None,
+    buyer_context: str = "",
 ) -> AsyncIterator[str]:
     """
     Phase 8 — fetch mortgage rates + BA value drivers in parallel, then compute
     investment metrics.
 
-    Populates state["investment"].
+    For whole multi-family properties, re-runs recommend_offer with the second-unit
+    rent estimate to apply a GRM-based income premium to the fair value.
+
+    Populates state["investment"] (and state["offer_result"] when repriced).
     """
     listing_zip = str(listing.get("zip_code") or "")
 
@@ -608,13 +613,37 @@ async def _run_phase8_investment(
     yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'fetch_mortgage_rates', 'result': mortgage_rates_result})}\n\n"
     yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'fetch_ba_value_drivers', 'result': ba_drivers_result})}\n\n"
 
+    # Re-run recommend_offer with second-unit rental income for whole multi-family buildings.
+    # This applies a GRM-based income premium to the fair value (capped at 10%).
+    active_offer_result = offer_result
+    if isinstance(ba_drivers_result, dict):
+        second_unit_rent = ba_drivers_result.get("second_unit_rent_estimate")
+        if second_unit_rent is not None:
+            mortgage_rate_pct = await get_current_mortgage_rate_pct()
+            updated_offer = recommend_offer(
+                listing,
+                market_stats or {},
+                buyer_context,
+                mortgage_rate_pct=mortgage_rate_pct,
+                second_unit_rent=second_unit_rent,
+            )
+            log.info(
+                "Phase 8 repriced for whole_multifamily: fair_value=%s (was %s), income_premium=%s",
+                updated_offer.get("fair_value_estimate"),
+                offer_result.get("fair_value_estimate"),
+                updated_offer.get("fair_value_breakdown", {}).get("income_premium"),
+            )
+            yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'recommend_offer', 'result': updated_offer})}\n\n"
+            active_offer_result = updated_offer
+            state["offer_result"] = updated_offer
+
     yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'compute_investment_metrics', 'input': {'property': '...', 'mortgage_rates': '...', 'hpi_trend': '...', 'ba_value_drivers': '...'}})}\n\n"
     investment = compute_investment_metrics(
         property=listing,
         mortgage_rates=mortgage_rates_result if isinstance(mortgage_rates_result, dict) else {},
         hpi_trend=phase6_fhfa if isinstance(phase6_fhfa, dict) else {},
         ba_value_drivers=ba_drivers_result if isinstance(ba_drivers_result, dict) else {},
-        fair_value=offer_result.get("fair_value_estimate") if isinstance(offer_result, dict) else None,
+        fair_value=active_offer_result.get("fair_value_estimate") if isinstance(active_offer_result, dict) else None,
     )
     yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'compute_investment_metrics', 'result': investment})}\n\n"
     state["investment"] = investment
@@ -935,9 +964,18 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
 
                 # Phase 8: investment analysis
                 phase8_state: dict = {}
-                async for chunk in _run_phase8_investment(listing, phase6_fhfa, offer_result, phase8_state, user_id=user_id):
+                async for chunk in _run_phase8_investment(
+                    listing, phase6_fhfa, offer_result, phase8_state,
+                    user_id=user_id,
+                    market_stats=market_stats,
+                    buyer_context=buyer_context,
+                ):
                     yield chunk
                 phase8_investment = phase8_state.get("investment")
+                # If Phase 8 repriced for multi-family, propagate the updated offer result
+                if "offer_result" in phase8_state:
+                    offer_result = phase8_state["offer_result"]
+                    offer_result_persist = offer_result
 
                 # Phase 9: renovation cost estimation
                 phase9_state: dict = {}
