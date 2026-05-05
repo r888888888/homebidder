@@ -594,3 +594,159 @@ class TestCacheTTL:
 
         mock_client.messages.create.assert_called()
         await engine.dispose()
+
+
+# ---------------------------------------------------------------------------
+# Phase 3 Fix 5: Phase 6 failures emit tool_error SSE events
+# Phase 3 Fix 6: Cache bypassed when buyer_context is non-empty
+# ---------------------------------------------------------------------------
+
+def _make_end_turn_response(text: str = "Analysis complete.") -> MagicMock:
+    response = MagicMock()
+    response.stop_reason = "end_turn"
+    tb = MagicMock()
+    tb.type = "text"
+    tb.text = text
+    response.content = [tb]
+    return response
+
+
+def _make_end_turn_response(text: str = "Analysis complete.") -> MagicMock:
+    response = MagicMock()
+    response.stop_reason = "end_turn"
+    tb = MagicMock()
+    tb.type = "text"
+    tb.text = text
+    response.content = [tb]
+    return response
+
+
+def _make_lookup_tool_use_response() -> MagicMock:
+    """Claude response that calls lookup_property_by_address."""
+    block = MagicMock()
+    block.type = "tool_use"
+    block.name = "lookup_property_by_address"
+    block.id = "tu_phase6_test"
+    block.input = {"address": "450 Sanchez St, San Francisco, CA 94114"}
+    response = MagicMock()
+    response.stop_reason = "tool_use"
+    response.content = [block]
+    return response
+
+
+_FAKE_PROPERTY_RESULT = {
+    "address_matched": "450 SANCHEZ ST, SAN FRANCISCO, CA, 94114",
+    "latitude": 37.7612,
+    "longitude": -122.4313,
+    "county": "San Francisco",
+    "state": "CA",
+    "zip_code": "94114",
+    "price": 1_250_000.0,
+    "bedrooms": 3,
+    "bathrooms": 2.0,
+    "sqft": 1800,
+    "year_built": 1928,
+    "lot_size": 2500,
+    "property_type": "SINGLE_FAMILY",
+}
+
+
+class TestPhase6ToolErrorEvents:
+    async def _run_with_failing_hazards(self, extra_patches=None):
+        from agent.orchestrator import run_agent
+
+        patches = {
+            "agent.orchestrator.anthropic.AsyncAnthropic": None,
+            "agent.orchestrator.lookup_property_by_address": _FAKE_PROPERTY_RESULT,
+            "agent.orchestrator.fetch_ca_hazard_zones": Exception("geo data unavailable"),
+            "agent.orchestrator.fetch_market_trends": {"trend": "up", "zip_code": "94114"},
+            "agent.orchestrator.fetch_fhfa_hpi": {"yoy_change_pct": 3.0},
+            "agent.orchestrator.fetch_crime_data": {"violent_count": 0},
+            "agent.orchestrator.fetch_calenviroscreen_data": None,
+        }
+        if extra_patches:
+            patches.update(extra_patches)
+
+        with patch("agent.orchestrator.anthropic.AsyncAnthropic") as mock_cls, \
+             patch("agent.orchestrator.lookup_property_by_address", new_callable=AsyncMock, return_value=_FAKE_PROPERTY_RESULT), \
+             patch("agent.orchestrator.fetch_ca_hazard_zones", side_effect=Exception("geo data unavailable")), \
+             patch("agent.orchestrator.fetch_market_trends", new_callable=AsyncMock, return_value={"trend": "up"}), \
+             patch("agent.orchestrator.fetch_fhfa_hpi", new_callable=AsyncMock, return_value={"yoy_change_pct": 3.0}), \
+             patch("agent.orchestrator.fetch_crime_data", new_callable=AsyncMock, return_value={"violent_count": 0}), \
+             patch("agent.orchestrator.fetch_calenviroscreen_data", return_value=None):
+            mock_client = AsyncMock()
+            mock_cls.return_value = mock_client
+            mock_client.messages.create.side_effect = [
+                _make_lookup_tool_use_response(),
+                _make_end_turn_response(),
+            ]
+            events = []
+            async for chunk in run_agent("450 Sanchez St, San Francisco, CA 94114"):
+                if chunk.startswith("data: "):
+                    events.append(json.loads(chunk[6:]))
+        return events
+
+    async def test_phase6_failure_emits_tool_error_event(self):
+        """When a Phase 6 tool raises, a tool_error event is emitted in the SSE stream."""
+        events = await self._run_with_failing_hazards()
+        error_events = [e for e in events if e.get("type") == "tool_error"]
+        hazard_errors = [e for e in error_events if e.get("tool") == "fetch_ca_hazard_zones"]
+        assert len(hazard_errors) >= 1, f"Expected tool_error for fetch_ca_hazard_zones, got: {error_events}"
+        assert "error" in hazard_errors[0]
+
+    async def test_phase6_other_tools_continue_after_one_fails(self):
+        """Phase 6 failure of one tool does not prevent other tools from reporting results."""
+        events = await self._run_with_failing_hazards()
+        trends_results = [
+            e for e in events
+            if e.get("type") == "tool_result" and e.get("tool") == "fetch_market_trends"
+        ]
+        assert len(trends_results) >= 1, "fetch_market_trends result missing after sibling failure"
+
+
+class TestCacheBypassedWithBuyerContext:
+    async def collect_events_with_context(self, db, buyer_context: str) -> list[dict]:
+        from agent.orchestrator import run_agent
+
+        events = []
+        async for chunk in run_agent(ADDRESS, buyer_context=buyer_context, db=db, force_refresh=False):
+            if chunk.startswith("data: "):
+                events.append(json.loads(chunk[6:]))
+        return events
+
+    async def test_cache_bypassed_when_buyer_context_nonempty(self):
+        """With a non-empty buyer_context, the analysis pipeline runs even if a cache entry exists."""
+        Session, engine = await _make_seeded_db()
+        async with Session() as db:
+            with patch("agent.orchestrator.anthropic.AsyncAnthropic") as mock_cls, \
+                 patch("agent.orchestrator._geocode", new_callable=AsyncMock, return_value=FAKE_GEO):
+                mock_client = AsyncMock()
+                mock_cls.return_value = mock_client
+                # Make Claude return immediately (end_turn, no tool calls)
+                end_turn = MagicMock()
+                end_turn.stop_reason = "end_turn"
+                text = MagicMock()
+                text.type = "text"
+                text.text = "Analysis with context."
+                end_turn.content = [text]
+                mock_client.messages.create.return_value = end_turn
+
+                # buyer_context is non-empty → must NOT use cache → Claude must be called
+                await self.collect_events_with_context(db, buyer_context="investor looking for cash flow")
+
+        mock_client.messages.create.assert_called()
+        await engine.dispose()
+
+    async def test_cache_used_when_buyer_context_empty(self):
+        """With an empty buyer_context, the cache IS used and Claude is NOT called."""
+        Session, engine = await _make_seeded_db()
+        async with Session() as db:
+            with patch("agent.orchestrator.anthropic.AsyncAnthropic") as mock_cls, \
+                 patch("agent.orchestrator._geocode", new_callable=AsyncMock, return_value=FAKE_GEO):
+                mock_client = AsyncMock()
+                mock_cls.return_value = mock_client
+
+                await self.collect_events_with_context(db, buyer_context="")
+
+        mock_client.messages.create.assert_not_called()
+        await engine.dispose()

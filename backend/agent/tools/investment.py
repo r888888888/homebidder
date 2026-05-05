@@ -7,6 +7,8 @@ _DOWN_PAYMENT_PCT = 0.20
 _ANNUAL_STOCK_RETURN_PCT = 10.0   # historical S&P 500 nominal
 _MAINTENANCE_ANNUAL_PCT = 0.005   # 0.5% of property value / year
 _ANNUAL_RENT_INCREASE_PCT = 3.0   # Bay Area historical rent growth
+_PROPERTY_TAX_ANNUAL_PCT = 1.20   # CA Prop 13 new-acquisition rate (% of purchase price)
+_INSURANCE_ANNUAL_PCT = 0.35      # typical Bay Area homeowners insurance (% of purchase price)
 
 
 def _monthly_mortgage_payment(principal: float, annual_rate_pct: float, term_years: int = 30) -> float:
@@ -91,7 +93,11 @@ def compute_investment_metrics(
         loan = price * (1 - _DOWN_PAYMENT_PCT)
         monthly_mortgage = _monthly_mortgage_payment(loan, rate_30)
         monthly_maintenance = price * _MAINTENANCE_ANNUAL_PCT / 12
-        monthly_buy_cost = round(monthly_mortgage + monthly_maintenance, 2)
+        monthly_property_tax = price * _PROPERTY_TAX_ANNUAL_PCT / 100 / 12
+        monthly_insurance = price * _INSURANCE_ANNUAL_PCT / 100 / 12
+        monthly_buy_cost = round(
+            monthly_mortgage + monthly_maintenance + monthly_property_tax + monthly_insurance, 2
+        )
         monthly_cost_diff = round(monthly_buy_cost - zip_median_rent, 2)
         # For whole multi-family, rental income from the second unit offsets the monthly cost.
         if second_unit_rent is not None and second_unit_rent > 0:
@@ -102,6 +108,8 @@ def compute_investment_metrics(
         opportunity_cost_20yr = _opportunity_cost_fv(monthly_net_buy_cost, zip_median_rent, 20)
         opportunity_cost_30yr = _opportunity_cost_fv(monthly_net_buy_cost, zip_median_rent, 30)
     else:
+        monthly_property_tax = None
+        monthly_insurance = None
         monthly_buy_cost = None
         monthly_net_buy_cost = None
         monthly_cost_diff = None
@@ -118,6 +126,8 @@ def compute_investment_metrics(
         "as_of_date": as_of_date,
         "hpi_yoy_assumption_pct": yoy_pct,
         "monthly_buy_cost": monthly_buy_cost,
+        "monthly_property_tax": round(monthly_property_tax, 2) if monthly_property_tax is not None else None,
+        "monthly_insurance": round(monthly_insurance, 2) if monthly_insurance is not None else None,
         "monthly_net_buy_cost": monthly_net_buy_cost,
         "second_unit_rent_income": second_unit_rent,
         "monthly_rent_equivalent": zip_median_rent,

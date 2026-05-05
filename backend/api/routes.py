@@ -22,6 +22,26 @@ from db.models import User
 _MAX_INSPECTION_PDF_BYTES = 10 * 1024 * 1024  # 10 MB
 
 
+def _safe_json(s: str | None):
+    """Parse a JSON string, returning None on any parse error instead of raising."""
+    if not s:
+        return None
+    try:
+        return json.loads(s)
+    except (json.JSONDecodeError, ValueError):
+        return None
+
+
+def _assert_ownership(analysis, user, x_session_id: str | None) -> None:
+    """Raise 403 if the caller does not own the analysis."""
+    if user is not None:
+        if analysis.user_id != user.id:
+            raise HTTPException(status_code=403, detail="Not authorized")
+    else:
+        if analysis.user_id is not None or analysis.session_id != x_session_id:
+            raise HTTPException(status_code=403, detail="Not authorized")
+
+
 def _retention_cutoff(user: User | None) -> tuple[datetime | None, int | None]:
     """Return (cutoff_datetime, retention_days) for the given user tier.
 
@@ -123,13 +143,7 @@ async def attach_inspection_report(
     if analysis is None:
         raise HTTPException(status_code=404, detail="Analysis not found")
 
-    # Ownership check (mirrors renovation-toggles pattern)
-    if user is not None:
-        if analysis.user_id != user.id:
-            raise HTTPException(status_code=403, detail="Not authorized")
-    else:
-        if analysis.user_id is not None or analysis.session_id != x_session_id:
-            raise HTTPException(status_code=403, detail="Not authorized")
+    _assert_ownership(analysis, user, x_session_id)
 
     if file.content_type != "application/pdf":
         raise HTTPException(status_code=400, detail="Only PDF files are accepted.")
@@ -248,15 +262,15 @@ async def get_analysis(analysis_id: int, db: AsyncSession = Depends(get_db)):
         "investment_rating": analysis.investment_rating,
         "is_favorite": analysis.is_favorite,
         "rationale": analysis.rationale,
-        "property_data": json.loads(analysis.property_data_json) if analysis.property_data_json else None,
-        "neighborhood_data": json.loads(analysis.neighborhood_data_json) if analysis.neighborhood_data_json else None,
-        "offer_data": json.loads(analysis.offer_data_json) if analysis.offer_data_json else None,
-        "risk_data": json.loads(analysis.risk_data_json) if analysis.risk_data_json else None,
-        "investment_data": json.loads(analysis.investment_data_json) if analysis.investment_data_json else None,
-        "renovation_data": json.loads(analysis.renovation_data_json) if analysis.renovation_data_json else None,
-        "permits_data": json.loads(analysis.permits_data_json) if analysis.permits_data_json else None,
-        "crime_data": json.loads(analysis.crime_data_json) if analysis.crime_data_json else None,
-        "inspection_data": json.loads(analysis.inspection_data_json) if analysis.inspection_data_json else None,
+        "property_data": _safe_json(analysis.property_data_json),
+        "neighborhood_data": _safe_json(analysis.neighborhood_data_json),
+        "offer_data": _safe_json(analysis.offer_data_json),
+        "risk_data": _safe_json(analysis.risk_data_json),
+        "investment_data": _safe_json(analysis.investment_data_json),
+        "renovation_data": _safe_json(analysis.renovation_data_json),
+        "permits_data": _safe_json(analysis.permits_data_json),
+        "crime_data": _safe_json(analysis.crime_data_json),
+        "inspection_data": _safe_json(analysis.inspection_data_json),
         "comps": [
             {
                 "address": c.address,
@@ -287,11 +301,12 @@ async def delete_analysis(
     analysis_id: int,
     db: AsyncSession = Depends(get_db),
     user: User | None = Depends(current_optional_user),
+    x_session_id: str | None = Header(default=None, alias="X-Session-ID"),
 ):
     """Delete a saved analysis record.
 
     Authenticated users can only delete analyses they own.
-    Anonymous callers can only delete analyses with no owner (user_id IS NULL).
+    Anonymous callers must supply the matching X-Session-ID header.
     """
     from db.models import Analysis
 
@@ -300,13 +315,7 @@ async def delete_analysis(
     if analysis is None:
         raise HTTPException(status_code=404, detail="Analysis not found")
 
-    # Ownership check
-    if user is not None:
-        if analysis.user_id != user.id:
-            raise HTTPException(status_code=403, detail="Not authorized to delete this analysis")
-    else:
-        if analysis.user_id is not None:
-            raise HTTPException(status_code=403, detail="Not authorized to delete this analysis")
+    _assert_ownership(analysis, user, x_session_id)
 
     await db.delete(analysis)
     await db.commit()
@@ -332,14 +341,7 @@ async def patch_renovation_toggles(
     if analysis is None:
         raise HTTPException(status_code=404, detail="Analysis not found")
 
-    # Ownership check
-    if user is not None:
-        if analysis.user_id != user.id:
-            raise HTTPException(status_code=403, detail="Not authorized")
-    else:
-        # Anonymous: require matching session_id
-        if analysis.user_id is not None or analysis.session_id != x_session_id:
-            raise HTTPException(status_code=403, detail="Not authorized")
+    _assert_ownership(analysis, user, x_session_id)
 
     if not analysis.renovation_data_json:
         raise HTTPException(status_code=404, detail="Analysis has no renovation data")
@@ -367,13 +369,7 @@ async def toggle_favorite(
     if analysis is None:
         raise HTTPException(status_code=404, detail="Analysis not found")
 
-    # Ownership check
-    if user is not None:
-        if analysis.user_id != user.id:
-            raise HTTPException(status_code=403, detail="Not authorized")
-    else:
-        if analysis.user_id is not None or analysis.session_id != x_session_id:
-            raise HTTPException(status_code=403, detail="Not authorized")
+    _assert_ownership(analysis, user, x_session_id)
 
     analysis.is_favorite = not analysis.is_favorite
     await db.commit()

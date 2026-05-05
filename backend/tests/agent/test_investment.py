@@ -112,6 +112,9 @@ class TestComputeInvestmentMetrics:
             compute_investment_metrics,
             _monthly_mortgage_payment,
             _ANNUAL_RENT_INCREASE_PCT,
+            _PROPERTY_TAX_ANNUAL_PCT,
+            _INSURANCE_ANNUAL_PCT,
+            _MAINTENANCE_ANNUAL_PCT,
         )
 
         price = 800_000
@@ -120,8 +123,10 @@ class TestComputeInvestmentMetrics:
 
         loan = price * 0.80
         expected_mortgage = _monthly_mortgage_payment(loan, rate)
-        expected_maintenance = price * 0.005 / 12
-        expected_buy_cost = round(expected_mortgage + expected_maintenance, 2)
+        expected_maintenance = price * _MAINTENANCE_ANNUAL_PCT / 12
+        expected_tax = price * _PROPERTY_TAX_ANNUAL_PCT / 100 / 12
+        expected_insurance = price * _INSURANCE_ANNUAL_PCT / 100 / 12
+        expected_buy_cost = round(expected_mortgage + expected_maintenance + expected_tax + expected_insurance, 2)
         expected_diff = round(expected_buy_cost - rent, 2)
 
         r = (1 + 10.0 / 100) ** (1 / 12) - 1
@@ -329,10 +334,13 @@ class TestComputeInvestmentMetrics:
             fair_value=fair_value,
         )
 
+        from agent.tools.investment import _PROPERTY_TAX_ANNUAL_PCT, _INSURANCE_ANNUAL_PCT, _MAINTENANCE_ANNUAL_PCT
         expected_loan = fair_value * 0.80
         expected_mortgage = _monthly_mortgage_payment(expected_loan, 6.5)
-        expected_maintenance = fair_value * 0.005 / 12
-        expected_buy_cost = round(expected_mortgage + expected_maintenance, 2)
+        expected_maintenance = fair_value * _MAINTENANCE_ANNUAL_PCT / 12
+        expected_tax = fair_value * _PROPERTY_TAX_ANNUAL_PCT / 100 / 12
+        expected_insurance = fair_value * _INSURANCE_ANNUAL_PCT / 100 / 12
+        expected_buy_cost = round(expected_mortgage + expected_maintenance + expected_tax + expected_insurance, 2)
 
         assert result["monthly_buy_cost"] == pytest.approx(expected_buy_cost, abs=0.01)
 
@@ -519,3 +527,80 @@ class TestSecondUnitRentOffset:
         )
         assert result["second_unit_rent_income"] is None
 
+
+# ---------------------------------------------------------------------------
+# Phase 2 Fix 3: property tax and insurance included in monthly_buy_cost
+# ---------------------------------------------------------------------------
+
+class TestPropertyTaxAndInsurance:
+    def test_monthly_buy_cost_includes_property_tax(self):
+        from agent.tools.investment import compute_investment_metrics, _PROPERTY_TAX_ANNUAL_PCT
+
+        price = 2_000_000
+        result = compute_investment_metrics(
+            property={"price": price},
+            mortgage_rates={"rate_30yr_fixed": 6.5},
+            hpi_trend={},
+            ba_value_drivers={"zip_median_rent": 4_000},
+            fair_value=price,
+        )
+        expected_monthly_tax = price * _PROPERTY_TAX_ANNUAL_PCT / 100 / 12
+        assert result["monthly_property_tax"] == pytest.approx(expected_monthly_tax, abs=0.01)
+
+    def test_monthly_buy_cost_includes_insurance(self):
+        from agent.tools.investment import compute_investment_metrics, _INSURANCE_ANNUAL_PCT
+
+        price = 2_000_000
+        result = compute_investment_metrics(
+            property={"price": price},
+            mortgage_rates={"rate_30yr_fixed": 6.5},
+            hpi_trend={},
+            ba_value_drivers={"zip_median_rent": 4_000},
+            fair_value=price,
+        )
+        expected_monthly_insurance = price * _INSURANCE_ANNUAL_PCT / 100 / 12
+        assert result["monthly_insurance"] == pytest.approx(expected_monthly_insurance, abs=0.01)
+
+    def test_monthly_buy_cost_sum_of_all_components(self):
+        """monthly_buy_cost = mortgage + maintenance + property_tax + insurance."""
+        from agent.tools.investment import (
+            compute_investment_metrics,
+            _monthly_mortgage_payment,
+            _PROPERTY_TAX_ANNUAL_PCT,
+            _INSURANCE_ANNUAL_PCT,
+            _MAINTENANCE_ANNUAL_PCT,
+            _DOWN_PAYMENT_PCT,
+        )
+
+        price = 1_500_000
+        rate = 6.5
+        result = compute_investment_metrics(
+            property={"price": price},
+            mortgage_rates={"rate_30yr_fixed": rate},
+            hpi_trend={},
+            ba_value_drivers={"zip_median_rent": 4_000},
+            fair_value=price,
+        )
+        loan = price * (1 - _DOWN_PAYMENT_PCT)
+        expected_mortgage = _monthly_mortgage_payment(loan, rate)
+        expected_maintenance = price * _MAINTENANCE_ANNUAL_PCT / 12
+        expected_tax = price * _PROPERTY_TAX_ANNUAL_PCT / 100 / 12
+        expected_insurance = price * _INSURANCE_ANNUAL_PCT / 100 / 12
+        expected_total = round(expected_mortgage + expected_maintenance + expected_tax + expected_insurance, 2)
+
+        assert result["monthly_buy_cost"] == pytest.approx(expected_total, abs=0.01)
+        # The total should be materially higher than mortgage+maintenance alone
+        assert result["monthly_buy_cost"] > round(expected_mortgage + expected_maintenance, 2)
+
+    def test_tax_and_insurance_fields_null_when_no_rent_data(self):
+        """monthly_property_tax and monthly_insurance are None when buy cost block is skipped."""
+        from agent.tools.investment import compute_investment_metrics
+
+        result = compute_investment_metrics(
+            property={"price": 1_000_000},
+            mortgage_rates={"rate_30yr_fixed": 6.5},
+            hpi_trend={},
+            ba_value_drivers={},  # no zip_median_rent → buy cost block skipped
+        )
+        assert result["monthly_property_tax"] is None
+        assert result["monthly_insurance"] is None

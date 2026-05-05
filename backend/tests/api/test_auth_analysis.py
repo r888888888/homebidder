@@ -210,10 +210,13 @@ async def test_delete_anonymous_analysis_by_authed_user_returns_403(client):
 
 
 async def test_delete_anon_analysis_without_auth_succeeds(client):
-    """Anonymous users can still delete analyses that have no owner (user_id=None)."""
+    """Anonymous users can delete an analysis they own (matching X-Session-ID)."""
     analysis_id = await _seed_analysis(user_id=None, address="8 Free St, SF, CA 94110")
-
-    resp = await client.delete(f"/api/analyses/{analysis_id}")
+    # _seed_analysis sets session_id="seed-session" — caller must match it
+    resp = await client.delete(
+        f"/api/analyses/{analysis_id}",
+        headers={"X-Session-ID": "seed-session"},
+    )
     assert resp.status_code == 204
 
 

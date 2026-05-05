@@ -1029,3 +1029,94 @@ class TestIncomePremiumMultifamily:
         result = recommend_offer(listing, _STATS_WITH_COMP, second_unit_rent=2500)
         assert result["offer_low"] <= result["offer_recommended"] <= result["offer_high"]
 
+
+# ---------------------------------------------------------------------------
+# Phase 2 Fix 4: recency-weighted comp aggregation
+# ---------------------------------------------------------------------------
+
+from datetime import date, timedelta
+
+
+def _make_comp(price: float, sold_date: str, sqft: int = 1500) -> dict:
+    return {
+        "sold_price": price,
+        "sold_date": sold_date,
+        "sqft": sqft,
+        "price_per_sqft": round(price / sqft, 2),
+    }
+
+
+class TestRecencyWeightedComps:
+    def test_recency_weighted_median_present_in_output(self):
+        """analyze_market returns recency_weighted_median_sale_price."""
+        from agent.tools.pricing import analyze_market
+
+        today = date.today()
+        comps = [
+            _make_comp(1_000_000, (today - timedelta(days=30)).isoformat()),
+            _make_comp(1_100_000, (today - timedelta(days=60)).isoformat()),
+        ]
+        result = analyze_market(comps)
+        assert "recency_weighted_median_sale_price" in result
+        assert result["recency_weighted_median_sale_price"] is not None
+
+    def test_recency_weighted_median_downweights_old_comps(self):
+        """A recent high-price comp should pull weighted median above simple median."""
+        from agent.tools.pricing import analyze_market
+
+        today = date.today()
+        recent_high = _make_comp(1_100_000, (today - timedelta(days=10)).isoformat())
+        old_low = _make_comp(900_000, (today - timedelta(days=350)).isoformat())
+        # Simple median = 1,000,000; recency-weighted should favor recent → > 1,000,000
+        result = analyze_market([recent_high, old_low])
+        assert result["recency_weighted_median_sale_price"] > 1_000_000
+
+    def test_recency_weighted_median_favors_recent_low_price(self):
+        """If the recent comp is the lower-priced one, weighted median < simple median."""
+        from agent.tools.pricing import analyze_market
+
+        today = date.today()
+        recent_low = _make_comp(900_000, (today - timedelta(days=10)).isoformat())
+        old_high = _make_comp(1_100_000, (today - timedelta(days=350)).isoformat())
+        result = analyze_market([recent_low, old_high])
+        assert result["recency_weighted_median_sale_price"] < 1_000_000
+
+    def test_unweighted_median_still_present(self):
+        """Existing median_sale_price field is preserved alongside the recency-weighted version."""
+        from agent.tools.pricing import analyze_market
+
+        today = date.today()
+        comps = [_make_comp(1_000_000, (today - timedelta(days=30)).isoformat())]
+        result = analyze_market(comps)
+        assert "median_sale_price" in result
+        assert "recency_weighted_median_sale_price" in result
+
+    def test_recommend_offer_uses_recency_weighted_median_when_available(self):
+        """recommend_offer uses recency_weighted_median_sale_price over median_sale_price."""
+        from agent.tools.pricing import analyze_market, recommend_offer
+
+        today = date.today()
+        # Two comps: recent at 1.1M, old at 0.9M → weighted median > 1.0M
+        comps = [
+            _make_comp(1_100_000, (today - timedelta(days=10)).isoformat()),
+            _make_comp(900_000, (today - timedelta(days=350)).isoformat()),
+        ]
+        listing = {**BASE_LISTING, "price": 1_000_000}
+        market = analyze_market(comps)
+        assert market["recency_weighted_median_sale_price"] > market["median_sale_price"]
+
+        result = recommend_offer(listing, market)
+        # fair_value should be anchored to recency_weighted_median, not plain median
+        assert result["fair_value_estimate"] >= market["recency_weighted_median_sale_price"] * 0.97
+
+    def test_unknown_sold_date_gets_half_weight(self):
+        """Comps with null sold_date are given 0.5 weight (treated as ~6-month-old)."""
+        from agent.tools.pricing import analyze_market
+
+        today = date.today()
+        comp_unknown_date = _make_comp(900_000, None)
+        comp_recent = _make_comp(1_100_000, (today - timedelta(days=5)).isoformat())
+        result = analyze_market([comp_unknown_date, comp_recent])
+        # Recent comp dominates → weighted median > unweighted median
+        assert result["recency_weighted_median_sale_price"] > result["median_sale_price"]
+

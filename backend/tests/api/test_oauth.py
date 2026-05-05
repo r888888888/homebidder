@@ -120,3 +120,56 @@ async def test_google_callback_with_invalid_code_returns_4xx(client):
         )
 
     assert resp.status_code in (400, 422, 500)
+
+
+# ---------------------------------------------------------------------------
+# Phase 5 Fix 8: OAuth state store TTL eviction
+# ---------------------------------------------------------------------------
+
+def test_oauth_state_ttl_evicts_expired_states():
+    """States older than STATE_TTL_SECONDS should be evicted on next _issue_state call."""
+    import time
+    from api.oauth import _issue_state, _STATE_STORE, _STATE_TTL_SECONDS
+
+    # Manually insert an already-expired state
+    old_state = "old-expired-state-token"
+    _STATE_STORE[old_state] = time.time() - _STATE_TTL_SECONDS - 1
+
+    # Issuing a new state should trigger lazy cleanup
+    _issue_state("new-valid-state-token")
+
+    assert old_state not in _STATE_STORE, "Expired state should have been evicted"
+    assert "new-valid-state-token" in _STATE_STORE
+
+
+def test_oauth_state_ttl_rejects_expired_state():
+    """_consume_state should return False for a state that has exceeded TTL."""
+    import time
+    from api.oauth import _consume_state, _STATE_STORE, _STATE_TTL_SECONDS
+
+    expired = "definitely-expired-state"
+    _STATE_STORE[expired] = time.time() - _STATE_TTL_SECONDS - 1
+
+    result = _consume_state(expired)
+    assert result is False
+
+
+def test_oauth_state_ttl_accepts_fresh_state():
+    """_consume_state should return True and remove a recently issued state."""
+    import time
+    from api.oauth import _consume_state, _STATE_STORE
+
+    fresh = "fresh-state-just-issued"
+    _STATE_STORE[fresh] = time.time()
+
+    result = _consume_state(fresh)
+    assert result is True
+    assert fresh not in _STATE_STORE  # consumed
+
+
+def test_oauth_state_ttl_missing_state_returns_false():
+    """_consume_state returns False for unknown states."""
+    from api.oauth import _consume_state
+
+    result = _consume_state("never-issued-state-xyz")
+    assert result is False

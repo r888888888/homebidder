@@ -2,8 +2,9 @@
 Statistical analysis of comps to derive an offer price range.
 """
 
+import math
 import statistics
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from math import log
 from typing import Any
 
@@ -31,6 +32,36 @@ INCOME_PREMIUM_CAP = 0.10
 
 def _clamp(value: float, low: float, high: float) -> float:
     return max(low, min(value, high))
+
+
+def _recency_weight(sold_date_str: str | None, today: date) -> float:
+    """Exponential decay weight for a comp based on its sold date.
+
+    Weight = exp(-days_ago / 365): half-weight at ~253 days (~8 months).
+    Comps with missing/unparseable dates get 0.5 (treated as ~6 months old).
+    """
+    if not sold_date_str:
+        return 0.5
+    try:
+        d = date.fromisoformat(sold_date_str)
+        days_ago = max((today - d).days, 0)
+        return math.exp(-days_ago / 365.0)
+    except (ValueError, TypeError):
+        return 0.5
+
+
+def _weighted_median(values: list[float], weights: list[float]) -> float:
+    """Weighted median: value v such that cumulative weight below v >= 0.5."""
+    if not values:
+        raise ValueError("values must be non-empty")
+    pairs = sorted(zip(weights, values), key=lambda x: x[1])
+    total = sum(w for w, _ in pairs)
+    cumulative = 0.0
+    for w, v in pairs:
+        cumulative += w
+        if cumulative >= total / 2:
+            return v
+    return pairs[-1][1]
 
 
 def _monthly_payment_per_dollar(annual_rate_pct: float, term_years: int) -> float:
@@ -230,6 +261,21 @@ def analyze_market(comps: list[dict[str, Any]]) -> dict[str, Any]:
         sold_over = sum(1 for v in overbid_values if v > 0)
         result["pct_sold_over_asking"] = round(sold_over / len(overbid_values) * 100, 1)
 
+    # Recency-weighted median: exponential decay by days since sale.
+    # Keeps unweighted stats intact for transparency; recommend_offer prefers the weighted version.
+    today = date.today()
+    price_weights = [_recency_weight(c.get("sold_date"), today) for c in comps if c.get("sold_price")]
+    if prices and price_weights:
+        result["recency_weighted_median_sale_price"] = round(
+            _weighted_median(prices, price_weights)
+        )
+    ppsf_comps = [c for c in comps if c.get("price_per_sqft")]
+    if ppsf_comps:
+        ppsf_weights = [_recency_weight(c.get("sold_date"), today) for c in ppsf_comps]
+        result["recency_weighted_median_ppsf"] = round(
+            _weighted_median([c["price_per_sqft"] for c in ppsf_comps], ppsf_weights), 2
+        )
+
     return result
 
 
@@ -253,8 +299,15 @@ def recommend_offer(
     - median_pct_over_asking, pct_sold_over_asking passed through from market_stats (None if absent)
     """
     list_price = listing.get("price")
-    median_comp = market_stats.get("median_sale_price")
-    ppsf = market_stats.get("median_price_per_sqft")
+    # Prefer recency-weighted median when available (downweights stale comps).
+    median_comp = (
+        market_stats.get("recency_weighted_median_sale_price")
+        or market_stats.get("median_sale_price")
+    )
+    ppsf = (
+        market_stats.get("recency_weighted_median_ppsf")
+        or market_stats.get("median_price_per_sqft")
+    )
     sqft = listing.get("sqft")
     lot_size = listing.get("lot_size")
     dom = listing.get("days_on_market")

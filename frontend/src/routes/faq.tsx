@@ -25,7 +25,7 @@ const FAQ_SECTIONS: FAQSection[] = [
       {
         question: "How are comparable sales selected?",
         answer:
-          "Comps are drawn from recent MLS sales within a 0.5-mile radius of the subject property. Properties must share the same broad type (single-family, condo/TIC, multi-family) and must have sold within the past six months. Outliers — sales more than two standard deviations from the median price-per-sqft — are removed before computing the average, so a single distressed or inflated sale does not skew the result.",
+          "Comps are drawn from recent MLS sales within a 0.5-mile radius of the subject property. Properties must share the same broad type (single-family, condo/TIC, multi-family) and must have sold within the past six months. Outliers — sales more than two standard deviations from the median price-per-sqft — are removed before computing the average, so a single distressed or inflated sale does not skew the result. Recent sales are weighted more heavily than older ones using exponential decay (a sale from eight months ago carries roughly half the weight of a sale from last week), so the fair value tracks the current market rather than trailing conditions.",
       },
       {
         question: "How do lot size and square footage adjustments work?",
@@ -35,7 +35,12 @@ const FAQ_SECTIONS: FAQSection[] = [
       {
         question: "What is the confidence interval, and what affects it?",
         answer:
-          "The fair value is always accompanied by a low–high confidence interval. The interval widens when: there are few comps (< 3), the comp pool shows high price dispersion (coefficient of variation > 20%), the property is missing square footage or lot size data, or a fallback valuation method (price-per-sqft or list price) was used. The interval narrows as more matching comps are available and their adjusted prices converge. Missing size data also immediately triggers a 'low confidence' flag on the analysis.",
+          "The fair value is always accompanied by a low–high confidence interval. The interval widens when: there are few comps (< 3), the comp pool shows high price dispersion (coefficient of variation > 20%), the property is missing square footage or lot size data, a fallback valuation method (price-per-sqft or list price) was used, or the property has no list price at all (+3% for unlisted properties). The interval narrows as more matching comps are available and their adjusted prices converge. Missing size data also immediately triggers a 'low confidence' flag on the analysis.",
+      },
+      {
+        question: "Can HomeBidder analyze off-market or unlisted properties?",
+        answer:
+          "Yes. When no list price is available — for instance, an off-market property or a pocket listing shared directly by an agent — HomeBidder derives fair value entirely from comparable sales or price-per-square-foot data. The offer range, risk flags, and investment analysis all work the same way. The confidence interval is widened by 3% to reflect the extra uncertainty of having no list price anchor, and the analysis is labeled as 'Not listed' rather than showing a blank price.",
       },
     ],
   },
@@ -51,6 +56,11 @@ const FAQ_SECTIONS: FAQSection[] = [
         question: "What is a TIC discount, and why is it applied?",
         answer:
           "Tenancy-in-Common (TIC) properties in San Francisco typically sell at a 7% discount to equivalent condo or single-family values. This discount reflects two structural differences: (1) TIC financing is harder to obtain — most lenders require fractional loans at higher rates — and (2) TIC ownership carries liquidity risk because resale depends on co-owner cooperation or partition. HomeBidder detects TIC ownership signals in the listing description and property type, and applies the −7% discount to the comp-derived fair value before computing the offer range.",
+      },
+      {
+        question: "How does HomeBidder handle multi-family and duplex properties?",
+        answer:
+          "For whole-building multi-family properties (duplexes, triplexes, small apartment buildings), HomeBidder adds an income-based premium on top of the comp-derived fair value. The premium uses a Gross Rent Multiplier (GRM) of 18 — a commonly used benchmark in the Bay Area — applied to the estimated annual rent for all units. For example, a duplex with two units each renting at $3,500/month has annual gross rent of $84,000; at GRM 18 the income value is $1,512,000. The difference between that income-capitalized value and the comp-derived value is added as a premium, capped at 10% of fair value, so a single outlier rent estimate cannot dramatically distort the offer range.",
       },
     ],
   },
@@ -90,7 +100,7 @@ const FAQ_SECTIONS: FAQSection[] = [
       {
         question: "What does the buy-vs-rent comparison show?",
         answer:
-          "The monthly cost comparison includes principal and interest (at a current 30-year fixed rate), estimated property taxes (using California's Prop 13 1% base rate on assessed value), homeowner's insurance, and HOA fees where disclosed. This all-in ownership cost is compared to the estimated market rent for a similar unit. The comparison is displayed at the 10, 20, and 30-year horizon to show how equity accumulation changes the long-run cost picture.",
+          "The monthly ownership cost includes four components: principal and interest (at the current 30-year fixed rate), property tax at 1.2% of purchase price (Prop 13 base rate plus typical Bay Area supplemental assessments), homeowner's insurance at 0.35% of purchase price, and ongoing maintenance at 0.5% of purchase price annually. This all-in cost is compared to the estimated market rent for a similar unit. The comparison is displayed at the 10, 20, and 30-year horizon to show how equity accumulation changes the long-run cost picture.",
       },
     ],
   },
@@ -126,6 +136,26 @@ const FAQ_SECTIONS: FAQSection[] = [
         question: "How accurate are the renovation estimates?",
         answer:
           "Renovation estimates are ballpark figures intended to calibrate your offer, not contractor bids. Bay Area construction costs vary significantly by neighborhood, contractor availability, permit complexity, and material choices. The estimates are based on median contractor rates for the SF Bay Area and are most reliable for full-scope renovation of a typical 1900–1970s SFH. Always obtain at least two licensed contractor quotes before finalizing your offer on a fixer property.",
+      },
+      {
+        question: "Can I upload an inspection report to refine the renovation estimate?",
+        answer:
+          "Yes. After an analysis is complete, you can upload a PDF inspection report from the analysis detail page. HomeBidder sends the report to Claude as a document, which parses it into structured findings organized by category (roof, electrical, plumbing, HVAC, foundation, etc.) along with severity ratings and recommended actions. These findings then replace the keyword-based fixer estimate with a scope derived directly from the inspector's observations — typically more accurate for properties where you have already conducted due diligence. The individual line items remain toggleable so you can include or exclude work from the total.",
+      },
+    ],
+  },
+  {
+    title: "Saved Analyses & Tracking",
+    items: [
+      {
+        question: "How do I save and revisit past analyses?",
+        answer:
+          "Every analysis you run is automatically saved to your history. Registered users can view all past analyses from the History page; anonymous users see analyses saved in their current browser session. You can star any analysis with the heart icon to mark it as a favorite — starred analyses are sorted to the top of your history and persist across sessions for logged-in users. The history page also shows the address, date, fair value estimate, and whether the property was marked as seen.",
+      },
+      {
+        question: "What is 'Mark Seen' and how does it work?",
+        answer:
+          "Mark Seen lets you record a first-hand impression of a property after visiting it in person. Available to logged-in users from any analysis detail page, it captures two ratings: a quality rating (terrible / bad / neutral / good / excellent) reflecting the property's overall physical condition, and a location rating (bad / neutral / good) reflecting the neighborhood feel. HomeBidder combines these into a composite score — (quality + location) / 2 — displayed alongside the analysis in your history. This gives you a structured way to compare multiple properties you've toured, beyond what the automated analysis can observe.",
       },
     ],
   },

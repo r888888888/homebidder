@@ -104,7 +104,10 @@ async def test_delete_analysis_removes_record(client):
         await session.commit()
         analysis_id = analysis.id
 
-    resp = await client.delete(f"/api/analyses/{analysis_id}")
+    resp = await client.delete(
+        f"/api/analyses/{analysis_id}",
+        headers={"X-Session-ID": "test-session"},
+    )
     assert resp.status_code == 204
 
     # Confirm it's gone
@@ -927,4 +930,84 @@ async def test_attach_inspection_report_renovation_rerun_failure_still_returns_f
     assert resp.status_code == 200
     data = resp.json()
     assert data["findings"]["inspector"] == "Alonzo Inspections"
+
+
+# --- Phase 1 bug fixes ---
+
+async def test_anonymous_cannot_delete_other_anonymous_analysis(client):
+    """DELETE /api/analyses/{id} by anonymous caller requires matching X-Session-ID."""
+    import datetime
+    from db.models import Analysis, Listing
+    from db import engine
+    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlalchemy.orm import sessionmaker
+
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with async_session() as session:
+        listing = Listing(
+            address_input="99 Secret St, SF, CA 94110",
+            address_matched="99 SECRET ST, SF, CA 94110",
+        )
+        session.add(listing)
+        await session.flush()
+        analysis = Analysis(
+            listing_id=listing.id,
+            session_id="session-owner",
+            created_at=datetime.datetime.utcnow(),
+        )
+        session.add(analysis)
+        await session.commit()
+        analysis_id = analysis.id
+
+    # Different session → 403
+    resp = await client.delete(
+        f"/api/analyses/{analysis_id}",
+        headers={"X-Session-ID": "session-attacker"},
+    )
+    assert resp.status_code == 403
+
+    # No session header → 403
+    resp2 = await client.delete(f"/api/analyses/{analysis_id}")
+    assert resp2.status_code == 403
+
+    # Correct session → 204
+    resp3 = await client.delete(
+        f"/api/analyses/{analysis_id}",
+        headers={"X-Session-ID": "session-owner"},
+    )
+    assert resp3.status_code == 204
+
+
+async def test_get_analysis_with_corrupted_json_returns_null_field(client):
+    """GET /api/analyses/{id} returns 200 with null when a JSON blob is corrupted."""
+    import datetime
+    from db.models import Analysis, Listing
+    from db import engine
+    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlalchemy.orm import sessionmaker
+
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with async_session() as session:
+        listing = Listing(
+            address_input="88 Corrupt St, SF, CA 94110",
+            address_matched="88 CORRUPT ST, SF, CA 94110",
+        )
+        session.add(listing)
+        await session.flush()
+        analysis = Analysis(
+            listing_id=listing.id,
+            session_id="corrupt-session",
+            created_at=datetime.datetime.utcnow(),
+            property_data_json="{invalid json{{",  # corrupted
+            risk_data_json='{"risk_level": "HIGH"}',  # valid
+        )
+        session.add(analysis)
+        await session.commit()
+        analysis_id = analysis.id
+
+    resp = await client.get(f"/api/analyses/{analysis_id}")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["property_data"] is None       # corrupted → null
+    assert data["risk_data"] == {"risk_level": "HIGH"}  # valid → parsed
     assert data["renovation_data"] is None

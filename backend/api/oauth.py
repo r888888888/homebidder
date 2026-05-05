@@ -36,7 +36,26 @@ google_oauth_client = GoogleOAuth2(
     client_secret=settings.google_client_secret,
 )
 
-_STATE_STORE: dict[str, str] = {}  # simple in-process state store for CSRF
+_STATE_STORE: dict[str, float] = {}  # state_token → issued_at epoch seconds
+_STATE_TTL_SECONDS = 600  # 10 minutes
+
+
+def _issue_state(state: str) -> None:
+    """Record a newly issued OAuth state token and evict expired ones."""
+    now = time.time()
+    _STATE_STORE[state] = now
+    # Lazy cleanup: evict any states older than TTL
+    expired = [k for k, v in list(_STATE_STORE.items()) if now - v > _STATE_TTL_SECONDS]
+    for k in expired:
+        _STATE_STORE.pop(k, None)
+
+
+def _consume_state(state: str) -> bool:
+    """Consume an OAuth state token. Returns True only if the token was valid and not expired."""
+    issued_at = _STATE_STORE.pop(state, None)
+    if issued_at is None:
+        return False
+    return time.time() - issued_at <= _STATE_TTL_SECONDS
 
 
 @oauth_router.get("/auth/google/authorize")
@@ -47,7 +66,7 @@ async def google_authorize():
         redirect_uri=settings.google_redirect_url,
         state=state,
     )
-    _STATE_STORE[state] = state  # record issued state tokens
+    _issue_state(state)
     return {"authorization_url": authorization_url}
 
 
@@ -166,7 +185,7 @@ def _decode_apple_id_token_email(id_token: str) -> str:
 async def apple_authorize():
     """Return the Apple Sign In authorization URL the frontend should redirect to."""
     state = secrets.token_urlsafe(32)
-    _STATE_STORE[state] = state
+    _issue_state(state)
     params = {
         "response_type": "code",
         "client_id": settings.apple_client_id,

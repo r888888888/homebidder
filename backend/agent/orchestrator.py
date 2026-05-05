@@ -517,6 +517,7 @@ async def _run_phase6(property_result: dict, state: dict) -> AsyncIterator[str]:
             if result is None or isinstance(result, Exception):
                 if isinstance(result, Exception):
                     log.warning("Phase 6 tool %s failed: %s", tool_name, result)
+                    yield f"data: {json.dumps({'type': 'tool_error', 'tool': tool_name, 'error': 'Data unavailable'})}\n\n"
                 continue
             if tool_name == "fetch_market_trends":
                 state["trends"] = result
@@ -726,7 +727,9 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
 
     # Cache check: geocode the address, look up the most recent Analysis in DB.
     # On a hit, replay stored events and return — skipping the full pipeline.
-    if not force_refresh and db is not None:
+    # Skip cache when buyer_context is non-empty: different contexts produce
+    # different offer postures and narratives, so a cached result would be misleading.
+    if not force_refresh and db is not None and not buyer_context.strip():
         try:
             geo = await _geocode(address)
             address_matched = geo["address_matched"]
