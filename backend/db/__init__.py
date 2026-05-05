@@ -67,6 +67,9 @@ _COMPS_MIGRATIONS: list[tuple[str, str]] = [
     ("source",     "VARCHAR(32)"),
 ]
 
+# No columns to add post-initial-deploy yet; placeholder for future ALTER TABLEs.
+_SEEN_PROPERTIES_MIGRATIONS: list[tuple[str, str]] = []
+
 _USERS_MIGRATIONS: list[tuple[str, str]] = [
     ("display_name",         "VARCHAR(128)"),
     ("subscription_tier",    "VARCHAR(16) NOT NULL DEFAULT 'buyer'"),
@@ -127,6 +130,18 @@ async def _migrate_users(conn) -> None:
         log.info("Grandfathering: promoted all pre-Stripe users to Investor tier")
 
 
+async def _migrate_seen_properties(conn) -> None:
+    """Add any missing columns to the seen_properties table (SQLite-compatible)."""
+    result = await conn.execute(text("PRAGMA table_info(seen_properties)"))
+    existing = {row[1] for row in result.fetchall()}
+    for col_name, col_type in _SEEN_PROPERTIES_MIGRATIONS:
+        if col_name not in existing:
+            await conn.execute(
+                text(f"ALTER TABLE seen_properties ADD COLUMN {col_name} {col_type}")
+            )
+            log.info("Migration: added seen_properties.%s", col_name)
+
+
 async def _promote_first_user_to_superuser(conn) -> None:
     """If no superuser exists, promote the first-created user (by rowid) to superuser.
 
@@ -152,6 +167,7 @@ async def init_db():
         await _migrate_analyses(conn)
         await _migrate_comps(conn)
         await _migrate_users(conn)
+        await _migrate_seen_properties(conn)
         await _promote_first_user_to_superuser(conn)
 
 

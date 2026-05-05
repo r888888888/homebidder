@@ -487,6 +487,10 @@ describe("PermalinkPage — favorites", () => {
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ ...ANALYSIS_DETAIL, is_favorite: false }), { status: 200 })
       )
+      // MarkSeenButton fetches seen-properties on mount
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ seen_properties: [] }), { status: 200 })
+      )
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ is_favorite: true }), { status: 200 })
       );
@@ -574,6 +578,10 @@ describe("PermalinkPage — inspection report upload", () => {
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ ...ANALYSIS_DETAIL, inspection_data: null }), { status: 200 })
       )
+      // MarkSeenButton fetches seen-properties on mount
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ seen_properties: [] }), { status: 200 })
+      )
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ findings: _INSPECTION_FINDINGS, renovation_data: null }), { status: 200 })
       );
@@ -598,6 +606,10 @@ describe("PermalinkPage — inspection report upload", () => {
       .mockResolvedValueOnce(
         // No property_data, no neighborhood_data, no inspection_data → dot should be absent initially
         new Response(JSON.stringify({ ...ANALYSIS_DETAIL, property_data: null, neighborhood_data: null, inspection_data: null }), { status: 200 })
+      )
+      // MarkSeenButton fetches seen-properties on mount
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ seen_properties: [] }), { status: 200 })
       )
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ findings: _INSPECTION_FINDINGS, renovation_data: null }), { status: 200 })
@@ -637,6 +649,10 @@ describe("PermalinkPage — inspection report upload", () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(
         new Response(JSON.stringify(analysisWithReno), { status: 200 })
+      )
+      // MarkSeenButton fetches seen-properties on mount
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ seen_properties: [] }), { status: 200 })
       )
       .mockResolvedValueOnce(
         new Response(

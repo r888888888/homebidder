@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Integer, Float, DateTime, Text, ForeignKey
+from sqlalchemy import String, Integer, Float, DateTime, Text, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from fastapi_users.db import SQLAlchemyBaseUserTableUUID
 from fastapi_users import schemas
@@ -135,3 +135,26 @@ class Analysis(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     listing: Mapped["Listing"] = relationship("Listing", back_populates="analyses")
     comps: Mapped[list["Comp"]] = relationship("Comp", back_populates="analysis", cascade="all, delete-orphan")
+
+
+class SeenProperty(Base):
+    """Records that a registered user has physically visited / reviewed a property."""
+    __tablename__ = "seen_properties"
+    __table_args__ = (
+        UniqueConstraint("user_id", "analysis_id", name="uq_seen_user_analysis"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    analysis_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("analyses.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    # Denormalized address so the row survives analysis deletion.
+    address_snapshot: Mapped[str] = mapped_column(String(512), nullable=False)
+    quality: Mapped[str] = mapped_column(String(16), nullable=False)
+    location: Mapped[str] = mapped_column(String(16), nullable=False)
+    composite_score: Mapped[float] = mapped_column(Float, nullable=False)
+    seen_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
