@@ -44,8 +44,17 @@ hazmat_full, sewer_lateral, insulation, termite_dryrot, deck_porch, chimney
 Rules:
 - Only include systems that have a finding worth flagging (serviceable items with no issues can be omitted,
   unless they are explicitly called out as noteworthy).
-- Map severity: immediate safety threat → safety_hazard + high; repair recommended → deficient + moderate or high;
-  monitor → deficient + low; no issues → serviceable + low.
+- Map severity using this strict threshold:
+    high     → condition makes the home uninhabitable NOW or imminently uninhabitable when exposed to
+               bad weather (e.g. major active roof failure or large breach open to the elements,
+               foundation at imminent collapse risk, no functioning heat in a cold climate,
+               live electrical hazard with imminent fire/electrocution risk, active sewage backup
+               inside living space, condemned-level structural failure). Very few issues reach this bar.
+    moderate → significant deficiency requiring repair but the home remains safely livable
+               (e.g. active plumbing leak, failed HVAC, partial roof wear, deteriorated siding,
+               substantial dry rot, panel upgrades, sewer lateral issues).
+    low      → monitor or minor repair (e.g. fogged windows, cosmetic cracks, minor grading issues).
+- status follows severity: safety_hazard → high; deficient → moderate or low; serviceable → low.
 - Use the renovation_category slug that best matches the affected building system.
 - Return JSON only — no markdown, no preamble.
 """

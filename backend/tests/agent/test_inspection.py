@@ -191,3 +191,36 @@ class TestParseInspectionReport:
 
         mock_client.messages.create.assert_not_called()
         assert result is None
+
+    def test_prompt_defines_high_as_uninhabitable_threshold(self):
+        """The extraction prompt should reserve 'high' for uninhabitable/immediately dangerous conditions."""
+        from agent.tools.inspection import _EXTRACTION_PROMPT
+
+        prompt_lower = _EXTRACTION_PROMPT.lower()
+        assert "uninhabitable" in prompt_lower, (
+            "Prompt must define 'high' severity in terms of habitability"
+        )
+        # Must NOT equate a generic 'repair recommended' with high severity
+        assert "repair recommended" not in prompt_lower or "moderate" not in prompt_lower.split("repair recommended")[0][-50:], (
+            "Prompt must not map 'repair recommended' directly to 'high' severity"
+        )
+
+    @pytest.mark.asyncio
+    async def test_prompt_high_severity_criteria_sent_to_llm(self):
+        """Verify that the uninhabitable threshold is present in the text block sent to the LLM."""
+        from agent.tools.inspection import parse_inspection_report
+
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}), \
+             patch("agent.tools.inspection.anthropic.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_cls.return_value = mock_client
+            mock_client.messages.create.return_value = _make_llm_response(_GOOD_LLM_JSON)
+
+            await parse_inspection_report(b"%PDF-fake")
+
+        call_kwargs = mock_client.messages.create.call_args
+        messages = call_kwargs[1].get("messages") or call_kwargs.kwargs["messages"]
+        content = messages[0]["content"]
+        text_blocks = [b for b in content if isinstance(b, dict) and b.get("type") == "text"]
+        assert len(text_blocks) == 1
+        assert "uninhabitable" in text_blocks[0]["text"].lower()

@@ -118,11 +118,14 @@ export function AnalysisForm({ onSubmit, isRunning, rateLimitReached = false }: 
       <div>
         <label
           htmlFor="inspection-report"
-          className="mb-1.5 block text-sm font-semibold text-[var(--ink)]"
+          className="mb-1 block text-sm font-semibold text-[var(--ink)]"
         >
           Inspection report{" "}
           <span className="font-normal text-[var(--ink-muted)]">(optional)</span>
         </label>
+        <p className="mb-2 text-xs text-[var(--ink-muted)]">
+          Upload a PDF inspection report and HomeBidder will parse the findings to refine the renovation estimate and flag systems that need attention.
+        </p>
 
         {uploadStatus === "done" && inspectionFindings ? (
           <div className="flex items-center justify-between rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">

@@ -500,3 +500,168 @@ describe("PermalinkPage — favorites", () => {
     );
   });
 });
+
+const _INSPECTION_FINDINGS = {
+  property_address: "450 SANCHEZ ST, SAN FRANCISCO, CA 94114",
+  inspector: "Test Inspector",
+  inspection_date: "2026-05-01",
+  systems: [
+    { name: "Roof", status: "deficient", severity: "high", findings: "Needs replacement", renovation_category: "roof" },
+  ],
+  summary: "1 deficiency found.",
+};
+
+const _RENOVATION_DATA_BASE = {
+  is_fixer: true,
+  fixer_signals: ["Fixer"],
+  offer_recommended: 900_000,
+  renovation_estimate_low: 60_000,
+  renovation_estimate_mid: 80_000,
+  renovation_estimate_high: 100_000,
+  line_items: [],
+  all_in_fixer_low: 960_000,
+  all_in_fixer_mid: 980_000,
+  all_in_fixer_high: 1_000_000,
+  turnkey_value: 1_050_000,
+  renovated_fair_value: 1_050_000,
+  implied_equity_mid: 70_000,
+  verdict: "cheaper_fixer",
+  savings_mid: 70_000,
+  scope_notes: null,
+  disclaimer: "Rough estimates only.",
+  inspection_informed: false,
+};
+
+describe("PermalinkPage — inspection report upload", () => {
+  beforeEach(() => {
+    vi.spyOn(global, "fetch");
+    mockUseAuth.mockReturnValue({ user: { subscription_tier: "investor" }, isLoading: false });
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("shows upload widget on Property tab when inspection_data is null", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ ...ANALYSIS_DETAIL, inspection_data: null }), { status: 200 })
+    );
+    renderPage();
+    await waitFor(() => expect(screen.getByRole("tablist")).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("tab", { name: /property/i }));
+    await waitFor(() =>
+      expect(screen.getByLabelText(/upload inspection report/i)).toBeInTheDocument()
+    );
+  });
+
+  it("shows InspectionReportCard on Property tab when inspection_data is present", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({ ...ANALYSIS_DETAIL, inspection_data: _INSPECTION_FINDINGS }),
+        { status: 200 }
+      )
+    );
+    renderPage();
+    await waitFor(() => expect(screen.getByRole("tablist")).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("tab", { name: /property/i }));
+    await waitFor(() =>
+      expect(screen.getByText(/inspection report/i)).toBeInTheDocument()
+    );
+    expect(screen.queryByLabelText(/upload inspection report/i)).not.toBeInTheDocument();
+  });
+
+  it("shows InspectionReportCard after successful upload", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ...ANALYSIS_DETAIL, inspection_data: null }), { status: 200 })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ findings: _INSPECTION_FINDINGS, renovation_data: null }), { status: 200 })
+      );
+    renderPage();
+    await waitFor(() => expect(screen.getByRole("tablist")).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("tab", { name: /property/i }));
+    await waitFor(() =>
+      expect(screen.getByLabelText(/upload inspection report/i)).toBeInTheDocument()
+    );
+
+    const input = screen.getByLabelText(/upload inspection report/i);
+    await userEvent.upload(input, new File(["%PDF-1.4"], "report.pdf", { type: "application/pdf" }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/inspection report/i)).toBeInTheDocument()
+    );
+    expect(screen.queryByLabelText(/upload inspection report/i)).not.toBeInTheDocument();
+  });
+
+  it("Property tab dot indicator appears after upload when it had no content before", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        // No property_data, no neighborhood_data, no inspection_data → dot should be absent initially
+        new Response(JSON.stringify({ ...ANALYSIS_DETAIL, property_data: null, neighborhood_data: null, inspection_data: null }), { status: 200 })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ findings: _INSPECTION_FINDINGS, renovation_data: null }), { status: 200 })
+      );
+    renderPage();
+    await waitFor(() => expect(screen.getByRole("tablist")).toBeInTheDocument());
+
+    // Initially no dot on Property tab (no content)
+    const propertyTab = screen.getByRole("tab", { name: /property/i });
+    expect(propertyTab.querySelector("[aria-label='has content']")).toBeNull();
+
+    await userEvent.click(propertyTab);
+    await waitFor(() =>
+      expect(screen.getByLabelText(/upload inspection report/i)).toBeInTheDocument()
+    );
+
+    const input = screen.getByLabelText(/upload inspection report/i);
+    await userEvent.upload(input, new File(["%PDF-1.4"], "report.pdf", { type: "application/pdf" }));
+
+    await waitFor(() => expect(screen.getByText(/inspection report/i)).toBeInTheDocument());
+
+    // Switch away from Property tab so the dot can render
+    await userEvent.click(screen.getByRole("tab", { name: /decision/i }));
+    await waitFor(() =>
+      expect(screen.getByRole("tab", { name: /property/i }).querySelector("[aria-label='has content']")).not.toBeNull()
+    );
+  });
+
+  it("FixerAnalysisCard shows inspection_informed badge after upload returns renovation_data", async () => {
+    const analysisWithReno = {
+      ...ANALYSIS_DETAIL,
+      inspection_data: null,
+      renovation_data: _RENOVATION_DATA_BASE,
+    };
+    const updatedReno = { ..._RENOVATION_DATA_BASE, inspection_informed: true };
+
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(analysisWithReno), { status: 200 })
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ findings: _INSPECTION_FINDINGS, renovation_data: updatedReno }),
+          { status: 200 }
+        )
+      );
+
+    renderPage();
+    await waitFor(() => expect(screen.getByRole("tablist")).toBeInTheDocument());
+
+    // Upload from Property tab
+    await userEvent.click(screen.getByRole("tab", { name: /property/i }));
+    await waitFor(() =>
+      expect(screen.getByLabelText(/upload inspection report/i)).toBeInTheDocument()
+    );
+    await userEvent.upload(
+      screen.getByLabelText(/upload inspection report/i),
+      new File(["%PDF-1.4"], "report.pdf", { type: "application/pdf" })
+    );
+
+    // Switch to Decision tab and verify badge
+    await userEvent.click(screen.getByRole("tab", { name: /decision/i }));
+    await waitFor(() =>
+      expect(screen.getByText(/informed by inspection report/i)).toBeInTheDocument()
+    );
+  });
+});

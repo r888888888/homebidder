@@ -634,3 +634,297 @@ async def test_upload_inspection_report_returns_422_on_parse_failure(client):
             files={"file": ("report.pdf", _FAKE_PDF, "application/pdf")},
         )
     assert resp.status_code == 422
+
+
+# --- POST /api/analyses/{id}/inspection-report ---
+
+async def _seed_analysis_for_inspection(session_id: str = "insp-session") -> int:
+    """Seed a listing + analysis and return the analysis id."""
+    import datetime
+    from db.models import Analysis, Listing
+    from db import engine
+    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlalchemy.orm import sessionmaker
+
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with async_session() as session:
+        listing = Listing(
+            address_input="99 Inspection Ave, SF, CA 94112",
+            address_matched="99 INSPECTION AVE, SF, CA 94112",
+        )
+        session.add(listing)
+        await session.flush()
+        analysis = Analysis(
+            listing_id=listing.id,
+            session_id=session_id,
+            created_at=datetime.datetime.utcnow(),
+        )
+        session.add(analysis)
+        await session.commit()
+        return analysis.id
+
+
+async def test_attach_inspection_report_success(client):
+    """POST with valid PDF → 200, response has findings key, findings persisted in DB."""
+    analysis_id = await _seed_analysis_for_inspection("insp-session-1")
+
+    with patch("api.routes.parse_inspection_report", return_value=_PARSED_FINDINGS):
+        resp = await client.post(
+            f"/api/analyses/{analysis_id}/inspection-report",
+            files={"file": ("report.pdf", _FAKE_PDF, "application/pdf")},
+            headers={"X-Session-ID": "insp-session-1"},
+        )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["findings"]["inspector"] == "Alonzo Inspections"
+    assert len(data["findings"]["systems"]) == 1
+    assert data["renovation_data"] is None  # no property/offer data → no re-run
+
+    # Confirm findings persisted
+    get_resp = await client.get(f"/api/analyses/{analysis_id}")
+    assert get_resp.status_code == 200
+    assert get_resp.json()["inspection_data"]["inspector"] == "Alonzo Inspections"
+
+
+async def test_attach_inspection_report_overwrites_existing(client):
+    """POST again with different findings → overwrites the previous data."""
+    import json, datetime
+    from db.models import Analysis, Listing
+    from db import engine
+    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlalchemy.orm import sessionmaker
+
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with async_session() as session:
+        listing = Listing(
+            address_input="100 Inspection Ave, SF, CA 94112",
+            address_matched="100 INSPECTION AVE, SF, CA 94112",
+        )
+        session.add(listing)
+        await session.flush()
+        analysis = Analysis(
+            listing_id=listing.id,
+            session_id="overwrite-session",
+            created_at=datetime.datetime.utcnow(),
+            inspection_data_json=json.dumps(_PARSED_FINDINGS),
+        )
+        session.add(analysis)
+        await session.commit()
+        analysis_id = analysis.id
+
+    new_findings = {**_PARSED_FINDINGS, "inspector": "New Inspector LLC"}
+    with patch("api.routes.parse_inspection_report", return_value=new_findings):
+        resp = await client.post(
+            f"/api/analyses/{analysis_id}/inspection-report",
+            files={"file": ("report.pdf", _FAKE_PDF, "application/pdf")},
+            headers={"X-Session-ID": "overwrite-session"},
+        )
+    assert resp.status_code == 200
+    assert resp.json()["findings"]["inspector"] == "New Inspector LLC"
+
+    get_resp = await client.get(f"/api/analyses/{analysis_id}")
+    assert get_resp.json()["inspection_data"]["inspector"] == "New Inspector LLC"
+
+
+async def test_attach_inspection_report_not_found(client):
+    """POST to non-existent analysis → 404."""
+    with patch("api.routes.parse_inspection_report", return_value=_PARSED_FINDINGS):
+        resp = await client.post(
+            "/api/analyses/99999/inspection-report",
+            files={"file": ("report.pdf", _FAKE_PDF, "application/pdf")},
+            headers={"X-Session-ID": "any-session"},
+        )
+    assert resp.status_code == 404
+
+
+async def test_attach_inspection_report_rejects_non_pdf(client):
+    """Non-PDF content type → 400."""
+    analysis_id = await _seed_analysis_for_inspection("insp-session-2")
+    resp = await client.post(
+        f"/api/analyses/{analysis_id}/inspection-report",
+        files={"file": ("report.docx", b"fake docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
+        headers={"X-Session-ID": "insp-session-2"},
+    )
+    assert resp.status_code == 400
+
+
+async def test_attach_inspection_report_rejects_oversized(client):
+    """PDF over 10 MB → 413."""
+    analysis_id = await _seed_analysis_for_inspection("insp-session-3")
+    big_pdf = b"%PDF-1.4 " + b"x" * (10 * 1024 * 1024 + 1)
+    resp = await client.post(
+        f"/api/analyses/{analysis_id}/inspection-report",
+        files={"file": ("big.pdf", big_pdf, "application/pdf")},
+        headers={"X-Session-ID": "insp-session-3"},
+    )
+    assert resp.status_code == 413
+
+
+async def test_attach_inspection_report_returns_422_on_parse_failure(client):
+    """Parser returns None → 422."""
+    analysis_id = await _seed_analysis_for_inspection("insp-session-4")
+    with patch("api.routes.parse_inspection_report", return_value=None):
+        resp = await client.post(
+            f"/api/analyses/{analysis_id}/inspection-report",
+            files={"file": ("report.pdf", _FAKE_PDF, "application/pdf")},
+            headers={"X-Session-ID": "insp-session-4"},
+        )
+    assert resp.status_code == 422
+
+
+async def test_attach_inspection_report_ownership_anon_enforced(client):
+    """Anonymous caller with wrong session ID → 403."""
+    analysis_id = await _seed_analysis_for_inspection("owner-session")
+    with patch("api.routes.parse_inspection_report", return_value=_PARSED_FINDINGS):
+        resp = await client.post(
+            f"/api/analyses/{analysis_id}/inspection-report",
+            files={"file": ("report.pdf", _FAKE_PDF, "application/pdf")},
+            headers={"X-Session-ID": "other-session"},
+        )
+    assert resp.status_code == 403
+
+
+async def test_attach_inspection_report_ownership_anon_allowed(client):
+    """Anonymous caller with correct session ID → 200."""
+    analysis_id = await _seed_analysis_for_inspection("correct-session")
+    with patch("api.routes.parse_inspection_report", return_value=_PARSED_FINDINGS):
+        resp = await client.post(
+            f"/api/analyses/{analysis_id}/inspection-report",
+            files={"file": ("report.pdf", _FAKE_PDF, "application/pdf")},
+            headers={"X-Session-ID": "correct-session"},
+        )
+    assert resp.status_code == 200
+
+
+_RENOVATION_RESULT = {
+    "is_fixer": True,
+    "fixer_signals": ["Fixer"],
+    "offer_recommended": 900_000,
+    "renovation_estimate_low": 60_000,
+    "renovation_estimate_mid": 80_000,
+    "renovation_estimate_high": 100_000,
+    "line_items": [{"category": "Roof replacement", "low": 20_000, "high": 35_000}],
+    "all_in_fixer_low": 960_000,
+    "all_in_fixer_mid": 980_000,
+    "all_in_fixer_high": 1_000_000,
+    "turnkey_value": 1_050_000,
+    "renovated_fair_value": 1_050_000,
+    "implied_equity_mid": 70_000,
+    "verdict": "cheaper_fixer",
+    "savings_mid": 70_000,
+    "scope_notes": None,
+    "disclaimer": "Rough estimates only.",
+    "inspection_informed": True,
+}
+
+
+async def _seed_analysis_with_reno_data(session_id: str = "reno-session") -> int:
+    """Seed an analysis with property_data_json, offer_data_json, and renovation_data_json."""
+    import json, datetime
+    from db.models import Analysis, Listing
+    from db import engine
+    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlalchemy.orm import sessionmaker
+
+    property_payload = {"address_matched": "101 Fixer St, SF, CA 94112", "description_signals": {}}
+    offer_payload = {"fair_value_estimate": 900_000, "offer_recommended": 900_000}
+    reno_payload = {**_RENOVATION_RESULT, "inspection_informed": False}
+
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with async_session() as session:
+        listing = Listing(
+            address_input="101 Fixer St, SF, CA 94112",
+            address_matched="101 FIXER ST, SF, CA 94112",
+        )
+        session.add(listing)
+        await session.flush()
+        analysis = Analysis(
+            listing_id=listing.id,
+            session_id=session_id,
+            created_at=datetime.datetime.utcnow(),
+            property_data_json=json.dumps(property_payload),
+            offer_data_json=json.dumps(offer_payload),
+            renovation_data_json=json.dumps(reno_payload),
+        )
+        session.add(analysis)
+        await session.commit()
+        return analysis.id
+
+
+async def test_attach_inspection_report_triggers_renovation_rerun(client):
+    """When analysis has property+offer+renovation data, upload re-runs renovation and returns it."""
+    analysis_id = await _seed_analysis_with_reno_data("reno-session-1")
+
+    with patch("api.routes.parse_inspection_report", return_value=_PARSED_FINDINGS), \
+         patch("api.routes.estimate_renovation_cost", return_value=_RENOVATION_RESULT) as mock_reno:
+        resp = await client.post(
+            f"/api/analyses/{analysis_id}/inspection-report",
+            files={"file": ("report.pdf", _FAKE_PDF, "application/pdf")},
+            headers={"X-Session-ID": "reno-session-1"},
+        )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["findings"]["inspector"] == "Alonzo Inspections"
+    assert data["renovation_data"]["inspection_informed"] is True
+    mock_reno.assert_awaited_once()
+
+    # Confirm renovation persisted
+    get_resp = await client.get(f"/api/analyses/{analysis_id}")
+    assert get_resp.json()["renovation_data"]["inspection_informed"] is True
+
+
+async def test_attach_inspection_report_no_renovation_rerun_without_prior_reno(client):
+    """Analysis without renovation_data_json → renovation_data is null in response."""
+    import json, datetime
+    from db.models import Analysis, Listing
+    from db import engine
+    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlalchemy.orm import sessionmaker
+
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with async_session() as session:
+        listing = Listing(
+            address_input="102 Plain St, SF, CA 94112",
+            address_matched="102 PLAIN ST, SF, CA 94112",
+        )
+        session.add(listing)
+        await session.flush()
+        analysis = Analysis(
+            listing_id=listing.id,
+            session_id="plain-session",
+            created_at=datetime.datetime.utcnow(),
+            property_data_json=json.dumps({"address_matched": "102 Plain St"}),
+            offer_data_json=json.dumps({"fair_value_estimate": 800_000}),
+            # No renovation_data_json
+        )
+        session.add(analysis)
+        await session.commit()
+        analysis_id = analysis.id
+
+    with patch("api.routes.parse_inspection_report", return_value=_PARSED_FINDINGS), \
+         patch("api.routes.estimate_renovation_cost") as mock_reno:
+        resp = await client.post(
+            f"/api/analyses/{analysis_id}/inspection-report",
+            files={"file": ("report.pdf", _FAKE_PDF, "application/pdf")},
+            headers={"X-Session-ID": "plain-session"},
+        )
+    assert resp.status_code == 200
+    assert resp.json()["renovation_data"] is None
+    mock_reno.assert_not_called()
+
+
+async def test_attach_inspection_report_renovation_rerun_failure_still_returns_findings(client):
+    """If renovation re-run raises, upload still succeeds with renovation_data: null."""
+    analysis_id = await _seed_analysis_with_reno_data("reno-session-2")
+
+    with patch("api.routes.parse_inspection_report", return_value=_PARSED_FINDINGS), \
+         patch("api.routes.estimate_renovation_cost", side_effect=Exception("LLM error")):
+        resp = await client.post(
+            f"/api/analyses/{analysis_id}/inspection-report",
+            files={"file": ("report.pdf", _FAKE_PDF, "application/pdf")},
+            headers={"X-Session-ID": "reno-session-2"},
+        )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["findings"]["inspector"] == "Alonzo Inspections"
+    assert data["renovation_data"] is None

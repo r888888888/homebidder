@@ -16,6 +16,7 @@ import { CompsTeaserCard } from "../components/CompsTeaserCard";
 import { PermitsCard, type PermitsData } from "../components/PermitsCard";
 import { CrimeCard, type CrimeData } from "../components/CrimeCard";
 import { InspectionReportCard, type InspectionFindings } from "../components/InspectionReportCard";
+import { PostAnalysisInspectionUpload } from "../components/PostAnalysisInspectionUpload";
 import { PdfExportButton } from "../components/PdfExportButton";
 import { useToast } from "../components/Toast";
 import { apiBase } from "../lib/api";
@@ -113,6 +114,8 @@ export function PermalinkPage() {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
+  const [inspectionData, setInspectionData] = useState<InspectionFindings | null>(null);
+  const [renovationData, setRenovationData] = useState<AnalysisDetail["renovation_data"]>(null);
   const [activeTab, setActiveTab] = useState<TabId>("decision");
   const toast = useToast();
   const { user } = useAuth();
@@ -132,6 +135,8 @@ export function PermalinkPage() {
         const data = await resp.json();
         setAnalysis(data);
         setIsFavorite(data.is_favorite ?? false);
+        setInspectionData(data.inspection_data ?? null);
+        setRenovationData(data.renovation_data ?? null);
       })
       .catch(() => toast.error("Failed to load analysis."))
       .finally(() => setLoading(false));
@@ -179,8 +184,8 @@ export function PermalinkPage() {
   if (!analysis) return null;
 
   const tabHasContent: Record<TabId, boolean> = {
-    decision: analysis.offer_data != null || analysis.renovation_data != null,
-    property: analysis.property_data != null || analysis.neighborhood_data != null,
+    decision: analysis.offer_data != null || renovationData != null,
+    property: analysis.property_data != null || analysis.neighborhood_data != null || inspectionData != null,
     market: analysis.comps.length > 0 || analysis.investment_data != null,
     risk: analysis.risk_data != null || analysis.permits_data != null || analysis.crime_data != null,
     analysis: analysis.rationale != null,
@@ -287,11 +292,11 @@ export function PermalinkPage() {
               {analysis.offer_data && (
                 <OfferRecommendationCard offer={analysis.offer_data} />
               )}
-              {analysis.renovation_data && (
+              {renovationData && (
                 <FixerAnalysisCard
-                  data={analysis.renovation_data}
+                  data={renovationData}
                   analysisId={analysis.id}
-                  initialDisabledIndices={analysis.renovation_data.disabled_indices ?? []}
+                  initialDisabledIndices={renovationData.disabled_indices ?? []}
                 />
               )}
             </div>
@@ -316,8 +321,22 @@ export function PermalinkPage() {
                   neighborhoodName={(analysis.property_data?.neighborhoods as string | null) ?? null}
                 />
               )}
-              {analysis.inspection_data && (
-                <InspectionReportCard data={analysis.inspection_data} />
+              {inspectionData ? (
+                <InspectionReportCard data={inspectionData} />
+              ) : (
+                <div className="card px-6 py-5 space-y-3">
+                  <div>
+                    <p className="text-sm font-semibold text-[var(--ink)]">Inspection Report</p>
+                    <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                      Upload a PDF inspection report and HomeBidder will parse the findings to flag systems that need attention. The results appear here and inform the renovation estimate on re-run.
+                    </p>
+                  </div>
+                  <PostAnalysisInspectionUpload
+                    analysisId={analysis.id}
+                    onSuccess={(findings) => setInspectionData(findings)}
+                    onRenovationUpdate={(data) => setRenovationData(data)}
+                  />
+                </div>
               )}
             </div>
           )}

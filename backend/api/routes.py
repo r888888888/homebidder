@@ -1,5 +1,8 @@
 import json
+import logging
 from datetime import datetime, timedelta
+
+log = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, UploadFile, File
 from fastapi.responses import StreamingResponse
@@ -10,6 +13,7 @@ from sqlalchemy import select
 from db import get_db
 from agent.orchestrator import run_agent
 from agent.tools.inspection import parse_inspection_report
+from agent.tools.renovation import estimate_renovation_cost
 from api.rate_limit import check_and_record_rate_limit
 from api.sanitize import sanitize_buyer_context
 from api.auth import current_optional_user
@@ -101,6 +105,68 @@ async def upload_inspection_report(
         )
 
     return findings
+
+
+@router.post("/analyses/{analysis_id}/inspection-report")
+async def attach_inspection_report(
+    analysis_id: int,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    user: User | None = Depends(current_optional_user),
+    x_session_id: str | None = Header(default=None, alias="X-Session-ID"),
+):
+    """Upload an inspection report PDF and attach its parsed findings to an existing analysis."""
+    from db.models import Analysis
+
+    result = await db.execute(select(Analysis).where(Analysis.id == analysis_id))
+    analysis = result.scalar_one_or_none()
+    if analysis is None:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
+    # Ownership check (mirrors renovation-toggles pattern)
+    if user is not None:
+        if analysis.user_id != user.id:
+            raise HTTPException(status_code=403, detail="Not authorized")
+    else:
+        if analysis.user_id is not None or analysis.session_id != x_session_id:
+            raise HTTPException(status_code=403, detail="Not authorized")
+
+    if file.content_type != "application/pdf":
+        raise HTTPException(status_code=400, detail="Only PDF files are accepted.")
+
+    pdf_bytes = await file.read()
+    if len(pdf_bytes) > _MAX_INSPECTION_PDF_BYTES:
+        raise HTTPException(status_code=413, detail="PDF exceeds the 10 MB size limit.")
+
+    findings = await parse_inspection_report(pdf_bytes)
+    if findings is None:
+        raise HTTPException(
+            status_code=422,
+            detail="Could not extract findings from the PDF. Ensure the file is a valid home inspection report.",
+        )
+
+    analysis.inspection_data_json = json.dumps(findings)
+
+    # Re-run renovation estimate if the analysis already has the required data.
+    # Only triggered when renovation_data_json is already present (i.e. original
+    # run identified the property as a fixer and produced an estimate).
+    renovation_result = None
+    if analysis.renovation_data_json and analysis.property_data_json and analysis.offer_data_json:
+        try:
+            property_data = json.loads(analysis.property_data_json)
+            offer_data = json.loads(analysis.offer_data_json)
+            renovation_result = await estimate_renovation_cost(
+                property_data, offer_data, inspection_findings=findings
+            )
+            if renovation_result is not None:
+                analysis.renovation_data_json = json.dumps(renovation_result)
+        except Exception:
+            log.warning("attach_inspection_report: renovation re-run failed", exc_info=True)
+            renovation_result = None
+
+    await db.commit()
+
+    return {"findings": findings, "renovation_data": renovation_result}
 
 
 @router.get("/analyses")
