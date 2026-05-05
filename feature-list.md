@@ -1,6 +1,5 @@
 # TODO
 
-- Add history search. I should be able to search for properties by the address
 - Support pest inspection reports. Use the same strategy as immplementing insepection reports.
 - Support uploading 3R reports to capture permit details.
 - Investigate database backups
@@ -12,6 +11,8 @@
 - Tier differentiation — watchlist for Investor+. Save a set of addresses; one-click re-run to refresh an analysis as market conditions change.
 
 # DONE
+
+- History search: search input on the history page filters analyses by address substring (case-insensitive). Backend `GET /api/analyses` accepts optional `q` query param and applies a case-insensitive LIKE filter on `Listing.address_matched`. Frontend resets to page 1 and passes `q` on each change. Empty state shows "No analyses match your search." vs "No saved analyses yet." based on whether a query is active. 2 new backend tests, 3 new frontend tests.
 
 - Onboarding journey for new users: `/welcome` route shown after all registration paths (email/password, Google OAuth, Apple OAuth). Investor+ users see a Buying Plan setup form; Buyer tier users see a feature teaser with upgrade CTA. Skip button available. Completion/skip tracked in localStorage (`homebidder_onboarding_done_${userId}`) — re-visits redirect to `/`. Pricing page updated: Buying Plan added to Investor feature list + callout explaining optimal stopping theory. 9 new frontend tests.
 

@@ -189,6 +189,7 @@ async def list_analyses(
     user: User | None = Depends(current_optional_user),
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
+    q: str | None = Query(default=None),
 ):
     """List analyses for the caller, newest first, with pagination.
 
@@ -208,6 +209,9 @@ async def list_analyses(
     cutoff, retention_days = _retention_cutoff(user)
     if cutoff is not None:
         base = base.where(Analysis.created_at >= cutoff)
+
+    if q and q.strip():
+        base = base.where(Listing.address_matched.ilike(f"%{q.strip()}%"))
 
     count_stmt = select(func.count()).select_from(base.subquery())
     total: int = (await db.execute(count_stmt)).scalar_one()

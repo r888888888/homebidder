@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as PricingRouteImport } from './routes/pricing'
@@ -24,6 +25,11 @@ import { Route as AnalysisIdRouteImport } from './routes/analysis_.$id'
 import { Route as AuthCallbackGoogleRouteImport } from './routes/auth/callback/google'
 import { Route as AuthCallbackAppleRouteImport } from './routes/auth/callback/apple'
 
+const WelcomeRoute = WelcomeRouteImport.update({
+  id: '/welcome',
+  path: '/welcome',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
   path: '/register',
@@ -107,6 +113,7 @@ export interface FileRoutesByFullPath {
   '/pricing': typeof PricingRoute
   '/profile': typeof ProfileRoute
   '/register': typeof RegisterRoute
+  '/welcome': typeof WelcomeRoute
   '/analysis/$id': typeof AnalysisIdRoute
   '/auth/callback/apple': typeof AuthCallbackAppleRoute
   '/auth/callback/google': typeof AuthCallbackGoogleRoute
@@ -123,6 +130,7 @@ export interface FileRoutesByTo {
   '/pricing': typeof PricingRoute
   '/profile': typeof ProfileRoute
   '/register': typeof RegisterRoute
+  '/welcome': typeof WelcomeRoute
   '/analysis/$id': typeof AnalysisIdRoute
   '/auth/callback/apple': typeof AuthCallbackAppleRoute
   '/auth/callback/google': typeof AuthCallbackGoogleRoute
@@ -140,6 +148,7 @@ export interface FileRoutesById {
   '/pricing': typeof PricingRoute
   '/profile': typeof ProfileRoute
   '/register': typeof RegisterRoute
+  '/welcome': typeof WelcomeRoute
   '/analysis_/$id': typeof AnalysisIdRoute
   '/auth/callback/apple': typeof AuthCallbackAppleRoute
   '/auth/callback/google': typeof AuthCallbackGoogleRoute
@@ -158,6 +167,7 @@ export interface FileRouteTypes {
     | '/pricing'
     | '/profile'
     | '/register'
+    | '/welcome'
     | '/analysis/$id'
     | '/auth/callback/apple'
     | '/auth/callback/google'
@@ -174,6 +184,7 @@ export interface FileRouteTypes {
     | '/pricing'
     | '/profile'
     | '/register'
+    | '/welcome'
     | '/analysis/$id'
     | '/auth/callback/apple'
     | '/auth/callback/google'
@@ -190,6 +201,7 @@ export interface FileRouteTypes {
     | '/pricing'
     | '/profile'
     | '/register'
+    | '/welcome'
     | '/analysis_/$id'
     | '/auth/callback/apple'
     | '/auth/callback/google'
@@ -207,6 +219,7 @@ export interface RootRouteChildren {
   PricingRoute: typeof PricingRoute
   ProfileRoute: typeof ProfileRoute
   RegisterRoute: typeof RegisterRoute
+  WelcomeRoute: typeof WelcomeRoute
   AnalysisIdRoute: typeof AnalysisIdRoute
   AuthCallbackAppleRoute: typeof AuthCallbackAppleRoute
   AuthCallbackGoogleRoute: typeof AuthCallbackGoogleRoute
@@ -214,6 +227,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/welcome': {
+      id: '/welcome'
+      path: '/welcome'
+      fullPath: '/welcome'
+      preLoaderRoute: typeof WelcomeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/register': {
       id: '/register'
       path: '/register'
@@ -327,6 +347,7 @@ const rootRouteChildren: RootRouteChildren = {
   PricingRoute: PricingRoute,
   ProfileRoute: ProfileRoute,
   RegisterRoute: RegisterRoute,
+  WelcomeRoute: WelcomeRoute,
   AnalysisIdRoute: AnalysisIdRoute,
   AuthCallbackAppleRoute: AuthCallbackAppleRoute,
   AuthCallbackGoogleRoute: AuthCallbackGoogleRoute,

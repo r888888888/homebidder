@@ -601,4 +601,52 @@ describe("HistoryPage — favorites", () => {
       expect(screen.getAllByRole("button", { name: /unfavorite/i }).length).toBeGreaterThan(0)
     );
   });
+
+  describe("address search", () => {
+    it("renders a search input", async () => {
+      vi.mocked(fetch).mockResolvedValue(
+        new Response(JSON.stringify(PAGE_1_EMPTY), { status: 200 })
+      );
+      renderHistoryPage();
+      expect(screen.getByPlaceholderText(/search by address/i)).toBeInTheDocument();
+    });
+
+    it("typing in the search input calls the API with q param", async () => {
+      vi.mocked(fetch).mockResolvedValue(
+        new Response(JSON.stringify(PAGE_1_EMPTY), { status: 200 })
+      );
+      renderHistoryPage();
+      await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+
+      const searchInput = screen.getByPlaceholderText(/search by address/i);
+      fireEvent.change(searchInput, { target: { value: "Sanchez" } });
+
+      await waitFor(() => {
+        const calls = vi.mocked(fetch).mock.calls;
+        expect(calls.some(([url]) => (url as string).includes("q=Sanchez"))).toBe(true);
+      });
+    });
+
+    it("clearing the search input drops the q param", async () => {
+      vi.mocked(fetch).mockResolvedValue(
+        new Response(JSON.stringify(PAGE_1_EMPTY), { status: 200 })
+      );
+      renderHistoryPage();
+      await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+
+      const searchInput = screen.getByPlaceholderText(/search by address/i);
+      fireEvent.change(searchInput, { target: { value: "Sanchez" } });
+      await waitFor(() => {
+        const calls = vi.mocked(fetch).mock.calls;
+        expect(calls.some(([url]) => (url as string).includes("q=Sanchez"))).toBe(true);
+      });
+
+      fireEvent.change(searchInput, { target: { value: "" } });
+      await waitFor(() => {
+        const calls = vi.mocked(fetch).mock.calls;
+        const lastUrl = calls[calls.length - 1][0] as string;
+        expect(lastUrl).not.toContain("q=");
+      });
+    });
+  });
 });

@@ -75,14 +75,17 @@ export function HistoryPage() {
   const [analyses, setAnalyses] = useState<AnalysisSummary[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [detail, setDetail] = useState<AnalysisDetail | null>(null);
   const toast = useToast();
 
   useEffect(() => {
     const offset = (page - 1) * PAGE_SIZE;
+    const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offset) });
+    if (search.trim()) params.set("q", search.trim());
     fetch(
-      `${apiBase}/api/analyses?limit=${PAGE_SIZE}&offset=${offset}`,
+      `${apiBase}/api/analyses?${params.toString()}`,
       { headers: authHeaders() }
     )
       .then((r) => r.json())
@@ -93,7 +96,7 @@ export function HistoryPage() {
       .catch(() => {
         toast.error("Failed to load analysis history.");
       });
-  }, [page, toast]);
+  }, [page, search, toast]);
 
   async function handleRowClick(id: number) {
     if (selectedId === id) {
@@ -150,8 +153,18 @@ export function HistoryPage() {
       </div>
       {user && <RetentionBanner tier={user.subscription_tier} />}
 
-      {analyses.length === 0 && total === 0 ? (
-        <p className="text-[var(--ink-soft)]">No saved analyses yet.</p>
+      <div className="mb-4">
+        <input
+          type="text"
+          placeholder="Search by address"
+          value={search}
+          onChange={(e) => { setSearch(e.target.value); setPage(1); setSelectedId(null); setDetail(null); }}
+          className="w-full sm:w-80 px-3 py-1.5 text-sm border border-[var(--line)] rounded-lg focus:outline-none focus:ring-1 focus:ring-[var(--navy)]"
+        />
+      </div>
+
+      {analyses.length === 0 ? (
+        <p className="text-[var(--ink-soft)]">{search.trim() ? "No analyses match your search." : "No saved analyses yet."}</p>
       ) : (
         <div className="space-y-2">
           <table className="w-full text-sm">

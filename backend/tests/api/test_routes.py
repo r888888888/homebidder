@@ -978,6 +978,77 @@ async def test_anonymous_cannot_delete_other_anonymous_analysis(client):
     assert resp3.status_code == 204
 
 
+# --- Address search ---
+
+async def test_list_analyses_search_filters_by_address(client):
+    """GET /api/analyses?q=SANCHEZ returns only analyses whose address contains 'SANCHEZ'."""
+    import datetime
+    from db.models import Analysis, Listing
+    from db import engine
+    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlalchemy.orm import sessionmaker
+
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with async_session() as session:
+        listing1 = Listing(
+            address_input="450 Sanchez St, SF, CA 94114",
+            address_matched="450 SANCHEZ ST, SF, CA 94114",
+        )
+        listing2 = Listing(
+            address_input="100 Main St, Oakland, CA 94607",
+            address_matched="100 MAIN ST, OAKLAND, CA 94607",
+        )
+        session.add_all([listing1, listing2])
+        await session.flush()
+        analysis1 = Analysis(
+            listing_id=listing1.id,
+            created_at=datetime.datetime.utcnow(),
+        )
+        analysis2 = Analysis(
+            listing_id=listing2.id,
+            created_at=datetime.datetime.utcnow(),
+        )
+        session.add_all([analysis1, analysis2])
+        await session.commit()
+
+    resp = await client.get("/api/analyses?q=SANCHEZ")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total"] == 1
+    assert len(data["items"]) == 1
+    assert "SANCHEZ" in data["items"][0]["address"]
+
+
+async def test_list_analyses_search_is_case_insensitive(client):
+    """GET /api/analyses?q=sanchez matches upper-case stored addresses."""
+    import datetime
+    from db.models import Analysis, Listing
+    from db import engine
+    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlalchemy.orm import sessionmaker
+
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with async_session() as session:
+        listing = Listing(
+            address_input="450 Sanchez St, SF, CA 94114",
+            address_matched="450 SANCHEZ ST, SF, CA 94114",
+        )
+        session.add(listing)
+        await session.flush()
+        analysis = Analysis(
+            listing_id=listing.id,
+            created_at=datetime.datetime.utcnow(),
+        )
+        session.add(analysis)
+        await session.commit()
+
+    resp = await client.get("/api/analyses?q=sanchez")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total"] == 1
+    assert len(data["items"]) == 1
+
+
 async def test_get_analysis_with_corrupted_json_returns_null_field(client):
     """GET /api/analyses/{id} returns 200 with null when a JSON blob is corrupted."""
     import datetime
