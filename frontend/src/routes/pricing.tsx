@@ -64,6 +64,7 @@ const PLANS: Plan[] = [
       { text: "Comparable sales table", highlight: true },
       { text: "RentCast rent estimates", highlight: true },
       { text: "Analysis history — 6 months", highlight: true },
+      { text: "Buying Plan (optimal stopping)", highlight: true },
       { text: "30 analyses / month", highlight: true },
     ],
     lockedFeatures: ["PDF export for clients"],
@@ -364,6 +365,18 @@ export default function PricingPage() {
             </div>
           );
         })}
+      </div>
+
+      {/* ── Buying Plan callout ─────────────────────────────────── */}
+      <div className="fade-up stagger-3 mx-auto mt-10 max-w-xl rounded-xl border border-[var(--line)] bg-[var(--bg)] px-6 py-4 text-center">
+        <p className="mb-1 text-sm font-semibold text-[var(--ink)]">
+          Buying Plan — powered by optimal stopping theory
+        </p>
+        <p className="text-sm text-[var(--ink-soft)]">
+          Set a buy-by date and your weekly viewing pace. HomeBidder uses the secretary-problem
+          algorithm to tell you exactly when to stop exploring and commit to the best home
+          you've seen — maximizing your chances of not missing your ideal property.
+        </p>
       </div>
 
       {/* ── Trust strip ─────────────────────────────────────────── */}

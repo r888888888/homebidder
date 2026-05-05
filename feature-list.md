@@ -1,6 +1,5 @@
 # TODO
 
-- Build an onboarding journey for new users where they can configure their buying plan. Explain the idea in the pricing page as well.
 - Add history search. I should be able to search for properties by the address
 - Support pest inspection reports. Use the same strategy as immplementing insepection reports.
 - Support uploading 3R reports to capture permit details.
@@ -13,6 +12,8 @@
 - Tier differentiation — watchlist for Investor+. Save a set of addresses; one-click re-run to refresh an analysis as market conditions change.
 
 # DONE
+
+- Onboarding journey for new users: `/welcome` route shown after all registration paths (email/password, Google OAuth, Apple OAuth). Investor+ users see a Buying Plan setup form; Buyer tier users see a feature teaser with upgrade CTA. Skip button available. Completion/skip tracked in localStorage (`homebidder_onboarding_done_${userId}`) — re-visits redirect to `/`. Pricing page updated: Buying Plan added to Investor feature list + callout explaining optimal stopping theory. 9 new frontend tests.
 
 - Buying Plan (optimal stopping theory): user declares buy-by date and viewings/week → `derive_plan()` computes fixed N and explore threshold `floor(N/e)`. Pure-secretary commit rule: explore first threshold properties, then commit to next property strictly better than explore-phase max (score from seen_properties). Linear bid premium `1% × properties_past_threshold` displayed as overlay on analysis detail (display-time only). `buying_plans` table (UNIQUE user_id, CASCADE delete) with computed total_n + explore_threshold. POST/GET/DELETE `/api/buying-plan` (Investor+ gated). `/buying-plan` route: teaser for buyer tier, setup form, dashboard with phase card + scored property list with Explore/Commit badges. `BuyingPlanBadge` on analysis detail (Investor+ only) links to dashboard; "Plan" nav link for Investor+. 10 new backend logic tests, 17 new backend route tests, 6 new BuyingPlanBadge tests, 7 new route page tests.
 

@@ -26,7 +26,7 @@ export default function AppleCallbackPage() {
     (async () => {
       try {
         await loginWithToken(access_token);
-        navigate({ to: "/" });
+        navigate({ to: "/welcome" });
       } catch (err) {
         setError(err instanceof Error ? err.message : "Apple sign-in failed");
       }

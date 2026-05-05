@@ -164,4 +164,11 @@ describe("PricingPage", () => {
       expect(checkoutCall).toBeTruthy();
     });
   });
+
+  it("shows Buying Plan as a feature in the Investor tier", async () => {
+    renderPricing(null);
+    await waitFor(() => {
+      expect(screen.getAllByText(/buying plan/i).length).toBeGreaterThan(0);
+    });
+  });
 });

@@ -70,7 +70,7 @@ describe("RegisterPage", () => {
     await user.click(screen.getByRole("button", { name: /create account/i }));
 
     await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith({ to: "/" });
+      expect(mockNavigate).toHaveBeenCalledWith({ to: "/welcome" });
     });
   });
 

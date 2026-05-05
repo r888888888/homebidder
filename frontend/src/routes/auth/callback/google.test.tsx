@@ -66,7 +66,7 @@ describe("GoogleCallbackPage", () => {
     );
 
     await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith({ to: "/" });
+      expect(mockNavigate).toHaveBeenCalledWith({ to: "/welcome" });
     });
     expect(localStorage.getItem("hb_token")).toBe("google-tok");
   });
