@@ -158,3 +158,23 @@ class SeenProperty(Base):
     composite_score: Mapped[float] = mapped_column(Float, nullable=False)
     seen_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class BuyingPlan(Base):
+    """One active buying plan per user (secretary-problem optimal stopping)."""
+    __tablename__ = "buying_plans"
+    __table_args__ = (
+        UniqueConstraint("user_id", name="uq_buying_plan_user"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # ISO date string (YYYY-MM-DD) — stored as text for SQLite compatibility.
+    buy_by_date: Mapped[str] = mapped_column(String(16), nullable=False)
+    viewings_per_week: Mapped[float] = mapped_column(Float, nullable=False)
+    # Derived at creation time and then fixed (secretary problem uses fixed N).
+    total_n: Mapped[int] = mapped_column(Integer, nullable=False)
+    explore_threshold: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

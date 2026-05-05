@@ -124,6 +124,15 @@ export default function Header() {
             <NavLink to="/history">History</NavLink>
           )}
 
+          {/* Plan — shown for Investor+ */}
+          {!isLoading && user && (
+            user.is_superuser ||
+            user.subscription_tier === "investor" ||
+            user.subscription_tier === "agent"
+          ) && (
+            <NavLink to="/buying-plan">Plan</NavLink>
+          )}
+
           {/* Auth controls */}
           {!isLoading && (
             user ? (

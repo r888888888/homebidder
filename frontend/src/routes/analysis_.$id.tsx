@@ -19,6 +19,7 @@ import { InspectionReportCard, type InspectionFindings } from "../components/Ins
 import { PostAnalysisInspectionUpload } from "../components/PostAnalysisInspectionUpload";
 import { PdfExportButton } from "../components/PdfExportButton";
 import { MarkSeenButton } from "../components/MarkSeenButton";
+import { BuyingPlanBadge } from "../components/BuyingPlanBadge";
 import { useToast } from "../components/Toast";
 import { apiBase } from "../lib/api";
 import { authHeaders } from "../lib/auth";
@@ -245,6 +246,9 @@ export function PermalinkPage() {
             </button>
             {user && (
               <MarkSeenButton analysisId={analysis.id} address={analysis.address} />
+            )}
+            {isInvestorPlus && (
+              <BuyingPlanBadge />
             )}
             <button
               type="button"

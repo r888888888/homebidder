@@ -74,6 +74,9 @@ app.include_router(payments_router, prefix="/api")
 from api.seen_property_routes import seen_property_router
 app.include_router(seen_property_router, prefix="/api")
 
+from api.buying_plan_routes import buying_plan_router
+app.include_router(buying_plan_router, prefix="/api")
+
 # Auth routers (fastapi-users)
 from api.auth import fastapi_users, auth_backend
 from db.models import UserRead, UserCreate, UserUpdate

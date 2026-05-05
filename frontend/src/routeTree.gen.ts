@@ -16,6 +16,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as HistoryRouteImport } from './routes/history'
 import { Route as FaqRouteImport } from './routes/faq'
 import { Route as ChangelogRouteImport } from './routes/changelog'
+import { Route as BuyingPlanRouteImport } from './routes/buying-plan'
 import { Route as AnalysisRouteImport } from './routes/analysis'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
@@ -58,6 +59,11 @@ const ChangelogRoute = ChangelogRouteImport.update({
   path: '/changelog',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BuyingPlanRoute = BuyingPlanRouteImport.update({
+  id: '/buying-plan',
+  path: '/buying-plan',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AnalysisRoute = AnalysisRouteImport.update({
   id: '/analysis',
   path: '/analysis',
@@ -93,6 +99,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/analysis': typeof AnalysisRoute
+  '/buying-plan': typeof BuyingPlanRoute
   '/changelog': typeof ChangelogRoute
   '/faq': typeof FaqRoute
   '/history': typeof HistoryRoute
@@ -108,6 +115,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/analysis': typeof AnalysisRoute
+  '/buying-plan': typeof BuyingPlanRoute
   '/changelog': typeof ChangelogRoute
   '/faq': typeof FaqRoute
   '/history': typeof HistoryRoute
@@ -124,6 +132,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/analysis': typeof AnalysisRoute
+  '/buying-plan': typeof BuyingPlanRoute
   '/changelog': typeof ChangelogRoute
   '/faq': typeof FaqRoute
   '/history': typeof HistoryRoute
@@ -141,6 +150,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/analysis'
+    | '/buying-plan'
     | '/changelog'
     | '/faq'
     | '/history'
@@ -156,6 +166,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/analysis'
+    | '/buying-plan'
     | '/changelog'
     | '/faq'
     | '/history'
@@ -171,6 +182,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/analysis'
+    | '/buying-plan'
     | '/changelog'
     | '/faq'
     | '/history'
@@ -187,6 +199,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   AnalysisRoute: typeof AnalysisRoute
+  BuyingPlanRoute: typeof BuyingPlanRoute
   ChangelogRoute: typeof ChangelogRoute
   FaqRoute: typeof FaqRoute
   HistoryRoute: typeof HistoryRoute
@@ -250,6 +263,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChangelogRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/buying-plan': {
+      id: '/buying-plan'
+      path: '/buying-plan'
+      fullPath: '/buying-plan'
+      preLoaderRoute: typeof BuyingPlanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/analysis': {
       id: '/analysis'
       path: '/analysis'
@@ -299,6 +319,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   AnalysisRoute: AnalysisRoute,
+  BuyingPlanRoute: BuyingPlanRoute,
   ChangelogRoute: ChangelogRoute,
   FaqRoute: FaqRoute,
   HistoryRoute: HistoryRoute,

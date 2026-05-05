@@ -32,6 +32,11 @@ vi.mock("../lib/AuthContext", () => ({
   useAuth: () => mockUseAuth(),
 }));
 
+// BuyingPlanBadge has its own tests; stub it here to avoid extra fetch calls.
+vi.mock("../components/BuyingPlanBadge", () => ({
+  BuyingPlanBadge: () => null,
+}));
+
 beforeEach(() => {
   mockUseAuth.mockReturnValue({ user: { subscription_tier: "investor" }, isLoading: false });
 });

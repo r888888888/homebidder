@@ -1,6 +1,7 @@
 # TODO
 
-- Buying Plan (optimal stopping theory): user declares buy-by date and expected viewings/week → derives fixed N and explore-phase threshold `floor(N/e)`. "Mark Seen" button on analysis detail captures Quality (terrible/bad/neutral/good/excellent) + Location (bad/neutral/good); normalized composite score drives the pure-secretary commit rule (in commit phase, recommend the next property strictly better than explore-phase max). Linear bid premium (1% × properties past threshold) layered on top of fair value as overbid-market calibration — display-time overlay only, never baked into stored fair value or PDF export. Single active plan per user (DB unique constraint on user_id). Investor+ tier gated. New tables `buying_plans` + `seen_properties` with `analysis_id` FK using `ondelete=SET NULL` plus `address_snapshot` so seen rows survive analysis deletion. New `/buying-plan` route with setup form / dashboard; `MarkSeenButton` and `BuyingPlanBadge` on analysis detail. Plan at `.claude/plans/1-there-s-no-need-snappy-seal.md`.
+- Build an onboarding journey for new users where they can configure their buying plan. Explain the idea in the pricing page as well.
+- Add history search. I should be able to search for properties by the address
 - Support pest inspection reports. Use the same strategy as immplementing insepection reports.
 - Support uploading 3R reports to capture permit details.
 - Investigate database backups
@@ -10,9 +11,10 @@
 - Plan this new feature: a validation mode. The app should look at recently sold properties in SF and run analysis on each property. Then it should grade its performance. For poorly scoring analyses, use the LLM to hypothesize what caused the discrepancy.
 - Tier differentiation — bulk/batch analysis for Agent tier. Agent can submit a CSV of addresses and receive analyses for all of them. High-effort but strongest competitive differentiator for active agents touring many properties.
 - Tier differentiation — watchlist for Investor+. Save a set of addresses; one-click re-run to refresh an analysis as market conditions change.
-- Tier differentiation - add history search for Agent tier. I should be able to search for properties by the address.
 
 # DONE
+
+- Buying Plan (optimal stopping theory): user declares buy-by date and viewings/week → `derive_plan()` computes fixed N and explore threshold `floor(N/e)`. Pure-secretary commit rule: explore first threshold properties, then commit to next property strictly better than explore-phase max (score from seen_properties). Linear bid premium `1% × properties_past_threshold` displayed as overlay on analysis detail (display-time only). `buying_plans` table (UNIQUE user_id, CASCADE delete) with computed total_n + explore_threshold. POST/GET/DELETE `/api/buying-plan` (Investor+ gated). `/buying-plan` route: teaser for buyer tier, setup form, dashboard with phase card + scored property list with Explore/Commit badges. `BuyingPlanBadge` on analysis detail (Investor+ only) links to dashboard; "Plan" nav link for Investor+. 10 new backend logic tests, 17 new backend route tests, 6 new BuyingPlanBadge tests, 7 new route page tests.
 
 - Mark Seen: "Mark Seen" button on analysis detail (permalink page) available to any registered user. Modal captures Quality (terrible/bad/neutral/good/excellent) + Location (bad/neutral/good); composite score stored as `(quality_norm + location_norm) / 2`. `seen_properties` table with user_id FK (CASCADE), analysis_id FK (SET NULL), address_snapshot (survives analysis deletion), unique constraint on (user_id, analysis_id). GET/POST/DELETE API endpoints. Button shows current rating + click-to-unmark when already seen. 22 new backend tests, 7 new frontend tests.
 
