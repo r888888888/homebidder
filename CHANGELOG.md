@@ -5,6 +5,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-05-05
+
+### Added
+- Inspection report PDF upload — upload an inspection report on the analysis form; Claude extracts structured findings (per-system severity, status, and category) that override renovation line-item likelihoods and inject findings into the LLM prompt; color-coded system badges shown in Property tab; `inspection_informed` flag on the Fixer card
+- Post-analysis inspection report upload — attach an inspection PDF to an existing saved analysis to re-run the renovation estimate in place without re-running the full analysis
+- Mark as seen — registered users can mark an analysis as "seen" (physical visit) via a button on the permalink page; modal captures Quality (terrible→excellent) and Location (bad→good) ratings; composite score stored for future Buying Plan integration
+- Duplex / multi-family fair value support — comps filtered to the correct multi-family bucket; GRM-based income premium (up to 10%) applied for whole-building properties; second-unit rent offsets monthly buy cost in investment metrics
+- Pricing page updated to reflect new Buyer-tier features: duplex/multi-family support, inspection report upload, and property visit tracking
+
+### Fixed
+- Backend code review fixes — input validation, error handling, and response consistency improvements across several API routes
+- FAQ content updated with clarifications based on user questions
+
 ## [1.13.1] - 2026-04-30
 
 ### Fixed

@@ -40,9 +40,11 @@ const PLANS: Plan[] = [
     features: [
       { text: "AI-powered offer recommendation" },
       { text: "Fair value estimate & confidence interval" },
+      { text: "Duplex / multi-family fair value support" },
       { text: "Fire, flood & seismic risk assessment" },
       { text: "School ratings & transit proximity" },
-      { text: "Renovation cost estimate" },
+      { text: "Renovation estimate + inspection report upload" },
+      { text: "Property visit tracking (mark as seen)" },
       { text: "5 analyses / month" },
     ],
     lockedFeatures: ["Investment projections", "Comparable sales table", "PDF export"],

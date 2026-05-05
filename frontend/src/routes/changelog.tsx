@@ -15,6 +15,19 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "1.14.0",
+    date: "2026-05-05",
+    entries: [
+      { category: "Added", text: "Inspection report PDF upload — upload an inspection report on the analysis form; Claude extracts structured findings (per-system severity, status, and category) that override renovation line-item likelihoods and inject findings into the LLM prompt; color-coded system badges shown in Property tab; inspection_informed flag on the Fixer card" },
+      { category: "Added", text: "Post-analysis inspection report upload — attach an inspection PDF to an existing saved analysis to re-run the renovation estimate in place without re-running the full analysis" },
+      { category: "Added", text: "Mark as seen — registered users can mark an analysis as seen (physical visit) via a button on the permalink page; modal captures Quality and Location ratings; composite score stored for future Buying Plan integration" },
+      { category: "Added", text: "Duplex / multi-family fair value support — comps filtered to the correct multi-family bucket; GRM-based income premium (up to 10%) applied for whole-building properties; second-unit rent offsets monthly buy cost in investment metrics" },
+      { category: "Changed", text: "Pricing page updated to reflect new Buyer-tier features: duplex/multi-family support, inspection report upload, and property visit tracking" },
+      { category: "Fixed", text: "Backend code review fixes — input validation, error handling, and response consistency improvements across several API routes" },
+      { category: "Fixed", text: "FAQ content updated with clarifications based on user questions" },
+    ],
+  },
+  {
     version: "1.13.1",
     date: "2026-04-30",
     entries: [
