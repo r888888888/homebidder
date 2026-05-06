@@ -175,6 +175,7 @@ export function PermalinkPage() {
   );
 
   const planCommitData =
+    !planData?.plan?.is_paused &&
     planData?.status?.phase === "commit" &&
     (planData.status.bid_premium_pct ?? 0) > 0
       ? {

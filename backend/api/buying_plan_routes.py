@@ -24,6 +24,10 @@ def _require_investor_plus(user: User) -> None:
     raise HTTPException(status_code=403, detail="Buying Plan requires Investor or Agent plan")
 
 
+class PatchPlanRequest(BaseModel):
+    is_paused: bool
+
+
 class CreatePlanRequest(BaseModel):
     buy_by_date: str  # ISO date string: YYYY-MM-DD
     viewings_per_week: float
@@ -53,6 +57,7 @@ def _plan_to_dict(plan: BuyingPlan) -> dict:
         "total_n": plan.total_n,
         "explore_threshold": plan.explore_threshold,
         "created_at": plan.created_at.isoformat() if plan.created_at else None,
+        "is_paused": bool(plan.is_paused),
     }
 
 
@@ -128,6 +133,26 @@ async def get_plan(
     plan = result.scalar_one_or_none()
     if plan is None:
         raise HTTPException(status_code=404, detail="No buying plan found")
+
+    status, seen_dicts = await _get_plan_status(plan, db)
+    return {"plan": _plan_to_dict(plan), "status": status, "seen_properties": seen_dicts}
+
+
+@buying_plan_router.patch("/buying-plan")
+async def patch_plan(
+    body: PatchPlanRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(current_active_user),
+):
+    """Pause or resume the authenticated user's buying plan."""
+    result = await db.execute(select(BuyingPlan).where(BuyingPlan.user_id == user.id))
+    plan = result.scalar_one_or_none()
+    if plan is None:
+        raise HTTPException(status_code=404, detail="No buying plan found")
+
+    plan.is_paused = body.is_paused
+    await db.commit()
+    await db.refresh(plan)
 
     status, seen_dicts = await _get_plan_status(plan, db)
     return {"plan": _plan_to_dict(plan), "status": status, "seen_properties": seen_dicts}

@@ -26,6 +26,7 @@ export interface Plan {
   total_n: number;
   explore_threshold: number;
   created_at: string;
+  is_paused: boolean;
 }
 
 export interface PlanStatus {
@@ -177,6 +178,16 @@ export const apiClient = {
       const err = await r.json().catch(() => ({})) as { detail?: string };
       throw new Error(err.detail ?? "Failed to create plan");
     }
+    return r.json() as Promise<PlanResponse>;
+  },
+
+  patchBuyingPlan: async (isPaused: boolean): Promise<PlanResponse> => {
+    const r = await fetch(`${apiBase}/api/buying-plan`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ is_paused: isPaused }),
+    });
+    if (!r.ok) throw new Error(r.statusText);
     return r.json() as Promise<PlanResponse>;
   },
 

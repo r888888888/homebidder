@@ -19,6 +19,7 @@ interface PlanResponse {
     buy_by_date: string;
     total_n: number;
     explore_threshold: number;
+    is_paused: boolean;
   };
   status: PlanStatus;
 }
@@ -36,7 +37,7 @@ export function BuyingPlanBadge({ refreshTrigger }: { refreshTrigger?: number } 
     refetch();
   }, [refreshTrigger, refetch]);
 
-  if (!user || !planData) return null;
+  if (!user || !planData || planData.plan.is_paused) return null;
 
   const { status } = planData;
 

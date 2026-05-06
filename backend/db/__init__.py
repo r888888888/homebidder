@@ -71,7 +71,9 @@ _COMPS_MIGRATIONS: list[tuple[str, str]] = [
 _SEEN_PROPERTIES_MIGRATIONS: list[tuple[str, str]] = []
 
 # buying_plans table — columns added after v1.14 release.
-_BUYING_PLANS_MIGRATIONS: list[tuple[str, str]] = []
+_BUYING_PLANS_MIGRATIONS: list[tuple[str, str]] = [
+    ("is_paused", "INTEGER NOT NULL DEFAULT 0"),
+]
 
 _USERS_MIGRATIONS: list[tuple[str, str]] = [
     ("display_name",         "VARCHAR(128)"),

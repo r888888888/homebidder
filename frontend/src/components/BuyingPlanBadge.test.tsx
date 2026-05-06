@@ -145,6 +145,13 @@ describe("BuyingPlanBadge", () => {
     );
   });
 
+  it("renders nothing when plan is paused", async () => {
+    mockFetchPlan(200, makePlanResponse({ plan: { id: 1, buy_by_date: "2026-12-01", viewings_per_week: 3.0, total_n: 30, explore_threshold: 11, created_at: "2026-05-05T00:00:00", is_paused: true } }));
+    const { container } = render(<BuyingPlanBadge />);
+    await waitFor(() => expect(fetch).toHaveBeenCalled());
+    await waitFor(() => expect(container).toBeEmptyDOMElement());
+  });
+
   it("refetches plan data when refreshTrigger changes", async () => {
     mockFetchPlan(200, makePlanResponse({
       status: { phase: "explore", seen_count: 3, explore_max_score: null, explore_threshold: 11, properties_past_threshold: 0, bid_premium_pct: 0.0 },

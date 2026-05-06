@@ -575,6 +575,24 @@ describe("PermalinkPage — favorites", () => {
     expect(screen.queryByText(/buying plan calibration/i)).not.toBeInTheDocument();
   });
 
+  it("does not apply premium when buying plan is paused", async () => {
+    const pausedPlanResponse = {
+      ...COMMIT_PLAN_RESPONSE,
+      plan: { ...COMMIT_PLAN_RESPONSE.plan, is_paused: true },
+    };
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(new Response(JSON.stringify(ANALYSIS_DETAIL), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(pausedPlanResponse), { status: 200 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ seen_properties: [{ id: 1, analysis_id: 1, quality: "excellent", location: "good", composite_score: 0.875, seen_at: "2026-05-05T10:00:00", notes: null }] }), { status: 200 })
+      );
+    renderPage();
+    await waitFor(() => expect(screen.getByText(/offer recommendation/i)).toBeInTheDocument());
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(3));
+    expect(screen.queryByText(/1,224,000/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/buying plan calibration/i)).not.toBeInTheDocument();
+  });
+
   it("does not apply premium when property has not been marked seen", async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(new Response(JSON.stringify(ANALYSIS_DETAIL), { status: 200 }))

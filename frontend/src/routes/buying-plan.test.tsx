@@ -183,6 +183,47 @@ describe("BuyingPlanPage", () => {
     expect(screen.getByText(/\+2%|bid premium/i)).toBeInTheDocument();
   });
 
+  it("shows pause button when plan is active", async () => {
+    mockFetchPlan(makePlanResponse());
+    render(<BuyingPlanPage />);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /pause plan/i })).toBeInTheDocument()
+    );
+  });
+
+  it("shows resume button when plan is paused", async () => {
+    mockFetchPlan(makePlanResponse({ plan: { id: 1, buy_by_date: "2026-12-01", viewings_per_week: 3.0, total_n: 30, explore_threshold: 11, created_at: "2026-05-05T00:00:00", is_paused: true } }));
+    render(<BuyingPlanPage />);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /resume plan/i })).toBeInTheDocument()
+    );
+  });
+
+  it("shows paused state card when plan is paused", async () => {
+    mockFetchPlan(makePlanResponse({ plan: { id: 1, buy_by_date: "2026-12-01", viewings_per_week: 3.0, total_n: 30, explore_threshold: 11, created_at: "2026-05-05T00:00:00", is_paused: true } }));
+    render(<BuyingPlanPage />);
+    await waitFor(() =>
+      expect(screen.getByText(/algorithm paused/i)).toBeInTheDocument()
+    );
+    expect(screen.queryByText(/properties explored/i)).not.toBeInTheDocument();
+  });
+
+  it("calls PATCH when pause button is clicked and updates state", async () => {
+    mockFetchPlan(makePlanResponse());
+    const pausedResponse = makePlanResponse({ plan: { id: 1, buy_by_date: "2026-12-01", viewings_per_week: 3.0, total_n: 30, explore_threshold: 11, created_at: "2026-05-05T00:00:00", is_paused: true } });
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify(pausedResponse), { status: 200 })
+    );
+    render(<BuyingPlanPage />);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /pause plan/i })).toBeInTheDocument()
+    );
+    await userEvent.click(screen.getByRole("button", { name: /pause plan/i }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /resume plan/i })).toBeInTheDocument()
+    );
+  });
+
   it("shows 'Mark Seen' link in commit phase pointing to history", async () => {
     mockFetchPlan(
       makePlanResponse({

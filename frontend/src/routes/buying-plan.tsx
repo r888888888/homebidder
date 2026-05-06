@@ -17,6 +17,7 @@ interface Plan {
   total_n: number;
   explore_threshold: number;
   created_at: string;
+  is_paused: boolean;
 }
 
 interface PlanStatus {
@@ -95,6 +96,11 @@ export function BuyingPlanPage() {
     }
   );
 
+  const { mutate: togglePause } = useMutation(
+    (isPaused: boolean) => apiClient.patchBuyingPlan(isPaused),
+    (data) => setPlanData(data)
+  );
+
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     try {
@@ -109,6 +115,14 @@ export function BuyingPlanPage() {
       await deletePlan(null);
     } catch {
       toast.error("Failed to delete plan.");
+    }
+  }
+
+  async function handleTogglePause() {
+    try {
+      await togglePause(!planData!.plan.is_paused);
+    } catch {
+      toast.error("Failed to update plan.");
     }
   }
 
@@ -243,19 +257,39 @@ export function BuyingPlanPage() {
             {plan.viewings_per_week} viewings/week · N&nbsp;=&nbsp;{plan.total_n} expected
           </p>
         </div>
-        <button
-          type="button"
-          onClick={handleDelete}
-          aria-label="Delete plan"
-          className="mt-1 cursor-pointer rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-500 hover:bg-red-50"
-        >
-          Delete plan
-        </button>
+        <div className="mt-1 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleTogglePause}
+            className="cursor-pointer rounded-lg border border-[var(--line)] px-3 py-1.5 text-xs font-semibold text-[var(--ink-muted)] hover:bg-[var(--bg)]"
+          >
+            {plan.is_paused ? "Resume plan" : "Pause plan"}
+          </button>
+          <button
+            type="button"
+            onClick={handleDelete}
+            aria-label="Delete plan"
+            className="cursor-pointer rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-500 hover:bg-red-50"
+          >
+            Delete plan
+          </button>
+        </div>
       </div>
 
       {/* Phase card */}
       <div className="card mb-4 p-5">
-        {status.phase === "explore" ? (
+        {plan.is_paused ? (
+          <>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-[var(--ink-muted)]">
+              Algorithm paused
+            </p>
+            <p className="text-sm text-[var(--ink-soft)]">
+              The buying plan algorithm is paused. Your progress and seen properties are preserved.
+              Click <span className="font-semibold text-[var(--ink)]">Resume plan</span> to re-enable
+              the explore/commit decision rule and bid premium.
+            </p>
+          </>
+        ) : status.phase === "explore" ? (
           <>
             <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-amber-600">
               Explore phase

@@ -297,3 +297,75 @@ async def test_delete_plan_cross_user_isolation(client):
     # user A's plan should still exist
     get_resp = await client.get("/api/buying-plan", headers=_AUTH(token_a))
     assert get_resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# PATCH /api/buying-plan  (pause / resume)
+# ---------------------------------------------------------------------------
+
+async def test_patch_plan_requires_auth(client):
+    """Unauthenticated PATCH returns 401."""
+    resp = await client.patch("/api/buying-plan", json={"is_paused": True})
+    assert resp.status_code == 401
+
+
+async def test_patch_plan_not_found(client):
+    """PATCH when no plan exists returns 404."""
+    token, user_id = await _register_and_login(client, "patchnone@test.com")
+    await _upgrade_to_investor(user_id)
+    resp = await client.patch("/api/buying-plan", json={"is_paused": True}, headers=_AUTH(token))
+    assert resp.status_code == 404
+
+
+async def test_patch_plan_pauses_plan(client):
+    """PATCH with is_paused=True sets the plan to paused."""
+    token, user_id = await _register_and_login(client, "pauseplan@test.com")
+    await _upgrade_to_investor(user_id)
+
+    await client.post("/api/buying-plan", json=_BASE_PAYLOAD, headers=_AUTH(token))
+    resp = await client.patch("/api/buying-plan", json={"is_paused": True}, headers=_AUTH(token))
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["plan"]["is_paused"] is True
+
+
+async def test_patch_plan_resumes_plan(client):
+    """PATCH with is_paused=False re-enables a paused plan."""
+    token, user_id = await _register_and_login(client, "resumeplan@test.com")
+    await _upgrade_to_investor(user_id)
+
+    await client.post("/api/buying-plan", json=_BASE_PAYLOAD, headers=_AUTH(token))
+    await client.patch("/api/buying-plan", json={"is_paused": True}, headers=_AUTH(token))
+
+    resp = await client.patch("/api/buying-plan", json={"is_paused": False}, headers=_AUTH(token))
+    assert resp.status_code == 200
+    assert resp.json()["plan"]["is_paused"] is False
+
+
+async def test_get_plan_includes_is_paused_field(client):
+    """GET response includes is_paused on the plan object."""
+    token, user_id = await _register_and_login(client, "ispaused@test.com")
+    await _upgrade_to_investor(user_id)
+
+    await client.post("/api/buying-plan", json=_BASE_PAYLOAD, headers=_AUTH(token))
+    resp = await client.get("/api/buying-plan", headers=_AUTH(token))
+
+    assert resp.status_code == 200
+    assert "is_paused" in resp.json()["plan"]
+    assert resp.json()["plan"]["is_paused"] is False
+
+
+async def test_patch_plan_returns_full_response(client):
+    """PATCH returns the full plan + status + seen_properties response."""
+    token, user_id = await _register_and_login(client, "patchfull@test.com")
+    await _upgrade_to_investor(user_id)
+
+    await client.post("/api/buying-plan", json=_BASE_PAYLOAD, headers=_AUTH(token))
+    resp = await client.patch("/api/buying-plan", json={"is_paused": True}, headers=_AUTH(token))
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "plan" in data
+    assert "status" in data
+    assert "seen_properties" in data

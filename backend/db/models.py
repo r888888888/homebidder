@@ -178,3 +178,4 @@ class BuyingPlan(Base):
     total_n: Mapped[int] = mapped_column(Integer, nullable=False)
     explore_threshold: Mapped[int] = mapped_column(Integer, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    is_paused: Mapped[bool] = mapped_column(default=False, server_default="0", nullable=False)
