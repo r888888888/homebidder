@@ -208,6 +208,42 @@ describe("ProfilePage", () => {
   });
 });
 
+describe("ProfilePage — Buying Plan onboarding", () => {
+  it("shows 'Set up Buying Plan' button for investor user", async () => {
+    renderProfileWithTier("investor");
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /set up buying plan/i })).toBeInTheDocument();
+    });
+  });
+
+  it("shows 'Set up Buying Plan' button for agent user", async () => {
+    renderProfileWithTier("agent");
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /set up buying plan/i })).toBeInTheDocument();
+    });
+  });
+
+  it("does not show 'Set up Buying Plan' button for buyer user", async () => {
+    renderProfileWithTier("buyer");
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /update password/i })).toBeInTheDocument();
+    });
+    expect(screen.queryByRole("button", { name: /set up buying plan/i })).not.toBeInTheDocument();
+  });
+
+  it("clicking 'Set up Buying Plan' clears onboarding key and navigates to /welcome", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem("homebidder_onboarding_done_uuid-1", "1");
+    renderProfileWithTier("investor");
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /set up buying plan/i })).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole("button", { name: /set up buying plan/i }));
+    expect(localStorage.getItem("homebidder_onboarding_done_uuid-1")).toBeNull();
+    expect(mockNavigate).toHaveBeenCalledWith({ to: "/welcome" });
+  });
+});
+
 describe("ProfilePage — subscription section", () => {
   it("shows 'Buyer' tier badge for buyer user", async () => {
     renderProfileWithTier("buyer");

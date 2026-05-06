@@ -237,6 +237,16 @@ export default function ProfilePage() {
   if (isLoading || !user) return null;
 
   const tier = user.subscription_tier ?? "buyer";
+  const isInvestorPlus =
+    user.is_superuser ||
+    tier === "investor" ||
+    tier === "agent";
+
+  function handleSetupBuyingPlan() {
+    const key = `homebidder_onboarding_done_${user!.id}`;
+    localStorage.removeItem(key);
+    navigate({ to: "/welcome" });
+  }
   const meta = TIER_META[tier] ?? TIER_META.buyer;
   const initials = (user.email ?? "?")
     .split("@")[0]
@@ -485,6 +495,28 @@ export default function ProfilePage() {
             </button>
           </form>
         </div>
+
+        {/* ── Buying Plan card (investor/agent only) ───────────────── */}
+        {isInvestorPlus && (
+          <div className="card fade-up stagger-3 p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-base font-semibold text-[var(--ink)] mb-1">Buying Plan</h2>
+                <p className="text-sm text-[var(--ink-soft)]">
+                  Use the secretary-problem algorithm to decide when to stop exploring and commit.
+                  Set a buy-by date and viewing pace to get your optimal explore threshold.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleSetupBuyingPlan}
+                className="shrink-0 cursor-pointer rounded-lg bg-[var(--coral)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+              >
+                Set up Buying Plan
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* ── Danger zone ───────────────────────────────────────────── */}
         <div className="card fade-up stagger-3 overflow-hidden">
