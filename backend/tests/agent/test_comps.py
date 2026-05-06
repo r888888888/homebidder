@@ -538,4 +538,133 @@ class TestMultiPropertyTypeFilter:
         assert len(comps) == 1
         assert comps[0]["address"] == "5 Triplex Rd"
 
+
+# ---------------------------------------------------------------------------
+# past_days window
+# ---------------------------------------------------------------------------
+
+class TestHomeharvest180DayWindow:
+    def test_scrape_homeharvest_uses_180_day_window(self):
+        """_scrape_homeharvest_comps must request 180 days of history, not 90."""
+        from unittest.mock import MagicMock, patch
+
+        mock_df = MagicMock()
+        with patch("homeharvest.scrape_property", return_value=mock_df) as mock_scrape:
+            from agent.tools.comps import _scrape_homeharvest_comps
+            _scrape_homeharvest_comps("94132", 100)
+
+        call_kwargs = mock_scrape.call_args[1]
+        assert call_kwargs["past_days"] == 180, (
+            f"Expected past_days=180 but got {call_kwargs.get('past_days')}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Property type filter — unrecognized types pass through
+# ---------------------------------------------------------------------------
+
+class TestPropertyTypeFilterUnknownTypes:
+    async def test_comp_with_unrecognized_type_passes_through_when_subject_type_set(self):
+        """Comps whose property type cannot be normalized (e.g. 'RESIDENTIAL') should
+        not be excluded by the type filter. We can't tell what they are, so we keep them
+        rather than silently discard potentially valid comps."""
+        from agent.tools.comps import fetch_comps
+
+        unrecognized_type_comp = {**BASE_COMP_ROW, "street": "10 Byxbee St", "style": "RESIDENTIAL"}
+        known_sfh_comp = {**BASE_COMP_ROW, "street": "20 Byxbee St", "style": "SINGLE_FAMILY"}
+        condo_comp = {**BASE_COMP_ROW, "street": "30 Byxbee St", "style": "CONDO"}
+        df = _make_df([unrecognized_type_comp, known_sfh_comp, condo_comp])
+
+        with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+            result = await fetch_comps(
+                address="119 Byxbee St", city="San Francisco", state="CA",
+                zip_code="94132", subject_lat=37.726, subject_lon=-122.463,
+                subject_property_type="SINGLE_FAMILY",
+            )
+        comps = result["comps"]
+
+        addresses = [c["address"] for c in comps]
+        assert "10 Byxbee St" in addresses, "Unrecognized-type comp should pass through"
+        assert "20 Byxbee St" in addresses, "Known SFH comp should be included"
+        assert "30 Byxbee St" not in addresses, "Condo should be excluded for SFH subject"
+
+    async def test_comp_with_no_style_field_passes_through_when_subject_type_set(self):
+        """Comps with no style/property_type field at all should not be excluded."""
+        from agent.tools.comps import fetch_comps
+
+        no_type_comp = {k: v for k, v in BASE_COMP_ROW.items() if k not in ("style", "property_type")}
+        no_type_comp["street"] = "50 Byxbee St"
+        df = _make_df([no_type_comp])
+
+        with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+            result = await fetch_comps(
+                address="119 Byxbee St", city="San Francisco", state="CA",
+                zip_code="94132", subject_lat=37.726, subject_lon=-122.463,
+                subject_property_type="SINGLE_FAMILY",
+            )
+        comps = result["comps"]
+        assert len(comps) == 1, "Comp with missing type field should pass through"
+
+
+# ---------------------------------------------------------------------------
+# recency_weight field on each comp
+# ---------------------------------------------------------------------------
+
+class TestRecencyWeightField:
+    async def test_recent_comp_has_weight_near_1(self):
+        """A comp sold 7 days ago should have recency_weight close to 1.0."""
+        from agent.tools.comps import fetch_comps
+
+        recent_date = (dt.date.today() - dt.timedelta(days=7)).isoformat()
+        row = {**BASE_COMP_ROW, "last_sold_date": recent_date}
+        df = _make_df([row])
+
+        with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+            result = await fetch_comps(
+                address="450 Sanchez St", city="San Francisco", state="CA",
+                zip_code="94114", subject_lat=SF_LAT, subject_lon=SF_LON,
+            )
+        comps = result["comps"]
+
+        assert "recency_weight" in comps[0]
+        assert comps[0]["recency_weight"] == pytest.approx(1.0, abs=0.03)
+
+    async def test_old_comp_has_weight_below_0_7(self):
+        """A comp sold 150 days ago should have recency_weight meaningfully below 1."""
+        from agent.tools.comps import fetch_comps
+
+        old_date = (dt.date.today() - dt.timedelta(days=150)).isoformat()
+        row = {**BASE_COMP_ROW, "last_sold_date": old_date}
+        df = _make_df([row])
+
+        with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+            result = await fetch_comps(
+                address="450 Sanchez St", city="San Francisco", state="CA",
+                zip_code="94114", subject_lat=SF_LAT, subject_lon=SF_LON,
+            )
+        comps = result["comps"]
+
+        assert comps[0]["recency_weight"] < 0.7
+
+    async def test_comp_with_no_date_gets_fallback_weight(self):
+        """A comp with no sold_date gets a neutral fallback weight of 0.5."""
+        from agent.tools.comps import fetch_comps
+
+        row = {**BASE_COMP_ROW, "last_sold_date": None}
+        df = _make_df([row])
+
+        with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+            result = await fetch_comps(
+                address="450 Sanchez St", city="San Francisco", state="CA",
+                zip_code="94114", subject_lat=SF_LAT, subject_lon=SF_LON,
+            )
+        comps = result["comps"]
+
+        assert comps[0]["recency_weight"] == pytest.approx(0.5)
+
 # ---------------------------------------------------------------------------

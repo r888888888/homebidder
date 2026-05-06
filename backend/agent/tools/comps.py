@@ -19,6 +19,7 @@ from urllib.parse import urlencode
 import httpx
 from shapely.geometry import Point
 
+from .pricing import _recency_weight
 from .scraper import _USER_AGENTS
 
 
@@ -194,7 +195,7 @@ def _scrape_homeharvest_comps(location: str, max_results: int):
     return scrape_property(
         listing_type="sold",
         location=location,
-        past_days=90,
+        past_days=180,
         limit=max_results*3,
     )
 
@@ -237,7 +238,10 @@ def _process_df(
         comp_beds = _safe(row, "beds")
 
         if subject_property_type:
-            if comp_type_norm != subject_property_type:
+            # Only exclude if we could identify the type AND it's a different type.
+            # Comps with unrecognized/missing types (comp_type_norm is None) pass through
+            # rather than being silently discarded as potential false negatives.
+            if comp_type_norm is not None and comp_type_norm != subject_property_type:
                 continue
 
         if bedrooms is not None:
@@ -297,6 +301,7 @@ def _process_df(
             "longitude": comp_lon,
             "pct_over_asking": pct_over_asking,
             "distance_miles": distance_miles,
+            "recency_weight": round(_recency_weight(comp_sold_date, dt.date.today()), 4),
             "source": "homeharvest",
         })
 
@@ -414,6 +419,7 @@ def _parse_stingray_csv(text: str, max_results: int) -> list[dict[str, Any]]:
         try:
             sold_price = _float(row.get("PRICE"))
             sqft = _float(row.get("SQUARE FEET"))
+            sold_date = row.get("SOLD DATE", "") or None
             comps.append({
                 "address": row.get("ADDRESS", ""),
                 "unit": row.get("UNIT") or row.get("UNIT NUMBER") or None,
@@ -422,7 +428,7 @@ def _parse_stingray_csv(text: str, max_results: int) -> list[dict[str, Any]]:
                 "zip_code": row.get("ZIP OR POSTAL CODE", ""),
                 "sold_price": sold_price,
                 "list_price": None,
-                "sold_date": row.get("SOLD DATE", ""),
+                "sold_date": sold_date,
                 "bedrooms": _int(row.get("BEDS")),
                 "bathrooms": _float(row.get("BATHS")),
                 "sqft": sqft,
@@ -432,6 +438,7 @@ def _parse_stingray_csv(text: str, max_results: int) -> list[dict[str, Any]]:
                 "longitude": None,
                 "pct_over_asking": None,
                 "distance_miles": None,
+                "recency_weight": round(_recency_weight(sold_date, dt.date.today()), 4),
                 "source": "redfin_stingray",
             })
         except (ValueError, TypeError):
