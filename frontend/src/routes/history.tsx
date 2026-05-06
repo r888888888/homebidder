@@ -1,15 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import React, { useEffect, useState, useCallback } from "react";
 import { Heart } from "lucide-react";
-import { PropertySummaryCard, type PropertyData } from "../components/PropertySummaryCard";
-import { OfferRecommendationCard, type OfferData } from "../components/OfferRecommendationCard";
-import { RiskAnalysisCard, type RiskData } from "../components/RiskAnalysisCard";
-import { InvestmentCard, type InvestmentData } from "../components/InvestmentCard";
-import { FixerAnalysisCard, type FixerAnalysisData } from "../components/FixerAnalysisCard";
 import { useToast } from "../components/Toast";
-import { apiBase } from "../lib/api";
-import { authHeaders } from "../lib/auth";
+import { apiBase, apiClient } from "../lib/api";
 import { useAuth } from "../lib/AuthContext";
+import { useFetch } from "../hooks/useFetch";
 
 export const Route = createFileRoute("/history")({ component: HistoryPage });
 
@@ -21,25 +16,6 @@ interface AnalysisSummary {
   risk_level: string | null;
   investment_rating: string | null;
   is_favorite: boolean;
-}
-
-interface AnalysisDetail {
-  id: number;
-  address: string;
-  created_at: string;
-  offer_low: number | null;
-  offer_recommended: number | null;
-  offer_high: number | null;
-  risk_level: string | null;
-  investment_rating: string | null;
-  rationale: string | null;
-  property_data: PropertyData | null;
-  neighborhood_data: Record<string, unknown> | null;
-  offer_data: OfferData | null;
-  risk_data: RiskData | null;
-  investment_data: InvestmentData | null;
-  renovation_data: FixerAnalysisData | null;
-  comps: unknown[];
 }
 
 const PAGE_SIZE = 20;
@@ -76,69 +52,49 @@ export function HistoryPage() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [detail, setDetail] = useState<AnalysisDetail | null>(null);
   const toast = useToast();
 
-  useEffect(() => {
-    const offset = (page - 1) * PAGE_SIZE;
-    const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offset) });
-    if (search.trim()) params.set("q", search.trim());
-    fetch(
-      `${apiBase}/api/analyses?${params.toString()}`,
-      { headers: authHeaders() }
-    )
-      .then((r) => r.json())
-      .then((data) => {
-        setAnalyses(data.items);
-        setTotal(data.total);
-      })
-      .catch(() => {
-        toast.error("Failed to load analysis history.");
-      });
-  }, [page, search, toast]);
+  const listParams = new URLSearchParams({
+    limit: String(PAGE_SIZE),
+    offset: String((page - 1) * PAGE_SIZE),
+  });
+  if (search.trim()) listParams.set("q", search.trim());
+  const listUrl = `${apiBase}/api/analyses?${listParams.toString()}`;
 
-  async function handleRowClick(id: number) {
-    if (selectedId === id) {
-      setSelectedId(null);
-      setDetail(null);
-      return;
+  const { data: listData, error: listError } = useFetch<{ items: AnalysisSummary[]; total: number }>(listUrl);
+
+  useEffect(() => {
+    if (listData) {
+      setAnalyses(listData.items);
+      setTotal(listData.total);
     }
-    const resp = await fetch(`${apiBase}/api/analyses/${id}`, { headers: authHeaders() });
-    if (!resp.ok) {
-      toast.error(`Failed to load analysis: ${resp.statusText}`);
-      return;
+  }, [listData]);
+
+  useEffect(() => {
+    if (listError) {
+      toast.error("Failed to load analysis history.");
     }
-    const data = await resp.json();
-    setSelectedId(id);
-    setDetail(data);
-  }
+  }, [listError, toast]);
 
   const handleDelete = useCallback(async (id: number) => {
-    const resp = await fetch(`${apiBase}/api/analyses/${id}`, { method: "DELETE", headers: authHeaders() });
-    if (!resp.ok) {
+    try {
+      await apiClient.deleteAnalysis(id);
+      setAnalyses((prev) => prev.filter((a) => a.id !== id));
+    } catch {
       toast.error("Failed to delete analysis.");
-      return;
     }
-    setAnalyses((prev) => prev.filter((a) => a.id !== id));
-    setSelectedId(null);
-    setDetail(null);
   }, [toast]);
 
   const handleToggleFavorite = useCallback(async (id: number, e: React.MouseEvent) => {
     e.stopPropagation();
-    const resp = await fetch(`${apiBase}/api/analyses/${id}/favorite`, {
-      method: "PATCH",
-      headers: authHeaders(),
-    });
-    if (!resp.ok) {
+    try {
+      const data = await apiClient.toggleFavorite(id);
+      setAnalyses((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, is_favorite: data.is_favorite } : a))
+      );
+    } catch {
       toast.error("Failed to update favorite.");
-      return;
     }
-    const data = await resp.json();
-    setAnalyses((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, is_favorite: data.is_favorite } : a))
-    );
   }, [toast]);
 
   return (
@@ -158,7 +114,7 @@ export function HistoryPage() {
           type="text"
           placeholder="Search by address"
           value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(1); setSelectedId(null); setDetail(null); }}
+          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
           className="w-full sm:w-80 px-3 py-1.5 text-sm border border-[var(--line)] rounded-lg focus:outline-none focus:ring-1 focus:ring-[var(--navy)]"
         />
       </div>
@@ -180,11 +136,9 @@ export function HistoryPage() {
             </thead>
             <tbody>
               {analyses.map((a) => (
-                <React.Fragment key={a.id}>
                   <tr
                     key={a.id}
-                    className={`cursor-pointer hover:bg-[var(--bg)] border-b border-[var(--line)] transition-colors${a.is_favorite ? " bg-rose-50" : ""}`}
-                    onClick={() => handleRowClick(a.id)}
+                    className={`hover:bg-[var(--bg)] border-b border-[var(--line)] transition-colors${a.is_favorite ? " bg-rose-50" : ""}`}
                   >
                     <td className="py-3 pr-4">{a.address}</td>
                     <td className="py-3 pr-4">
@@ -224,49 +178,6 @@ export function HistoryPage() {
                       </div>
                     </td>
                   </tr>
-                  {selectedId === a.id && detail && (
-                    <tr key={`detail-${a.id}`}>
-                      <td colSpan={6} className="py-4">
-                        <div className="space-y-4">
-                          {detail.property_data && (
-                            <PropertySummaryCard
-                              property={detail.property_data}
-                            />
-                          )}
-                          {detail.offer_data && (
-                            <OfferRecommendationCard
-                              offer={detail.offer_data}
-                            />
-                          )}
-                          {detail.risk_data && (
-                            <RiskAnalysisCard risk={detail.risk_data} />
-                          )}
-                          {detail.investment_data && (
-                            <InvestmentCard
-                              investment={detail.investment_data}
-                            />
-                          )}
-                          {detail.renovation_data && (
-                            <FixerAnalysisCard
-                              data={detail.renovation_data}
-                              analysisId={detail.id}
-                              initialDisabledIndices={detail.renovation_data.disabled_indices ?? []}
-                            />
-                          )}
-                          <div className="flex justify-end pt-2">
-                            <button
-                              type="button"
-                              onClick={() => handleDelete(a.id)}
-                              className="text-xs text-red-500 hover:text-red-700 underline"
-                            >
-                              Delete analysis
-                            </button>
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
               ))}
             </tbody>
           </table>
@@ -276,7 +187,7 @@ export function HistoryPage() {
                 {page > 1 && (
                   <button
                     type="button"
-                    onClick={() => { setPage((p) => p - 1); setSelectedId(null); setDetail(null); }}
+                    onClick={() => setPage((p) => p - 1)}
                     className="px-3 py-1 border border-[var(--line)] rounded hover:bg-[var(--bg)]"
                   >
                     Prev
@@ -288,7 +199,7 @@ export function HistoryPage() {
                 {page < Math.ceil(total / PAGE_SIZE) && (
                   <button
                     type="button"
-                    onClick={() => { setPage((p) => p + 1); setSelectedId(null); setDetail(null); }}
+                    onClick={() => setPage((p) => p + 1)}
                     className="px-3 py-1 border border-[var(--line)] rounded hover:bg-[var(--bg)]"
                   >
                     Next

@@ -1,8 +1,10 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
 import { useAuth } from "../lib/AuthContext";
-import { authHeaders, clearToken } from "../lib/auth";
-import { apiBase } from "../lib/api";
+import { clearToken } from "../lib/auth";
+import { apiBase, apiClient } from "../lib/api";
+import { useFetch } from "../hooks/useFetch";
+import { useMutation } from "../hooks/useMutation";
 
 interface RateLimitStatus {
   used: number;
@@ -121,15 +123,41 @@ export default function ProfilePage() {
   const [newPassword, setNewPassword] = useState("");
   const [pwSuccess, setPwSuccess] = useState(false);
   const [pwError, setPwError] = useState<string | null>(null);
-  const [pwSubmitting, setPwSubmitting] = useState(false);
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
 
-  const [rateLimitStatus, setRateLimitStatus] = useState<RateLimitStatus | null>(null);
-  const [billingLoading, setBillingLoading] = useState(false);
+  const { data: rateLimitStatus } = useFetch<RateLimitStatus>(
+    user ? `${apiBase}/api/rate-limit/status` : null
+  );
   const [billingError, setBillingError] = useState<string | null>(null);
+
+  const { mutate: changePasswordMutation, loading: pwSubmitting } = useMutation(
+    (_: null) => apiClient.changePassword(newPassword),
+    () => {
+      setNewPassword("");
+      setPwSuccess(true);
+    }
+  );
+
+  const { mutate: deleteAccountMutation, loading: deleteSubmitting } = useMutation(
+    (_: null) => apiClient.deleteAccount(),
+    () => {
+      clearToken();
+      logout();
+      navigate({ to: "/" });
+    }
+  );
+
+  const { mutate: manageBillingMutation, loading: billingLoading } = useMutation(
+    (_: null) => apiClient.getCustomerPortalUrl(),
+    (data) => { window.location.href = data.url; }
+  );
+
+  const { mutate: upgradeMutation } = useMutation(
+    (priceId: string) => apiClient.createCheckoutSession(priceId),
+    (data) => { window.location.href = data.url; }
+  );
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -137,98 +165,38 @@ export default function ProfilePage() {
     }
   }, [isLoading, user, navigate]);
 
-  useEffect(() => {
-    if (!user) return;
-    (async () => {
-      try {
-        const resp = await fetch(`${apiBase}/api/rate-limit/status`, {
-          headers: authHeaders(),
-        });
-        if (resp.ok) {
-          setRateLimitStatus(await resp.json());
-        }
-      } catch {
-        // non-critical — leave null
-      }
-    })();
-  }, [user]);
-
   async function handleChangePassword(e: FormEvent) {
     e.preventDefault();
     setPwError(null);
     setPwSuccess(false);
-    setPwSubmitting(true);
     try {
-      const resp = await fetch(`${apiBase}/api/users/me`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ password: newPassword }),
-      });
-      if (!resp.ok) {
-        const body = await resp.json().catch(() => ({}));
-        throw new Error(body.detail ?? "Failed to update password");
-      }
-      setNewPassword("");
-      setPwSuccess(true);
+      await changePasswordMutation(null);
     } catch (err) {
       setPwError(err instanceof Error ? err.message : "Failed to update password");
-    } finally {
-      setPwSubmitting(false);
     }
   }
 
   async function handleDeleteAccount() {
     setDeleteError(null);
-    setDeleteSubmitting(true);
     try {
-      const resp = await fetch(`${apiBase}/api/users/me`, {
-        method: "DELETE",
-        headers: authHeaders(),
-      });
-      if (!resp.ok) {
-        throw new Error("Failed to delete account");
-      }
-      clearToken();
-      logout();
-      navigate({ to: "/" });
+      await deleteAccountMutation(null);
     } catch (err) {
       setDeleteError(err instanceof Error ? err.message : "Failed to delete account");
-      setDeleteSubmitting(false);
     }
   }
 
   async function handleManageBilling() {
     setBillingError(null);
-    setBillingLoading(true);
     try {
-      const resp = await fetch(`${apiBase}/api/payments/customer-portal`, {
-        headers: authHeaders(),
-      });
-      if (!resp.ok) {
-        const body = await resp.json().catch(() => ({}));
-        throw new Error(body.detail ?? "Failed to open billing portal");
-      }
-      const data = await resp.json();
-      window.location.href = data.url;
+      await manageBillingMutation(null);
     } catch (err) {
       setBillingError(err instanceof Error ? err.message : "Something went wrong");
-      setBillingLoading(false);
     }
   }
 
   async function handleUpgrade(priceId: string) {
     try {
-      const resp = await fetch(`${apiBase}/api/payments/create-checkout-session`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ price_id: priceId }),
-      });
-      if (!resp.ok) {
-        const body = await resp.json().catch(() => ({}));
-        throw new Error(body.detail ?? "Failed to start checkout");
-      }
-      const data = await resp.json();
-      window.location.href = data.url;
+      await upgradeMutation(priceId);
     } catch (err) {
       setBillingError(err instanceof Error ? err.message : "Something went wrong");
     }

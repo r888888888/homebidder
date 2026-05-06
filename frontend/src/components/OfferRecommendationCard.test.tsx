@@ -283,6 +283,41 @@ describe("OfferRecommendationCard", () => {
     ).not.toThrow();
   });
 
+  // --- Buying Plan premium ---
+
+  it("shows adjusted offer prices when bidPremiumPct is provided", () => {
+    // BASE: rec=1_187_000, low=1_225_000, high=1_300_000
+    // 2% premium: rec→1_210_740, low→1_249_500, high→1_326_000
+    render(<OfferRecommendationCard offer={BASE} bidPremiumPct={0.02} />);
+    expect(screen.getByText(/1,210,740/)).toBeInTheDocument();
+    expect(screen.getByText(/1,249,500/)).toBeInTheDocument();
+    expect(screen.getByText(/1,326,000/)).toBeInTheDocument();
+    // original recommended should not appear as the recommended number
+    expect(screen.queryByText(/1,187,000/)).not.toBeInTheDocument();
+  });
+
+  it("shows 'Buying Plan calibration' row in breakdown when premium is set", () => {
+    render(<OfferRecommendationCard offer={BASE} bidPremiumPct={0.02} />);
+    expect(screen.getByText(/buying plan calibration/i)).toBeInTheDocument();
+    expect(screen.getByText(/\+2%/)).toBeInTheDocument();
+  });
+
+  it("does not show buying plan calibration row when no premium", () => {
+    render(<OfferRecommendationCard offer={BASE} />);
+    expect(screen.queryByText(/buying plan calibration/i)).not.toBeInTheDocument();
+  });
+
+  it("still shows breakdown section when only bidPremiumPct is set and no fair_value_breakdown", () => {
+    render(
+      <OfferRecommendationCard
+        offer={{ ...BASE, fair_value_breakdown: null }}
+        bidPremiumPct={0.03}
+      />
+    );
+    expect(screen.getByText(/how was this calculated/i)).toBeInTheDocument();
+    expect(screen.getByText(/buying plan calibration/i)).toBeInTheDocument();
+  });
+
   it("does not crash when fair_value_confidence_interval has no factors field", () => {
     expect(() =>
       render(

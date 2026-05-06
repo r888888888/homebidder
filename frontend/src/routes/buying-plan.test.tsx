@@ -182,4 +182,26 @@ describe("BuyingPlanPage", () => {
     );
     expect(screen.getByText(/\+2%|bid premium/i)).toBeInTheDocument();
   });
+
+  it("shows 'Mark Seen' link in commit phase pointing to history", async () => {
+    mockFetchPlan(
+      makePlanResponse({
+        status: {
+          phase: "commit",
+          seen_count: 13,
+          explore_max_score: 0.875,
+          explore_threshold: 11,
+          properties_past_threshold: 2,
+          bid_premium_pct: 0.02,
+        },
+      })
+    );
+    render(<BuyingPlanPage />);
+    await waitFor(() =>
+      expect(screen.getByText(/commit phase/i)).toBeInTheDocument()
+    );
+    const link = screen.getByRole("link", { name: /mark.*(seen|viewing)|open.*analysis/i });
+    expect(link).toBeInTheDocument();
+    expect(link).toHaveAttribute("href", "/history");
+  });
 });

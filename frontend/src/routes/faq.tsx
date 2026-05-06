@@ -165,7 +165,7 @@ const FAQ_SECTIONS: FAQSection[] = [
       {
         question: "What is the bid premium shown on the Buying Plan page?",
         answer:
-          "Once you enter the commit phase, HomeBidder adds a calibration premium to the fair value estimate: 1% per property you have evaluated past the explore-phase threshold. This reflects the real overbid pressure that accumulates as your deadline approaches and your remaining options shrink — the longer you wait past the threshold, the more competition and time pressure typically justify bidding above fair value. The premium is a display-time overlay only; it is never stored in the analysis record or included in PDF exports.",
+          "Once you enter the commit phase, HomeBidder adds a calibration premium to your offer recommendation: 1% per qualifying commit-phase property you have marked as seen. A property qualifies if its composite score (Quality + Location) meets or exceeds the best score recorded during your explore phase. Properties you visited but rated below the explore-phase benchmark are excluded from the premium count — they represent viewings where you would not commit regardless. The premium reflects the real overbid pressure that accumulates as you continue passing on genuinely competitive properties, and is applied only to the analysis you are currently viewing when it has itself earned a qualifying score. The premium is a display-time overlay only; it is never stored in the analysis record or included in PDF exports.",
       },
       {
         question: "Can I have more than one active Buying Plan?",

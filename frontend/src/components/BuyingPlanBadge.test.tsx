@@ -144,4 +144,21 @@ describe("BuyingPlanBadge", () => {
       expect(screen.getByRole("link")).toHaveAttribute("href", "/buying-plan")
     );
   });
+
+  it("refetches plan data when refreshTrigger changes", async () => {
+    mockFetchPlan(200, makePlanResponse({
+      status: { phase: "explore", seen_count: 3, explore_max_score: null, explore_threshold: 11, properties_past_threshold: 0, bid_premium_pct: 0.0 },
+    }));
+    mockFetchPlan(200, makePlanResponse({
+      status: { phase: "explore", seen_count: 4, explore_max_score: null, explore_threshold: 11, properties_past_threshold: 0, bid_premium_pct: 0.0 },
+    }));
+
+    const { rerender } = render(<BuyingPlanBadge refreshTrigger={0} />);
+    await waitFor(() => expect(screen.getByText(/3\s*\/\s*11/i)).toBeInTheDocument());
+
+    rerender(<BuyingPlanBadge refreshTrigger={1} />);
+    await waitFor(() => expect(screen.getByText(/4\s*\/\s*11/i)).toBeInTheDocument());
+
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
 });

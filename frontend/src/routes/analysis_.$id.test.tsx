@@ -3,8 +3,19 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ToastProvider } from "../components/Toast";
 
+// vi.hoisted() runs before module evaluation, making mockUseLoaderData
+// available when the vi.mock() factory is called (which is also hoisted).
+const mockUseLoaderData = vi.hoisted(() =>
+  vi.fn<[], undefined | { data: Record<string, unknown> } | { notFound: true }>(
+    () => undefined
+  )
+);
+
 vi.mock("@tanstack/react-router", () => ({
-  createFileRoute: () => (config: unknown) => config,
+  createFileRoute: () => (config: unknown) => ({
+    ...(config as object),
+    useLoaderData: mockUseLoaderData,
+  }),
   useParams: vi.fn(),
   useNavigate: vi.fn(() => vi.fn()),
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
@@ -39,6 +50,7 @@ vi.mock("../components/BuyingPlanBadge", () => ({
 
 beforeEach(() => {
   mockUseAuth.mockReturnValue({ user: { subscription_tier: "investor" }, isLoading: false });
+  mockUseLoaderData.mockReturnValue(undefined); // default: no loader data → manual fetch
 });
 
 import { useParams, useNavigate } from "@tanstack/react-router";
@@ -492,6 +504,10 @@ describe("PermalinkPage — favorites", () => {
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ ...ANALYSIS_DETAIL, is_favorite: false }), { status: 200 })
       )
+      // buying-plan fetch (investor+ user, no plan)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ detail: "No buying plan found" }), { status: 404 })
+      )
       // MarkSeenButton fetches seen-properties on mount
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ seen_properties: [] }), { status: 200 })
@@ -507,6 +523,96 @@ describe("PermalinkPage — favorites", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /^unfavorite$/i })).toBeInTheDocument()
     );
+  });
+
+  const COMMIT_PLAN_RESPONSE = {
+    plan: { id: 1, buy_by_date: "2026-12-01", viewings_per_week: 3, total_n: 30, explore_threshold: 11, created_at: "2026-05-01T00:00:00" },
+    status: { phase: "commit", seen_count: 13, explore_max_score: 0.75, explore_threshold: 11, properties_past_threshold: 2, bid_premium_pct: 0.02 },
+    seen_properties: [],
+  };
+
+  it("applies buying plan bid premium when property is seen with passing score", async () => {
+    // ANALYSIS_DETAIL has offer_recommended: 1_200_000; 2% → $1,224,000
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(new Response(JSON.stringify(ANALYSIS_DETAIL), { status: 200 }))
+      // buying-plan: commit phase, explore_max=0.75, premium=2%
+      .mockResolvedValueOnce(new Response(JSON.stringify(COMMIT_PLAN_RESPONSE), { status: 200 }))
+      // MarkSeenButton: property already seen with score 0.875 (beats 0.75)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ seen_properties: [{ id: 1, analysis_id: 1, quality: "excellent", location: "good", composite_score: 0.875, seen_at: "2026-05-05T10:00:00", notes: null }] }), { status: 200 })
+      );
+    renderPage();
+    await waitFor(() => expect(screen.getByText(/1,224,000/)).toBeInTheDocument());
+    expect(screen.getByText(/buying plan calibration/i)).toBeInTheDocument();
+  });
+
+  it("applies premium when seen score equals explore max", async () => {
+    // explore_max is 0.75; score exactly 0.75 should qualify
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(new Response(JSON.stringify(ANALYSIS_DETAIL), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(COMMIT_PLAN_RESPONSE), { status: 200 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ seen_properties: [{ id: 1, analysis_id: 1, quality: "good", location: "neutral", composite_score: 0.75, seen_at: "2026-05-05T10:00:00", notes: null }] }), { status: 200 })
+      );
+    renderPage();
+    await waitFor(() => expect(screen.getByText(/1,224,000/)).toBeInTheDocument());
+  });
+
+  it("does not apply premium when seen score does not beat explore max", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(new Response(JSON.stringify(ANALYSIS_DETAIL), { status: 200 }))
+      // buying-plan: commit phase, explore_max=0.75, premium=2%
+      .mockResolvedValueOnce(new Response(JSON.stringify(COMMIT_PLAN_RESPONSE), { status: 200 }))
+      // MarkSeenButton: seen but score 0.5 (does NOT beat 0.75)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ seen_properties: [{ id: 1, analysis_id: 1, quality: "neutral", location: "neutral", composite_score: 0.5, seen_at: "2026-05-05T10:00:00", notes: null }] }), { status: 200 })
+      );
+    renderPage();
+    await waitFor(() => expect(screen.getByText(/offer recommendation/i)).toBeInTheDocument());
+    // Wait for all fetches to settle
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(3));
+    expect(screen.queryByText(/1,224,000/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/buying plan calibration/i)).not.toBeInTheDocument();
+  });
+
+  it("does not apply premium when property has not been marked seen", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(new Response(JSON.stringify(ANALYSIS_DETAIL), { status: 200 }))
+      // buying-plan: commit phase with premium
+      .mockResolvedValueOnce(new Response(JSON.stringify(COMMIT_PLAN_RESPONSE), { status: 200 }))
+      // MarkSeenButton: not yet seen
+      .mockResolvedValueOnce(new Response(JSON.stringify({ seen_properties: [] }), { status: 200 }));
+    renderPage();
+    await waitFor(() => expect(screen.getByText(/offer recommendation/i)).toBeInTheDocument());
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(3));
+    expect(screen.queryByText(/1,224,000/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/buying plan calibration/i)).not.toBeInTheDocument();
+  });
+
+  it("refetches buying plan data after marking a property as seen", async () => {
+    vi.mocked(fetch)
+      // 1. analysis
+      .mockResolvedValueOnce(new Response(JSON.stringify(ANALYSIS_DETAIL), { status: 200 }))
+      // 2. buying-plan (initial)
+      .mockResolvedValueOnce(new Response(JSON.stringify({ status: { phase: "explore", seen_count: 3, explore_max_score: null, explore_threshold: 11, properties_past_threshold: 0, bid_premium_pct: 0 } }), { status: 200 }))
+      // 3. MarkSeenButton GET (not yet seen)
+      .mockResolvedValueOnce(new Response(JSON.stringify({ seen_properties: [] }), { status: 200 }))
+      // 4. MarkSeenButton POST
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 1, analysis_id: 1, quality: "good", location: "good", composite_score: 0.875, seen_at: "2026-05-05T10:00:00", notes: null }), { status: 201 }))
+      // 5. buying-plan refetch after marking seen
+      .mockResolvedValueOnce(new Response(JSON.stringify({ status: { phase: "explore", seen_count: 4, explore_max_score: 0.875, explore_threshold: 11, properties_past_threshold: 0, bid_premium_pct: 0 } }), { status: 200 }));
+
+    renderPage();
+
+    const markSeenBtn = await screen.findByRole("button", { name: /mark seen/i });
+    await userEvent.click(markSeenBtn);
+    await userEvent.click(screen.getByRole("button", { name: /save/i }));
+
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(5));
+    const buyingPlanCalls = vi.mocked(fetch).mock.calls.filter(([url]) =>
+      String(url).includes("/api/buying-plan")
+    );
+    expect(buyingPlanCalls).toHaveLength(2);
   });
 });
 
@@ -583,6 +689,10 @@ describe("PermalinkPage — inspection report upload", () => {
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ ...ANALYSIS_DETAIL, inspection_data: null }), { status: 200 })
       )
+      // buying-plan fetch (investor+ user, no plan)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ detail: "No buying plan found" }), { status: 404 })
+      )
       // MarkSeenButton fetches seen-properties on mount
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ seen_properties: [] }), { status: 200 })
@@ -611,6 +721,10 @@ describe("PermalinkPage — inspection report upload", () => {
       .mockResolvedValueOnce(
         // No property_data, no neighborhood_data, no inspection_data → dot should be absent initially
         new Response(JSON.stringify({ ...ANALYSIS_DETAIL, property_data: null, neighborhood_data: null, inspection_data: null }), { status: 200 })
+      )
+      // buying-plan fetch (investor+ user, no plan)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ detail: "No buying plan found" }), { status: 404 })
       )
       // MarkSeenButton fetches seen-properties on mount
       .mockResolvedValueOnce(
@@ -655,6 +769,10 @@ describe("PermalinkPage — inspection report upload", () => {
       .mockResolvedValueOnce(
         new Response(JSON.stringify(analysisWithReno), { status: 200 })
       )
+      // buying-plan fetch (investor+ user, no plan)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ detail: "No buying plan found" }), { status: 404 })
+      )
       // MarkSeenButton fetches seen-properties on mount
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ seen_properties: [] }), { status: 200 })
@@ -684,5 +802,69 @@ describe("PermalinkPage — inspection report upload", () => {
     await waitFor(() =>
       expect(screen.getByText(/informed by inspection report/i)).toBeInTheDocument()
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Loader integration — Route.useLoaderData() supplies pre-fetched data
+// ---------------------------------------------------------------------------
+
+describe("PermalinkPage — loader integration", () => {
+  beforeEach(() => {
+    vi.spyOn(global, "fetch");
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("renders analysis immediately from loader data without fetching the analysis endpoint", async () => {
+    mockUseLoaderData.mockReturnValue({ data: ANALYSIS_DETAIL as unknown as Record<string, unknown> });
+
+    renderPage();
+
+    // Content is available immediately — no loading spinner
+    expect(screen.queryByText(/^loading/i)).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByText(/450 SANCHEZ ST/i)).toBeInTheDocument()
+    );
+    // The analysis detail endpoint must NOT have been fetched (loader provided it)
+    const analysisFetches = vi.mocked(fetch).mock.calls.filter(
+      ([url]) => typeof url === "string" && /\/api\/analyses\/\d+$/.test(url)
+    );
+    expect(analysisFetches).toHaveLength(0);
+  });
+
+  it("shows not-found state synchronously when loader returns { notFound: true }", () => {
+    mockUseLoaderData.mockReturnValue({ notFound: true });
+
+    renderPage();
+
+    // No loading state — loader already resolved
+    expect(screen.queryByText(/^loading/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/not found/i)).toBeInTheDocument();
+    // The analysis detail endpoint must NOT have been fetched
+    const analysisFetches = vi.mocked(fetch).mock.calls.filter(
+      ([url]) => typeof url === "string" && /\/api\/analyses\/\d+$/.test(url)
+    );
+    expect(analysisFetches).toHaveLength(0);
+  });
+
+  it("falls back to manual fetch of the analysis endpoint when loader data is undefined", async () => {
+    // Default: mockUseLoaderData returns undefined (set in outer beforeEach)
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify(ANALYSIS_DETAIL), { status: 200 })
+    );
+
+    renderPage();
+
+    expect(screen.getByText(/loading/i)).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByText(/450 SANCHEZ ST/i)).toBeInTheDocument()
+    );
+    // The analysis endpoint should have been called manually
+    const analysisFetches = vi.mocked(fetch).mock.calls.filter(
+      ([url]) => typeof url === "string" && /\/api\/analyses\/\d+$/.test(url)
+    );
+    expect(analysisFetches.length).toBeGreaterThanOrEqual(1);
   });
 });

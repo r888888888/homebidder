@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { AnalysisStream } from "../components/AnalysisStream";
 import { useToast } from "../components/Toast";
@@ -23,8 +23,10 @@ export const Route = createFileRoute("/analysis")({
 
 export function AnalysisPage() {
   const { address, buyerContext, forceRefresh } = useSearch({ from: "/analysis" });
+  const navigate = useNavigate();
   const [events, setEvents] = useState<AnalysisEvent[]>([]);
   const [isRunning, setIsRunning] = useState(true);
+  const [analysisId, setAnalysisId] = useState<number | null>(null);
   const [refreshKey, setRefreshKey] = useState(forceRefresh ? 1 : 0);
   const [limitReached, setLimitReached] = useState<LimitReachedInfo | null>(null);
   const toast = useToast();
@@ -111,6 +113,7 @@ export function AnalysisPage() {
               const event: AnalysisEvent = JSON.parse(line.slice(6));
               setEvents((prev) => [...prev, event]);
               if (event.type === "error") toast.error(event.text ?? "An error occurred.");
+              if (event.type === "analysis_id" && event.id != null) setAnalysisId(event.id);
               if (event.type === "done") setIsRunning(false);
             } catch {
               // skip malformed
@@ -127,6 +130,12 @@ export function AnalysisPage() {
     stream();
     return () => { cancelled = true; controller.abort(); };
   }, [address, buyerContext, refreshKey, toast]);
+
+  useEffect(() => {
+    if (!isRunning && analysisId !== null) {
+      navigate({ to: "/analysis/$id", params: { id: String(analysisId) } });
+    }
+  }, [isRunning, analysisId, navigate]);
 
   return (
     <main className="page-wrap py-10">

@@ -21,10 +21,14 @@ import { PdfExportButton } from "../components/PdfExportButton";
 import { MarkSeenButton } from "../components/MarkSeenButton";
 import { BuyingPlanBadge } from "../components/BuyingPlanBadge";
 import { useToast } from "../components/Toast";
-import { apiBase } from "../lib/api";
-import { authHeaders } from "../lib/auth";
+import { apiBase, apiClient, type PlanResponse } from "../lib/api";
+import { useFetch } from "../hooks/useFetch";
 
 export const Route = createFileRoute("/analysis_/$id")({
+  // Prefetch the analysis when the user hovers over a link (intent preload).
+  // The component reads this via Route.useLoaderData({ strict: false }) and
+  // skips the redundant manual fetch, giving an instant render on click.
+  loader: ({ params }) => apiClient.getAnalysis(params.id),
   component: PermalinkPage,
 });
 
@@ -111,14 +115,32 @@ function TabBar({
 export function PermalinkPage() {
   const { id } = useParams({ from: "/analysis_/$id" });
   const navigate = useNavigate();
-  const [analysis, setAnalysis] = useState<AnalysisDetail | null>(null);
-  const [notFound, setNotFound] = useState(false);
-  const [loading, setLoading] = useState(true);
+
+  // Loader data is present when TanStack Router prefetched the route (intent
+  // preload on hover).  In tests, Route.useLoaderData is a vi.fn() returning
+  // undefined, so the manual-fetch fallback below runs instead.
+  const loaderData = Route.useLoaderData({ strict: false });
+  const seedAnalysis =
+    loaderData && "data" in loaderData
+      ? (loaderData.data as AnalysisDetail)
+      : null;
+
+  const [analysis, setAnalysis] = useState<AnalysisDetail | null>(seedAnalysis);
+  const [notFound, setNotFound] = useState(
+    loaderData !== undefined && "notFound" in loaderData
+  );
+  const [loading, setLoading] = useState(loaderData === undefined);
   const [copied, setCopied] = useState(false);
-  const [isFavorite, setIsFavorite] = useState(false);
-  const [inspectionData, setInspectionData] = useState<InspectionFindings | null>(null);
-  const [renovationData, setRenovationData] = useState<AnalysisDetail["renovation_data"]>(null);
+  const [isFavorite, setIsFavorite] = useState(seedAnalysis?.is_favorite ?? false);
+  const [inspectionData, setInspectionData] = useState<InspectionFindings | null>(
+    seedAnalysis?.inspection_data ?? null
+  );
+  const [renovationData, setRenovationData] = useState<AnalysisDetail["renovation_data"]>(
+    seedAnalysis?.renovation_data ?? null
+  );
   const [activeTab, setActiveTab] = useState<TabId>("decision");
+  const [seenCompositeScore, setSeenCompositeScore] = useState<number | null>(null);
+  const [planRefreshKey, setPlanRefreshKey] = useState(0);
   const toast = useToast();
   const { user } = useAuth();
   const isInvestorPlus =
@@ -127,14 +149,18 @@ export function PermalinkPage() {
     user?.subscription_tier === "agent";
 
   useEffect(() => {
-    fetch(`${apiBase}/api/analyses/${id}`, { headers: authHeaders() })
-      .then(async (resp) => {
-        if (resp.status === 404) {
+    // Skip manual fetch when the loader has already provided data.
+    if (loaderData !== undefined) {
+      setLoading(false);
+      return;
+    }
+    apiClient.getAnalysis(id)
+      .then((result) => {
+        if ("notFound" in result) {
           setNotFound(true);
           return;
         }
-        if (!resp.ok) throw new Error(resp.statusText);
-        const data = await resp.json();
+        const data = result.data as AnalysisDetail;
         setAnalysis(data);
         setIsFavorite(data.is_favorite ?? false);
         setInspectionData(data.inspection_data ?? null);
@@ -142,16 +168,32 @@ export function PermalinkPage() {
       })
       .catch(() => toast.error("Failed to load analysis."))
       .finally(() => setLoading(false));
-  }, [id, toast]);
+  }, [id, toast, loaderData]);
+
+  const { data: planData, refetch: refetchPlan } = useFetch<PlanResponse>(
+    isInvestorPlus ? `${apiBase}/api/buying-plan` : null
+  );
+
+  const planCommitData =
+    planData?.status?.phase === "commit" &&
+    (planData.status.bid_premium_pct ?? 0) > 0
+      ? {
+          explore_max_score: planData.status.explore_max_score,
+          bid_premium_pct: planData.status.bid_premium_pct,
+        }
+      : null;
+
+  const bidPremiumPct =
+    planCommitData !== null &&
+    seenCompositeScore !== null &&
+    planCommitData.explore_max_score !== null &&
+    seenCompositeScore >= planCommitData.explore_max_score
+      ? planCommitData.bid_premium_pct
+      : null;
 
   async function handleToggleFavorite() {
     try {
-      const resp = await fetch(`${apiBase}/api/analyses/${id}/favorite`, {
-        method: "PATCH",
-        headers: authHeaders(),
-      });
-      if (!resp.ok) throw new Error(resp.statusText);
-      const data = await resp.json();
+      const data = await apiClient.toggleFavorite(Number(id));
       setIsFavorite(data.is_favorite);
     } catch {
       toast.error("Failed to update favorite.");
@@ -245,10 +287,15 @@ export function PermalinkPage() {
               {copied ? "Copied!" : "Copy permalink"}
             </button>
             {user && (
-              <MarkSeenButton analysisId={analysis.id} address={analysis.address} />
+              <MarkSeenButton
+                analysisId={analysis.id}
+                address={analysis.address}
+                onSeenEntry={setSeenCompositeScore}
+                onChanged={() => { refetchPlan(); setPlanRefreshKey((k) => k + 1); }}
+              />
             )}
             {isInvestorPlus && (
-              <BuyingPlanBadge />
+              <BuyingPlanBadge refreshTrigger={planRefreshKey} />
             )}
             <button
               type="button"
@@ -298,7 +345,7 @@ export function PermalinkPage() {
           {activeTab === "decision" && (
             <div className="tab-enter space-y-4">
               {analysis.offer_data && (
-                <OfferRecommendationCard offer={analysis.offer_data} />
+                <OfferRecommendationCard offer={analysis.offer_data} bidPremiumPct={bidPremiumPct} />
               )}
               {renovationData && (
                 <FixerAnalysisCard

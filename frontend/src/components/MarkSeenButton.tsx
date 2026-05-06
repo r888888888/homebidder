@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { useAuth } from "../lib/AuthContext";
 import { useToast } from "./Toast";
-import { apiBase } from "../lib/api";
+import { apiBase, apiClient } from "../lib/api";
 import { authHeaders } from "../lib/auth";
+import { useMutation } from "../hooks/useMutation";
 
 const QUALITY_OPTIONS = [
   { value: "terrible", label: "Terrible" },
@@ -32,9 +33,11 @@ interface SeenEntry {
 interface Props {
   analysisId: number;
   address: string;
+  onSeenEntry?: (compositeScore: number | null) => void;
+  onChanged?: () => void;
 }
 
-export function MarkSeenButton({ analysisId, address }: Props) {
+export function MarkSeenButton({ analysisId, address, onSeenEntry, onChanged }: Props) {
   const { user } = useAuth();
   const toast = useToast();
   const [seenEntry, setSeenEntry] = useState<SeenEntry | null>(null);
@@ -43,7 +46,6 @@ export function MarkSeenButton({ analysisId, address }: Props) {
   const [quality, setQuality] = useState("neutral");
   const [location, setLocation] = useState("neutral");
   const [notes, setNotes] = useState("");
-  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -56,54 +58,57 @@ export function MarkSeenButton({ analysisId, address }: Props) {
       .then((r) => r.json())
       .then((data) => {
         const rows: SeenEntry[] = data.seen_properties ?? [];
-        setSeenEntry(rows.length > 0 ? rows[0] : null);
+        const entry = rows.length > 0 ? rows[0] : null;
+        setSeenEntry(entry);
+        onSeenEntry?.(entry?.composite_score ?? null);
       })
       .catch(() => {})
       .finally(() => setLoadingState(false));
   }, [analysisId, user]);
 
+  const { mutate: submitMutation, loading: submitting } = useMutation(
+    (formData: { quality: string; location: string; notes: string | null }) =>
+      apiClient.markSeen(analysisId, formData.quality, formData.location, formData.notes),
+    (result) => {
+      setSeenEntry(result);
+      onSeenEntry?.(result.composite_score);
+      onChanged?.();
+      setModalOpen(false);
+      toast.success("Property marked as seen.");
+    }
+  );
+
+  const { mutate: unmarkMutation } = useMutation(
+    (_: null) => {
+      if (!seenEntry) return Promise.reject(new Error("No seen entry to unmark"));
+      return apiClient.unmarkSeen(seenEntry.id);
+    },
+    () => {
+      setSeenEntry(null);
+      onSeenEntry?.(null);
+      onChanged?.();
+      toast.success("Removed seen mark.");
+    }
+  );
+
   if (!user || loadingState) return null;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setSubmitting(true);
     try {
-      const resp = await fetch(`${apiBase}/api/seen-properties`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({
-          analysis_id: analysisId,
-          quality,
-          location,
-          notes: notes.trim() || null,
-        }),
-      });
-      if (resp.status === 409) {
+      await submitMutation({ quality, location, notes: notes.trim() || null });
+    } catch (err) {
+      if ((err as Error).message === "ALREADY_SEEN") {
         toast.error("Already marked as seen.");
-        return;
+      } else {
+        toast.error("Failed to mark as seen.");
       }
-      if (!resp.ok) throw new Error(resp.statusText);
-      const data: SeenEntry = await resp.json();
-      setSeenEntry(data);
-      setModalOpen(false);
-      toast.success("Property marked as seen.");
-    } catch {
-      toast.error("Failed to mark as seen.");
-    } finally {
-      setSubmitting(false);
     }
   }
 
   async function handleUnmark() {
-    if (!seenEntry) return;
     try {
-      const resp = await fetch(`${apiBase}/api/seen-properties/${seenEntry.id}`, {
-        method: "DELETE",
-        headers: authHeaders(),
-      });
-      if (!resp.ok) throw new Error(resp.statusText);
-      setSeenEntry(null);
-      toast.success("Removed seen mark.");
+      await unmarkMutation(null);
     } catch {
       toast.error("Failed to remove seen mark.");
     }

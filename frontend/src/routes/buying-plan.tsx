@@ -2,8 +2,9 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useAuth } from "../lib/AuthContext";
 import { useToast } from "../components/Toast";
-import { apiBase } from "../lib/api";
+import { apiBase, apiClient } from "../lib/api";
 import { authHeaders } from "../lib/auth";
+import { useMutation } from "../hooks/useMutation";
 
 export const Route = createFileRoute("/buying-plan")({
   component: BuyingPlanPage,
@@ -49,7 +50,6 @@ export function BuyingPlanPage() {
   const toast = useToast();
   const [planData, setPlanData] = useState<PlanResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
   const [buyByDate, setBuyByDate] = useState("");
   const [viewingsPerWeek, setViewingsPerWeek] = useState("3");
 
@@ -77,44 +77,36 @@ export function BuyingPlanPage() {
       .finally(() => setLoading(false));
   }, [user, isInvestorPlus, toast]);
 
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
-    setSubmitting(true);
-    try {
-      const resp = await fetch(`${apiBase}/api/buying-plan`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({
-          buy_by_date: buyByDate,
-          viewings_per_week: parseFloat(viewingsPerWeek),
-        }),
-      });
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        toast.error(err.detail ?? "Failed to create plan.");
-        return;
-      }
-      const data = await resp.json();
+  const { mutate: createPlan, loading: submitting } = useMutation(
+    (_: null) => apiClient.createBuyingPlan(buyByDate, parseFloat(viewingsPerWeek)),
+    (data) => {
       setPlanData(data);
       toast.success("Buying plan created!");
-    } catch {
-      toast.error("Failed to create plan.");
-    } finally {
-      setSubmitting(false);
+    }
+  );
+
+  const { mutate: deletePlan } = useMutation(
+    (_: null) => apiClient.deleteBuyingPlan(),
+    () => {
+      setPlanData(null);
+      setBuyByDate("");
+      setViewingsPerWeek("3");
+      toast.success("Plan deleted.");
+    }
+  );
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    try {
+      await createPlan(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to create plan.");
     }
   }
 
   async function handleDelete() {
     try {
-      const resp = await fetch(`${apiBase}/api/buying-plan`, {
-        method: "DELETE",
-        headers: authHeaders(),
-      });
-      if (!resp.ok) throw new Error(resp.statusText);
-      setPlanData(null);
-      setBuyByDate("");
-      setViewingsPerWeek("3");
-      toast.success("Plan deleted.");
+      await deletePlan(null);
     } catch {
       toast.error("Failed to delete plan.");
     }
@@ -312,11 +304,19 @@ export function BuyingPlanPage() {
                   Bid premium: +{premiumPct}%
                 </span>{" "}
                 <span className="text-[var(--ink-muted)]">
-                  ({status.properties_past_threshold} properties past threshold ×
-                  1%)
+                  ({status.properties_past_threshold} qualifying commit-phase{" "}
+                  {status.properties_past_threshold === 1 ? "property" : "properties"} × 1%)
                 </span>
               </p>
             )}
+            <p className="mt-3 text-sm text-[var(--ink-soft)]">
+              After visiting a property, open its analysis and click{" "}
+              <span className="font-semibold text-[var(--ink)]">"Mark Seen"</span>{" "}
+              to record your rating.{" "}
+              <Link to="/history" className="underline text-[var(--navy)]">
+                Open analysis
+              </Link>
+            </p>
           </>
         )}
       </div>

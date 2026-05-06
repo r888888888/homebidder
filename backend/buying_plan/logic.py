@@ -86,7 +86,13 @@ def plan_status(explore_threshold: int, seen_properties: list[dict]) -> dict:
         # Still in explore phase — running max over what's been seen so far.
         explore_max_score = max(sp["composite_score"] for sp in seen_properties)
 
-    properties_past_threshold = max(0, seen_count - explore_threshold)
+    if phase == "commit" and explore_max_score is not None:
+        commit_props = seen_properties[explore_threshold:]
+        properties_past_threshold = sum(
+            1 for sp in commit_props if sp["composite_score"] >= explore_max_score
+        )
+    else:
+        properties_past_threshold = 0
     bid_premium_pct = round(0.01 * properties_past_threshold, 4)
 
     return {

@@ -8,6 +8,7 @@ import { ToastProvider } from "../components/Toast";
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (config: unknown) => config,
   useSearch: vi.fn(),
+  useNavigate: vi.fn(),
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
     <a href={to}>{children}</a>
   ),
@@ -18,7 +19,7 @@ vi.mock("../lib/AuthContext", () => ({
   useAuth: () => ({ user: { subscription_tier: "investor" }, isLoading: false }),
 }));
 
-import { useSearch } from "@tanstack/react-router";
+import { useSearch, useNavigate } from "@tanstack/react-router";
 
 function renderAnalysisPage(address: string, buyerContext = "", forceRefresh = false) {
   vi.mocked(useSearch).mockReturnValue({ address, buyerContext, forceRefresh });
@@ -62,6 +63,7 @@ function mockOpenSseStream(chunks: string[]) {
 describe("AnalysisPage", () => {
   beforeEach(() => {
     vi.spyOn(global, "fetch");
+    vi.mocked(useNavigate).mockReturnValue(vi.fn());
   });
   afterEach(() => {
     vi.restoreAllMocks();
@@ -290,6 +292,39 @@ describe("AnalysisPage", () => {
     await waitFor(() => {
       expect(screen.getByText(/upgrade/i)).toBeInTheDocument();
     });
+  });
+
+  it("redirects to the permalink page when analysis completes with an analysis_id", async () => {
+    const mockNavigate = vi.fn();
+    vi.mocked(useNavigate).mockReturnValue(mockNavigate);
+
+    vi.mocked(fetch).mockResolvedValue(
+      mockSseStream([
+        `data: ${JSON.stringify({ type: "analysis_id", id: 42 })}\n\n`,
+        `data: ${JSON.stringify({ type: "done" })}\n\n`,
+      ])
+    );
+    renderAnalysisPage("450 Sanchez St, San Francisco, CA 94114");
+    await waitFor(() =>
+      expect(mockNavigate).toHaveBeenCalledWith({
+        to: "/analysis/$id",
+        params: { id: "42" },
+      })
+    );
+  });
+
+  it("does not redirect when analysis completes without an analysis_id", async () => {
+    const mockNavigate = vi.fn();
+    vi.mocked(useNavigate).mockReturnValue(mockNavigate);
+
+    vi.mocked(fetch).mockResolvedValue(
+      mockSseStream([`data: ${JSON.stringify({ type: "done" })}\n\n`])
+    );
+    renderAnalysisPage("450 Sanchez St, San Francisco, CA 94114");
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /^refresh$/i })).not.toBeDisabled()
+    );
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 
   it("passes an AbortSignal to fetch and aborts it on unmount", async () => {

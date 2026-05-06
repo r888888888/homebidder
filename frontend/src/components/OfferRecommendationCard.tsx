@@ -135,19 +135,26 @@ function ContingencyRow({ label, recommended }: { label: string; recommended: bo
 
 interface Props {
   offer: OfferData;
+  bidPremiumPct?: number | null;
 }
 
-export function OfferRecommendationCard({ offer }: Props) {
+export function OfferRecommendationCard({ offer, bidPremiumPct }: Props) {
   const posture = POSTURE_STYLES[offer.posture] ?? POSTURE_STYLES["at-market"];
   const hasOverbidStats =
     offer.median_pct_over_asking != null || offer.pct_sold_over_asking != null;
   const contingency = offer.contingency_recommendation;
   const hoaEquivalent = offer.hoa_equivalent_sfh_value;
 
+  // Apply buying-plan bid premium at display time (never stored).
+  const premium = bidPremiumPct ?? 0;
+  const adjLow = offer.offer_low != null ? Math.round(offer.offer_low * (1 + premium)) : null;
+  const adjRec = offer.offer_recommended != null ? Math.round(offer.offer_recommended * (1 + premium)) : null;
+  const adjHigh = offer.offer_high != null ? Math.round(offer.offer_high * (1 + premium)) : null;
+
   // Range bar: position of recommended within [low, high]
-  const low = offer.offer_low ?? 0;
-  const high = offer.offer_high ?? 0;
-  const rec = offer.offer_recommended ?? 0;
+  const low = adjLow ?? 0;
+  const high = adjHigh ?? 0;
+  const rec = adjRec ?? 0;
   const range = high - low;
   const recPct = range > 0 ? ((rec - low) / range) * 100 : 50;
 
@@ -185,15 +192,15 @@ export function OfferRecommendationCard({ offer }: Props) {
           <div className="grid grid-cols-3 gap-2 text-center">
             <div>
               <p className="text-[10px] uppercase tracking-wider text-[var(--ink-muted)] mb-0.5">Low</p>
-              <p className="text-base font-semibold text-[var(--ink)]">{fmtUsd(offer.offer_low)}</p>
+              <p className="text-base font-semibold text-[var(--ink)]">{fmtUsd(adjLow)}</p>
             </div>
             <div className="border-x border-[var(--line)]">
               <p className="text-[10px] uppercase tracking-wider text-[var(--ink-muted)] mb-0.5">Recommended</p>
-              <p className={`text-lg font-bold ${posture.text}`}>{fmtUsd(offer.offer_recommended)}</p>
+              <p className={`text-lg font-bold ${posture.text}`}>{fmtUsd(adjRec)}</p>
             </div>
             <div>
               <p className="text-[10px] uppercase tracking-wider text-[var(--ink-muted)] mb-0.5">High</p>
-              <p className="text-base font-semibold text-[var(--ink)]">{fmtUsd(offer.offer_high)}</p>
+              <p className="text-base font-semibold text-[var(--ink)]">{fmtUsd(adjHigh)}</p>
             </div>
           </div>
         </div>
@@ -243,12 +250,16 @@ export function OfferRecommendationCard({ offer }: Props) {
         </div>
 
         {/* Valuation breakdown */}
-        {offer.fair_value_breakdown && (() => {
-          const fvb = offer.fair_value_breakdown!;
+        {(offer.fair_value_breakdown || premium > 0) && (() => {
+          const fvb = offer.fair_value_breakdown ?? null;
           const adjustments: { label: string; value: number }[] = [];
-          if (fvb.lot_adjustment_pct != null) adjustments.push({ label: "Lot size", value: fvb.lot_adjustment_pct });
-          if (fvb.sqft_adjustment_pct != null) adjustments.push({ label: "Sq footage", value: fvb.sqft_adjustment_pct });
-          if (fvb.tic_adjustment_pct != null) adjustments.push({ label: "TIC discount", value: fvb.tic_adjustment_pct });
+          if (fvb?.lot_adjustment_pct != null) adjustments.push({ label: "Lot size", value: fvb.lot_adjustment_pct });
+          if (fvb?.sqft_adjustment_pct != null) adjustments.push({ label: "Sq footage", value: fvb.sqft_adjustment_pct });
+          if (fvb?.tic_adjustment_pct != null) adjustments.push({ label: "TIC discount", value: fvb.tic_adjustment_pct });
+          const premiumPct = Math.round(premium * 100);
+          const premiumDollar = offer.offer_recommended != null
+            ? Math.round(offer.offer_recommended * premium)
+            : null;
           return (
             <details className="group rounded-xl border border-[var(--line)] text-sm">
               <summary className="flex cursor-pointer select-none items-center justify-between px-4 py-3 text-xs font-semibold text-[var(--coral)] hover:bg-[var(--bg)]">
@@ -263,27 +274,39 @@ export function OfferRecommendationCard({ offer }: Props) {
                 </svg>
               </summary>
               <div className="border-t border-[var(--line)] px-4 py-3 space-y-2 text-xs text-[var(--ink-muted)]">
-                <div className="flex items-center justify-between">
-                  <span>Method</span>
-                  <span className="font-medium text-[var(--ink)]">{METHOD_LABELS[fvb.method] ?? fvb.method}</span>
-                </div>
-                {fvb.base_comp_median != null && (
-                  <div className="flex items-center justify-between">
-                    <span>Comp anchor</span>
-                    <span className="font-medium text-[var(--ink)]">{fmtUsd(fvb.base_comp_median)} median</span>
-                  </div>
-                )}
-                {adjustments.length > 0 && (
-                  <div className="pt-1">
-                    <p className="font-semibold uppercase tracking-wider text-[10px] mb-1">Adjustments</p>
-                    {adjustments.map(({ label, value }) => (
-                      <div key={label} className="flex items-center justify-between py-0.5">
-                        <span>{label}</span>
-                        <span className={`font-medium ${value >= 0 ? "text-emerald-700" : "text-red-700"}`}>
-                          {fmtAdj(value)}
-                        </span>
+                {fvb && (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span>Method</span>
+                      <span className="font-medium text-[var(--ink)]">{METHOD_LABELS[fvb.method] ?? fvb.method}</span>
+                    </div>
+                    {fvb.base_comp_median != null && (
+                      <div className="flex items-center justify-between">
+                        <span>Comp anchor</span>
+                        <span className="font-medium text-[var(--ink)]">{fmtUsd(fvb.base_comp_median)} median</span>
                       </div>
-                    ))}
+                    )}
+                    {adjustments.length > 0 && (
+                      <div className="pt-1">
+                        <p className="font-semibold uppercase tracking-wider text-[10px] mb-1">Adjustments</p>
+                        {adjustments.map(({ label, value }) => (
+                          <div key={label} className="flex items-center justify-between py-0.5">
+                            <span>{label}</span>
+                            <span className={`font-medium ${value >= 0 ? "text-emerald-700" : "text-red-700"}`}>
+                              {fmtAdj(value)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+                {premium > 0 && (
+                  <div className={`flex items-center justify-between${fvb ? " pt-2 border-t border-[var(--line)]" : ""}`}>
+                    <span className="font-semibold text-[var(--ink)]">Buying Plan calibration</span>
+                    <span className="font-semibold text-[var(--coral)]">
+                      +{premiumPct}%{premiumDollar != null ? ` (+${fmtUsd(premiumDollar)})` : ""}
+                    </span>
                   </div>
                 )}
               </div>

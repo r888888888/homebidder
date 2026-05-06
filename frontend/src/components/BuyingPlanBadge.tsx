@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef } from "react";
 import { Link } from "@tanstack/react-router";
 import { useAuth } from "../lib/AuthContext";
 import { apiBase } from "../lib/api";
-import { authHeaders } from "../lib/auth";
+import { useFetch } from "../hooks/useFetch";
 
 interface PlanStatus {
   phase: "explore" | "commit";
@@ -23,24 +23,18 @@ interface PlanResponse {
   status: PlanStatus;
 }
 
-export function BuyingPlanBadge() {
+export function BuyingPlanBadge({ refreshTrigger }: { refreshTrigger?: number } = {}) {
   const { user } = useAuth();
-  const [planData, setPlanData] = useState<PlanResponse | null>(null);
+  const { data: planData, refetch } = useFetch<PlanResponse>(
+    user ? `${apiBase}/api/buying-plan` : null
+  );
 
+  const prevTrigger = useRef(refreshTrigger);
   useEffect(() => {
-    if (!user) return;
-    fetch(`${apiBase}/api/buying-plan`, { headers: authHeaders() })
-      .then((r) => {
-        if (r.status === 404) return null;
-        if (!r.ok) throw new Error(r.statusText);
-        return r.json() as Promise<PlanResponse>;
-      })
-      .then((data) => {
-        // Validate expected shape before setting state.
-        if (data?.status?.phase) setPlanData(data);
-      })
-      .catch(() => {});
-  }, [user]);
+    if (refreshTrigger === prevTrigger.current) return;
+    prevTrigger.current = refreshTrigger;
+    refetch();
+  }, [refreshTrigger, refetch]);
 
   if (!user || !planData) return null;
 

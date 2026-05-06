@@ -132,6 +132,52 @@ describe("MarkSeenButton", () => {
     await waitFor(() => expect(mockToast.error).toHaveBeenCalled());
   });
 
+  it("calls onSeenEntry with composite_score when initial fetch finds existing entry", async () => {
+    const onSeenEntry = vi.fn();
+    mockFetchList([
+      { id: 1, analysis_id: 42, quality: "good", location: "good", composite_score: 0.875, seen_at: "2026-05-04T12:00:00", notes: null },
+    ]);
+    render(<MarkSeenButton analysisId={42} address="42 Test St" onSeenEntry={onSeenEntry} />);
+    await waitFor(() => expect(onSeenEntry).toHaveBeenCalledWith(0.875));
+  });
+
+  it("calls onSeenEntry with null when initial fetch finds no entry", async () => {
+    const onSeenEntry = vi.fn();
+    mockFetchList([]);
+    render(<MarkSeenButton analysisId={42} address="42 Test St" onSeenEntry={onSeenEntry} />);
+    await waitFor(() => expect(onSeenEntry).toHaveBeenCalledWith(null));
+  });
+
+  it("calls onSeenEntry with new composite_score after marking seen", async () => {
+    const onSeenEntry = vi.fn();
+    mockFetchList([]);
+    mockFetchPost(201, {
+      id: 2, analysis_id: 42, quality: "excellent", location: "good",
+      composite_score: 1.0, seen_at: "2026-05-05T10:00:00", notes: null,
+    });
+    render(<MarkSeenButton analysisId={42} address="42 Test St" onSeenEntry={onSeenEntry} />);
+    const btn = await screen.findByRole("button", { name: /mark seen/i });
+    await userEvent.click(btn);
+    await userEvent.click(screen.getByRole("button", { name: /save/i }));
+    await waitFor(() =>
+      expect(onSeenEntry).toHaveBeenCalledWith(1.0)
+    );
+  });
+
+  it("calls onSeenEntry with null after unmarking", async () => {
+    const onSeenEntry = vi.fn();
+    mockFetchList([
+      { id: 1, analysis_id: 42, quality: "good", location: "good", composite_score: 0.875, seen_at: "2026-05-04T12:00:00", notes: null },
+    ]);
+    vi.mocked(fetch).mockResolvedValueOnce(new Response("{}", { status: 200 })); // DELETE
+    render(<MarkSeenButton analysisId={42} address="42 Test St" onSeenEntry={onSeenEntry} />);
+    const seenBtn = await screen.findByRole("button", { name: /seen/i });
+    await userEvent.click(seenBtn);
+    await waitFor(() =>
+      expect(onSeenEntry).toHaveBeenLastCalledWith(null)
+    );
+  });
+
   it("cancels modal without submitting", async () => {
     mockFetchList([]);
     render(<MarkSeenButton analysisId={42} address="42 Test St" />);
@@ -144,5 +190,32 @@ describe("MarkSeenButton", () => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     );
     expect(fetch).toHaveBeenCalledTimes(1); // only the initial GET
+  });
+
+  it("calls onChanged after successfully marking seen", async () => {
+    const onChanged = vi.fn();
+    mockFetchList([]);
+    mockFetchPost();
+    render(<MarkSeenButton analysisId={42} address="42 Test St" onChanged={onChanged} />);
+
+    const btn = await screen.findByRole("button", { name: /mark seen/i });
+    await userEvent.click(btn);
+    await userEvent.click(screen.getByRole("button", { name: /save/i }));
+
+    await waitFor(() => expect(onChanged).toHaveBeenCalledOnce());
+  });
+
+  it("calls onChanged after successfully unmarking", async () => {
+    const onChanged = vi.fn();
+    mockFetchList([
+      { id: 1, analysis_id: 42, quality: "good", location: "good", composite_score: 0.875, seen_at: "2026-05-04T12:00:00", notes: null },
+    ]);
+    vi.mocked(fetch).mockResolvedValueOnce(new Response("{}", { status: 200 })); // DELETE
+    render(<MarkSeenButton analysisId={42} address="42 Test St" onChanged={onChanged} />);
+
+    const seenBtn = await screen.findByRole("button", { name: /seen/i });
+    await userEvent.click(seenBtn);
+
+    await waitFor(() => expect(onChanged).toHaveBeenCalledOnce());
   });
 });
