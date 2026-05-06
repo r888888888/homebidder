@@ -5,6 +5,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+## [1.15.0] - 2026-05-05
+
+### Added
+- History search — search input on the history page filters saved analyses by address substring (case-insensitive); empty state message adapts to distinguish "no history" from "no matches"
+- Buying Plan (optimal stopping) — Investor+ users declare a buy-by date and viewings-per-week; the app computes a fixed viewing window (N) and explore threshold (floor(N/e)) using secretary-problem theory; after the explore phase, commit to the next property that scores above the explore-phase max; linear bid premium of 1% per property past the threshold displayed as an overlay on analysis detail
+- Onboarding journey for new users — `/welcome` route shown after all registration paths (email/password, Google OAuth, Apple OAuth); Investor+ users see a Buying Plan setup form; Buyer-tier users see a feature teaser with upgrade CTA; completion tracked in localStorage; skip button available
+
+### Changed
+- Pricing page updated to list Buying Plan in the Investor feature set with a callout explaining the optimal-stopping theory behind it
+
 ## [1.14.0] - 2026-05-05
 
 ### Added
