@@ -11,10 +11,12 @@ import {
 interface ToastItem {
   id: number;
   message: string;
+  type: "error" | "success";
 }
 
 interface ToastContextValue {
   error: (message: string) => void;
+  success: (message: string) => void;
 }
 
 const ToastContext = createContext<ToastContextValue | null>(null);
@@ -35,7 +37,16 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const error = useCallback(
     (message: string) => {
       const id = nextId++;
-      setToasts((prev) => [...prev, { id, message }]);
+      setToasts((prev) => [...prev, { id, message, type: "error" as const }]);
+      timers.current.set(id, setTimeout(() => dismiss(id), DISMISS_MS));
+    },
+    [dismiss]
+  );
+
+  const success = useCallback(
+    (message: string) => {
+      const id = nextId++;
+      setToasts((prev) => [...prev, { id, message, type: "success" as const }]);
       timers.current.set(id, setTimeout(() => dismiss(id), DISMISS_MS));
     },
     [dismiss]
@@ -47,7 +58,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     return () => map.forEach((t) => clearTimeout(t));
   }, []);
 
-  const value = useMemo(() => ({ error }), [error]);
+  const value = useMemo(() => ({ error, success }), [error, success]);
 
   return (
     <ToastContext.Provider value={value}>
@@ -61,25 +72,47 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           <div
             key={t.id}
             role="alert"
-            className="toast-enter pointer-events-auto flex items-start gap-3 rounded-xl border border-[var(--amber)]/30 bg-white px-4 py-3 shadow-lg"
+            className={`toast-enter pointer-events-auto flex items-start gap-3 rounded-xl border bg-white px-4 py-3 shadow-lg ${
+              t.type === "success"
+                ? "border-emerald-200"
+                : "border-[var(--amber)]/30"
+            }`}
           >
-            {/* Warning icon */}
-            <svg
-              className="mt-0.5 shrink-0 text-[var(--amber)]"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-              <line x1="12" y1="9" x2="12" y2="13" />
-              <line x1="12" y1="17" x2="12.01" y2="17" />
-            </svg>
+            {t.type === "success" ? (
+              /* Checkmark icon */
+              <svg
+                className="mt-0.5 shrink-0 text-emerald-500"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M20 6 9 17l-5-5" />
+              </svg>
+            ) : (
+              /* Warning icon */
+              <svg
+                className="mt-0.5 shrink-0 text-[var(--amber)]"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+            )}
             <p className="flex-1 text-sm text-[var(--ink)]">{t.message}</p>
             <button
               aria-label="Dismiss"

@@ -7,6 +7,11 @@ function ShowToast({ message }: { message: string }) {
   return <button onClick={() => toast.error(message)}>show</button>;
 }
 
+function ShowSuccessToast({ message }: { message: string }) {
+  const toast = useToast();
+  return <button onClick={() => toast.success(message)}>show success</button>;
+}
+
 describe("Toast", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
@@ -32,6 +37,16 @@ describe("Toast", () => {
 
     act(() => vi.advanceTimersByTime(5000));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("renders success message when triggered", () => {
+    render(
+      <ToastProvider>
+        <ShowSuccessToast message="Property marked as seen." />
+      </ToastProvider>
+    );
+    act(() => screen.getByRole("button", { name: "show success" }).click());
+    expect(screen.getByRole("alert")).toHaveTextContent("Property marked as seen.");
   });
 
   it("can be dismissed manually", async () => {
