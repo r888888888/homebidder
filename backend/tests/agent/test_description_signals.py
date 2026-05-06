@@ -123,6 +123,7 @@ class TestExtractDescriptionSignals:
         labels = {s["label"] for s in result["detected_signals"]}
         assert "Fixer / Contractor Special" in labels
         assert "Renovated / Updated" not in labels
+        assert "Duplex / Triplex / Multi-Family" not in labels
 
     def test_standalone_updated_does_not_trigger_renovated(self):
         # "updated" alone is too broad — should NOT fire renovated signal
@@ -280,3 +281,17 @@ class TestMultifamilySignal:
         categories = {s["category"] for s in result["detected_signals"]}
         assert "condition_negative" in categories
         assert "structure_multifamily" in categories
+
+    def test_upper_level_does_not_trigger_multifamily(self):
+        # "upper level" describes a floor in a single-family home, not a unit in a duplex
+        text = "The upper level features three bedrooms and a full bath."
+        result = extract_description_signals(text)
+        labels = {s["label"] for s in result["detected_signals"]}
+        assert "Duplex / Triplex / Multi-Family" not in labels
+
+    def test_lower_level_does_not_trigger_multifamily(self):
+        # "lower level" describes a basement or ground floor, not a duplex unit
+        text = "Lower level has a cozy family room and laundry."
+        result = extract_description_signals(text)
+        labels = {s["label"] for s in result["detected_signals"]}
+        assert "Duplex / Triplex / Multi-Family" not in labels

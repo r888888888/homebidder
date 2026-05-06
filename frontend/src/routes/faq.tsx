@@ -145,6 +145,36 @@ const FAQ_SECTIONS: FAQSection[] = [
     ],
   },
   {
+    title: "Buying Plan",
+    items: [
+      {
+        question: "What is the Buying Plan?",
+        answer:
+          "The Buying Plan is a structured home-search framework based on the secretary problem — a classical optimal-stopping algorithm. You tell HomeBidder your target buy-by date and how many properties you expect to tour per week. From those inputs, HomeBidder derives a fixed search pool size N and an explore-phase threshold of floor(N / e) ≈ 37% of N. During the explore phase you gather data without committing. Once you pass the threshold, you commit to the first property whose composite score (Quality + Location) beats every property you saw during the explore phase. The goal is to maximize the probability of landing the best property, not just a good one. The Buying Plan is available to Investor and Agent plan subscribers.",
+      },
+      {
+        question: "How does the explore phase work?",
+        answer:
+          "After setting up a Buying Plan, each property you analyze and mark as seen is counted toward your pool of N viewings. The first floor(N / e) properties form the explore phase — HomeBidder records their scores but will not recommend committing to any of them. Once you cross the threshold, the plan shifts to the commit phase: the next property whose composite score (Quality + Location, normalized to 0–1) exceeds the best score seen during the explore phase becomes your recommended target. The current phase and your progress through the pool are shown on the Buying Plan page.",
+      },
+      {
+        question: "How is the composite score calculated?",
+        answer:
+          "When you mark a property as seen, you rate two dimensions: Quality (terrible / bad / neutral / good / excellent, scored 0–4) and Location (bad / neutral / good, scored 0–2). Both ratings are normalized to 0–1 and averaged with equal weights to produce a composite score between 0 and 1. This score is used for the secretary-problem comparison — it determines whether a property in the commit phase beats the best property from the explore phase.",
+      },
+      {
+        question: "What is the bid premium shown on the Buying Plan page?",
+        answer:
+          "Once you enter the commit phase, HomeBidder adds a calibration premium to the fair value estimate: 1% per property you have evaluated past the explore-phase threshold. This reflects the real overbid pressure that accumulates as your deadline approaches and your remaining options shrink — the longer you wait past the threshold, the more competition and time pressure typically justify bidding above fair value. The premium is a display-time overlay only; it is never stored in the analysis record or included in PDF exports.",
+      },
+      {
+        question: "Can I have more than one active Buying Plan?",
+        answer:
+          "No. HomeBidder enforces a single active Buying Plan per user. This is intentional — the secretary problem requires a fixed, committed pool size defined before you start searching. Running multiple simultaneous plans with different N values would undermine the mathematical guarantee. If your timeline or search pace changes significantly, you can update your plan from the profile page.",
+      },
+    ],
+  },
+  {
     title: "Saved Analyses & Tracking",
     items: [
       {

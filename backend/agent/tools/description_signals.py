@@ -100,7 +100,7 @@ SIGNAL_RULES: list[_SignalRule] = [
             r"\btriplex\b",
             r"\bhalf[-\s]duplex\b",
             r"\bmulti[-\s]family\b",
-            r"\b(?:upper|lower)\s+(?:unit|flat|level)\b",
+            r"\b(?:upper|lower)\s+(?:unit|flat)\b",
             r"\bone\s+of\s+(?:two|three|\d+)\s+units?\b",
             r"\btwo[-\s]?unit\b",
             r"\bthree[-\s]?unit\b",
