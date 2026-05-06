@@ -238,9 +238,19 @@ export function PermalinkPage() {
   return (
     <main className="page-wrap py-10">
       <div className="mb-8">
-        <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-[var(--ink-muted)]">
-          Saved Analysis
-        </p>
+        <div className="mb-2 flex items-center gap-1.5">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--ink-muted)] no-underline hover:text-[var(--ink)] transition-colors"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M19 12H5M12 5l-7 7 7 7" />
+            </svg>
+            New analysis
+          </Link>
+          <span className="text-[var(--line)] select-none" aria-hidden="true">/</span>
+          <span className="text-xs font-semibold uppercase tracking-widest text-[var(--ink-muted)]">Saved Analysis</span>
+        </div>
         <h1 className="display-title text-2xl font-bold text-[var(--ink)] sm:text-3xl">
           {analysis.address}
         </h1>
@@ -255,11 +265,11 @@ export function PermalinkPage() {
             <button
               type="button"
               aria-label={isFavorite ? "Unfavorite" : "Favorite"}
+              title={isFavorite ? "Unfavorite" : "Favorite"}
               onClick={handleToggleFavorite}
-              className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-white px-3 py-1.5 text-xs font-semibold shadow-sm hover:bg-[var(--bg)] transition-colors${isFavorite ? " text-rose-500" : " text-[var(--ink-muted)]"}`}
+              className={`inline-flex cursor-pointer items-center justify-center rounded-lg border border-[var(--card-border)] bg-white p-2 shadow-sm hover:bg-[var(--bg)] transition-colors${isFavorite ? " text-rose-500" : " text-[var(--ink-muted)]"}`}
             >
-              <Heart size={12} fill={isFavorite ? "currentColor" : "none"} />
-              {isFavorite ? "Favorited" : "Favorite"}
+              <Heart size={14} fill={isFavorite ? "currentColor" : "none"} />
             </button>
             <PdfExportButton
               analysis={analysis}
@@ -267,12 +277,14 @@ export function PermalinkPage() {
             />
             <button
               type="button"
+              aria-label={copied ? "Copied!" : "Copy permalink"}
+              title={copied ? "Copied!" : "Copy permalink"}
               onClick={handleCopy}
-              className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--ink)] shadow-sm hover:bg-[var(--bg)]"
+              className={`inline-flex cursor-pointer items-center justify-center rounded-lg border border-[var(--card-border)] bg-white p-2 shadow-sm hover:bg-[var(--bg)] transition-colors${copied ? " text-emerald-600" : " text-[var(--ink-muted)]"}`}
             >
               <svg
-                width="12"
-                height="12"
+                width="14"
+                height="14"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -284,7 +296,6 @@ export function PermalinkPage() {
                 <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
                 <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
               </svg>
-              {copied ? "Copied!" : "Copy permalink"}
             </button>
             {user && (
               <MarkSeenButton
@@ -322,12 +333,6 @@ export function PermalinkPage() {
               </svg>
               Refresh analysis
             </button>
-            <Link
-              to="/"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--ink)] shadow-sm no-underline hover:bg-[var(--bg)]"
-            >
-              New analysis
-            </Link>
           </div>
         </div>
       </div>
