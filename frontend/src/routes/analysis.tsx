@@ -17,7 +17,7 @@ export const Route = createFileRoute("/analysis")({
   validateSearch: (search: Record<string, unknown>) => ({
     address: String(search.address ?? ""),
     buyerContext: String(search.buyerContext ?? ""),
-    forceRefresh: search.forceRefresh === "1",
+    forceRefresh: search.forceRefresh === true || search.forceRefresh === "1",
   }),
 });
 
@@ -133,9 +133,10 @@ export function AnalysisPage() {
 
   useEffect(() => {
     if (!isRunning && analysisId !== null) {
+      if (refreshKey > 0) sessionStorage.setItem("analysis_just_refreshed", "1");
       navigate({ to: "/analysis/$id", params: { id: String(analysisId) } });
     }
-  }, [isRunning, analysisId, navigate]);
+  }, [isRunning, analysisId, navigate, refreshKey]);
 
   return (
     <main className="page-wrap py-10">

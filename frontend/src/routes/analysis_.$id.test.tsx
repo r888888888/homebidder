@@ -111,6 +111,7 @@ describe("PermalinkPage", () => {
   });
   afterEach(() => {
     vi.restoreAllMocks();
+    sessionStorage.clear();
   });
 
   it("shows loading state while fetching", () => {
@@ -372,7 +373,7 @@ describe("PermalinkPage", () => {
     expect(screen.queryByText(/pdf export — agent plan/i)).not.toBeInTheDocument();
   });
 
-  it("Refresh analysis button navigates to /analysis with forceRefresh=1", async () => {
+  it("Refresh analysis button navigates to /analysis with forceRefresh: true", async () => {
     const mockNavigate = vi.fn();
     vi.mocked(useNavigate).mockReturnValue(mockNavigate);
     vi.mocked(fetch).mockResolvedValueOnce(
@@ -386,9 +387,32 @@ describe("PermalinkPage", () => {
     expect(mockNavigate).toHaveBeenCalledWith(
       expect.objectContaining({
         to: "/analysis",
-        search: expect.objectContaining({ forceRefresh: "1" }),
+        search: expect.objectContaining({ forceRefresh: true }),
       })
     );
+  });
+
+  it("shows 'Analysis refreshed' toast when arriving from a forced refresh", async () => {
+    sessionStorage.setItem("analysis_just_refreshed", "1");
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify(ANALYSIS_DETAIL), { status: 200 })
+    );
+    renderPage();
+    await waitFor(() =>
+      expect(screen.getByText(/analysis refreshed/i)).toBeInTheDocument()
+    );
+    expect(sessionStorage.getItem("analysis_just_refreshed")).toBeNull();
+  });
+
+  it("does not show refresh toast when sessionStorage flag is absent", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify(ANALYSIS_DETAIL), { status: 200 })
+    );
+    renderPage();
+    await waitFor(() =>
+      expect(screen.getByText(/450 SANCHEZ ST/i)).toBeInTheDocument()
+    );
+    expect(screen.queryByText(/analysis refreshed/i)).not.toBeInTheDocument();
   });
 
   const COMP_FIXTURE = {
@@ -884,5 +908,57 @@ describe("PermalinkPage — loader integration", () => {
       ([url]) => typeof url === "string" && /\/api\/analyses\/\d+$/.test(url)
     );
     expect(analysisFetches.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Validation mode banner
+// ---------------------------------------------------------------------------
+
+const VALIDATION_DATA = {
+  actual_sold_price: 1_350_000,
+  estimated_price: 1_280_000,
+  error_dollars: -70_000,
+  error_pct: -5.2,
+  within_ci: true,
+  sold_date: "2026-03-15",
+  address: "450 SANCHEZ ST, SAN FRANCISCO, CA, 94114",
+};
+
+describe("PermalinkPage — validation mode banner", () => {
+  beforeEach(() => {
+    vi.spyOn(global, "fetch");
+    mockUseAuth.mockReturnValue({ user: { subscription_tier: "investor" }, isLoading: false });
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("shows validation banner when analysis has validation_data", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({ ...ANALYSIS_DETAIL, validation_data: VALIDATION_DATA }),
+        { status: 200 }
+      )
+    );
+    renderPage();
+    await waitFor(() =>
+      expect(screen.getByText(/validation mode/i)).toBeInTheDocument()
+    );
+    expect(screen.getByText(/1,350,000/)).toBeInTheDocument();
+  });
+
+  it("does not show validation banner when validation_data is null", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({ ...ANALYSIS_DETAIL, validation_data: null }),
+        { status: 200 }
+      )
+    );
+    renderPage();
+    await waitFor(() =>
+      expect(screen.getByText(/450 SANCHEZ ST/i)).toBeInTheDocument()
+    );
+    expect(screen.queryByText(/validation mode/i)).not.toBeInTheDocument();
   });
 });

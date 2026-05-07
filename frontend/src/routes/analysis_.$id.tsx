@@ -20,6 +20,7 @@ import { PostAnalysisInspectionUpload } from "../components/PostAnalysisInspecti
 import { PdfExportButton } from "../components/PdfExportButton";
 import { MarkSeenButton } from "../components/MarkSeenButton";
 import { BuyingPlanBadge } from "../components/BuyingPlanBadge";
+import { ValidationBanner, type ValidationResult } from "../components/ValidationBanner";
 import { useToast } from "../components/Toast";
 import { apiBase, apiClient, type PlanResponse } from "../lib/api";
 import { useFetch } from "../hooks/useFetch";
@@ -51,6 +52,7 @@ export interface AnalysisDetail {
   permits_data: PermitsData | null;
   crime_data: CrimeData | null;
   inspection_data: InspectionFindings | null;
+  validation_data: ValidationResult | null;
   comps: CompData[];
   is_favorite: boolean;
 }
@@ -169,6 +171,14 @@ export function PermalinkPage() {
       .catch(() => toast.error("Failed to load analysis."))
       .finally(() => setLoading(false));
   }, [id, toast, loaderData]);
+
+  useEffect(() => {
+    const flag = sessionStorage.getItem("analysis_just_refreshed");
+    if (flag) {
+      sessionStorage.removeItem("analysis_just_refreshed");
+      toast.success("Analysis refreshed successfully.");
+    }
+  }, [toast]);
 
   const { data: planData, refetch: refetchPlan } = useFetch<PlanResponse>(
     isInvestorPlus ? `${apiBase}/api/buying-plan` : null
@@ -312,7 +322,7 @@ export function PermalinkPage() {
             <button
               type="button"
               onClick={() =>
-                navigate({ to: "/analysis", search: { address: analysis.address, buyerContext: "", forceRefresh: "1" } })
+                navigate({ to: "/analysis", search: { address: analysis.address, buyerContext: "", forceRefresh: true } })
               }
               className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--ink)] shadow-sm hover:bg-[var(--bg)]"
             >
@@ -339,6 +349,9 @@ export function PermalinkPage() {
       </div>
 
       <div className="space-y-4">
+        {analysis.validation_data && (
+          <ValidationBanner result={analysis.validation_data} />
+        )}
         <TabBar active={activeTab} hasContent={tabHasContent} onSelect={setActiveTab} />
 
         {/* Decision tab */}

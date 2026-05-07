@@ -67,6 +67,7 @@ describe("AnalysisPage", () => {
   });
   afterEach(() => {
     vi.restoreAllMocks();
+    sessionStorage.clear();
   });
 
   it("displays the property address as a heading", async () => {
@@ -345,5 +346,33 @@ describe("AnalysisPage", () => {
 
     unmount();
     expect(abortSpy).toHaveBeenCalled();
+  });
+
+  it("sets analysis_just_refreshed in sessionStorage when navigating to permalink after force-refresh", async () => {
+    const mockNavigate = vi.fn();
+    vi.mocked(useNavigate).mockReturnValue(mockNavigate);
+    vi.mocked(fetch).mockResolvedValue(
+      mockSseStream([
+        `data: ${JSON.stringify({ type: "analysis_id", id: 42 })}\n\n`,
+        `data: ${JSON.stringify({ type: "done" })}\n\n`,
+      ])
+    );
+    renderAnalysisPage("450 Sanchez St, San Francisco, CA 94114", "", true);
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalled());
+    expect(sessionStorage.getItem("analysis_just_refreshed")).toBe("1");
+  });
+
+  it("does NOT set analysis_just_refreshed in sessionStorage on a normal (non-force) analysis", async () => {
+    const mockNavigate = vi.fn();
+    vi.mocked(useNavigate).mockReturnValue(mockNavigate);
+    vi.mocked(fetch).mockResolvedValue(
+      mockSseStream([
+        `data: ${JSON.stringify({ type: "analysis_id", id: 42 })}\n\n`,
+        `data: ${JSON.stringify({ type: "done" })}\n\n`,
+      ])
+    );
+    renderAnalysisPage("450 Sanchez St, San Francisco, CA 94114", "", false);
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalled());
+    expect(sessionStorage.getItem("analysis_just_refreshed")).toBeNull();
   });
 });
