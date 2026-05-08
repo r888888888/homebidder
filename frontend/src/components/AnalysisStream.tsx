@@ -14,6 +14,8 @@ import { OfferRecommendationCard, type OfferData } from "./OfferRecommendationCa
 import { RiskAnalysisCard, type RiskData } from "./RiskAnalysisCard";
 import { InvestmentCard, type InvestmentData } from "./InvestmentCard";
 import { InvestmentTeaserCard } from "./InvestmentTeaserCard";
+import { AffordabilityCalculatorCard } from "./AffordabilityCalculatorCard";
+import { AffordabilityCalculatorTeaserCard } from "./AffordabilityCalculatorTeaserCard";
 import { useAuth } from "../lib/AuthContext";
 import { PermitsCard, type PermitsData } from "./PermitsCard";
 import { FixerAnalysisCard, type FixerAnalysisData } from "./FixerAnalysisCard";
@@ -288,6 +290,11 @@ export function AnalysisStream({ events, isRunning }: Props) {
               isInvestorPlus
                 ? <InvestmentCard investment={investmentData} />
                 : <InvestmentTeaserCard investment={investmentData} />
+            )}
+            {investmentData && (
+              isInvestorPlus
+                ? <AffordabilityCalculatorCard investment={investmentData} offer={offerData} />
+                : <AffordabilityCalculatorTeaserCard />
             )}
           </div>
         )}

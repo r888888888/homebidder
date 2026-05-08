@@ -1,6 +1,5 @@
 # TODO
 
-- Affordability calculator with DTI. "What can I actually borrow?" inputs (income, monthly debts, down payment, target rate) → max purchase price + affordability gap on this property. Pure math, no new APIs. Shown on the Investment tab (with teaser for Buyer tier).
 - Commute time + cost. Add a "work address" buyer-context field; compute transit duration/cost and drive duration to that destination. Display in NeighborhoodCard. Turns "BART is 0.4 mi away" into "32 min to your office, $9.50 round-trip". Google Maps Distance Matrix or open routing API.
 - Support pest inspection reports. Use the same strategy as immplementing insepection reports.
 - Support uploading 3R reports to capture permit details.
@@ -17,6 +16,8 @@
 - Walkability / lifestyle signals. Add Walk Score (paid API ~$0.001/req) + grocery/coffee/restaurant proximity to NeighborhoodCard. CalEnviroScreen + crime cover hazards but not livability — this rounds out the neighborhood story for buyers who care about more than commute and schools.
 
 # DONE
+
+- Affordability calculator with DTI. Income-tiered DTI caps (<$100k→36%, $100–200k→40%, $200–300k→43%, $300k+→45%). Five inputs (annual income, monthly debts, down payment, HOA, target rate). Two-regime back-solve for max purchase price (no-PMI, with-PMI, boundary at exact 20%-down crossover). Outputs: max purchase price (rounded $1k), implied dp%, monthly budget comparison vs `investment.monthly_buy_cost`, and price gap vs recommended offer. HOA prefilled from offer data, not persisted to localStorage (property-specific). Buyer-attribute fields persisted to `homebidder_affordability_{userId}`. Investor+/superuser see full calculator; Buyer tier sees `AffordabilityCalculatorTeaserCard`. Rendered below `InvestmentCard` in the Market tab in both `AnalysisStream` and permalink page. 21 util tests, 14 card tests, 2 teaser tests, 3 gating tests.
 
 - Side-by-side comparison view. New `/compare` route lets users pick 2–4 favorited analyses and renders a head-to-head comparison table on list price, recommended offer, fair value, $/sqft, risk level, investment rating, renovation cost (mid), monthly buy cost, monthly rent equivalent, school proficiency average, and transit. Backend: `GET /api/analyses?favorites=true` filter. Frontend: selection-then-grid UX with at-most-4 enforcement; "Compare favorites" link added to the history page header. 2 new backend tests, 8 new frontend tests, 1 new history-page link test.
 

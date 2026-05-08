@@ -9,6 +9,8 @@ import { OfferRecommendationCard, type OfferData } from "../components/OfferReco
 import { RiskAnalysisCard, type RiskData } from "../components/RiskAnalysisCard";
 import { InvestmentCard, type InvestmentData } from "../components/InvestmentCard";
 import { InvestmentTeaserCard } from "../components/InvestmentTeaserCard";
+import { AffordabilityCalculatorCard } from "../components/AffordabilityCalculatorCard";
+import { AffordabilityCalculatorTeaserCard } from "../components/AffordabilityCalculatorTeaserCard";
 import { useAuth } from "../lib/AuthContext";
 import { FixerAnalysisCard, type FixerAnalysisData } from "../components/FixerAnalysisCard";
 import { CompsCard, type CompData } from "../components/CompsCard";
@@ -431,6 +433,11 @@ export function PermalinkPage() {
                 isInvestorPlus
                   ? <InvestmentCard investment={analysis.investment_data} />
                   : <InvestmentTeaserCard investment={analysis.investment_data} />
+              )}
+              {analysis.investment_data && (
+                isInvestorPlus
+                  ? <AffordabilityCalculatorCard investment={analysis.investment_data} offer={analysis.offer_data} />
+                  : <AffordabilityCalculatorTeaserCard />
               )}
             </div>
           )}

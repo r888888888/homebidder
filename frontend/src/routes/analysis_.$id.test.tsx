@@ -320,8 +320,24 @@ describe("PermalinkPage", () => {
       expect(screen.getByText(/unlock investment projections/i)).toBeInTheDocument()
     );
     expect(screen.queryByText(/10yr projected value/i)).not.toBeInTheDocument();
-    const upgradeLink = screen.getByRole("link", { name: /upgrade to investor/i });
-    expect(upgradeLink).toHaveAttribute("href", "/pricing");
+    const upgradeLinks = screen.getAllByRole("link", { name: /upgrade to investor/i });
+    upgradeLinks.forEach(link => expect(link).toHaveAttribute("href", "/pricing"));
+  });
+
+  it("shows AffordabilityCalculatorCard for investor and teaser for buyer on Market tab", async () => {
+    // Investor sees full calculator
+    mockUseAuth.mockReturnValue({ user: { id: "u1", subscription_tier: "investor" }, isLoading: false });
+    const detail = { ...ANALYSIS_DETAIL, investment_data: INVESTMENT_DATA };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify(detail), { status: 200 })
+    );
+    renderPage();
+    await waitFor(() => expect(screen.getByRole("tab", { name: /market/i })).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("tab", { name: /market/i }));
+    await waitFor(() =>
+      expect(screen.getByText(/affordability calculator/i)).toBeInTheDocument()
+    );
+    expect(screen.queryByText(/unlock affordability calculator/i)).not.toBeInTheDocument();
   });
 
   it("shows Download PDF button for agent tier", async () => {

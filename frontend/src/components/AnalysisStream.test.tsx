@@ -761,8 +761,8 @@ describe("AnalysisStream — investment tab tier gating", () => {
     expect(screen.queryByText(/10yr projected value/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/10yr opp\. cost/i)).not.toBeInTheDocument();
     expect(screen.getByText(/unlock investment projections/i)).toBeInTheDocument();
-    const upgradeLink = screen.getByRole("link", { name: /upgrade to investor/i });
-    expect(upgradeLink).toHaveAttribute("href", "/pricing");
+    const upgradeLinks = screen.getAllByRole("link", { name: /upgrade to investor/i });
+    upgradeLinks.forEach(link => expect(link).toHaveAttribute("href", "/pricing"));
   });
 
   it("shows teaser card for anonymous user (no auth)", async () => {
@@ -781,6 +781,35 @@ describe("AnalysisStream — investment tab tier gating", () => {
     await user.click(screen.getByRole("tab", { name: /market/i }));
     expect(screen.getByText(/10yr projected value/i)).toBeInTheDocument();
     expect(screen.queryByText(/unlock investment projections/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("AnalysisStream — affordability calculator tier gating", () => {
+  const investmentEvents = [
+    {
+      type: "tool_result" as const,
+      tool: "compute_investment_metrics",
+      result: INVESTMENT_RESULT as unknown as Record<string, unknown>,
+    },
+  ];
+
+  it("shows AffordabilityCalculatorCard for investor user on Market tab", async () => {
+    const user = userEvent.setup();
+    mockUseAuth.mockReturnValue({ user: { id: "u1", subscription_tier: "investor" }, isLoading: false });
+    render(<AnalysisStream events={investmentEvents} isRunning={false} />);
+    await user.click(screen.getByRole("tab", { name: /market/i }));
+    expect(screen.getByText(/affordability calculator/i)).toBeInTheDocument();
+    expect(screen.queryByText(/unlock affordability calculator/i)).not.toBeInTheDocument();
+  });
+
+  it("shows AffordabilityCalculatorTeaserCard for buyer user on Market tab", async () => {
+    const user = userEvent.setup();
+    mockUseAuth.mockReturnValue({ user: { id: "u2", subscription_tier: "buyer" }, isLoading: false });
+    render(<AnalysisStream events={investmentEvents} isRunning={false} />);
+    await user.click(screen.getByRole("tab", { name: /market/i }));
+    expect(screen.getByText(/unlock affordability calculator/i)).toBeInTheDocument();
+    const links = screen.getAllByRole("link", { name: /upgrade to investor/i });
+    links.forEach(link => expect(link).toHaveAttribute("href", "/pricing"));
   });
 });
 
