@@ -190,6 +190,7 @@ async def list_analyses(
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     q: str | None = Query(default=None),
+    favorites: bool = Query(default=False),
 ):
     """List analyses for the caller, newest first, with pagination.
 
@@ -212,6 +213,9 @@ async def list_analyses(
 
     if q and q.strip():
         base = base.where(Listing.address_matched.ilike(f"%{q.strip()}%"))
+
+    if favorites:
+        base = base.where(Analysis.is_favorite.is_(True))
 
     count_stmt = select(func.count()).select_from(base.subquery())
     total: int = (await db.execute(count_stmt)).scalar_one()

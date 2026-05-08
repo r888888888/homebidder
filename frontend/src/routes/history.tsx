@@ -103,9 +103,14 @@ export function HistoryPage() {
         <h1 className="display-title text-2xl font-bold text-[var(--ink)]">
           Analysis History
         </h1>
-        <Link to="/" className="text-sm underline text-[var(--ink-soft)]">
-          New analysis
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link to="/compare" className="text-sm underline text-[var(--ink-soft)]">
+            Compare favorites
+          </Link>
+          <Link to="/" className="text-sm underline text-[var(--ink-soft)]">
+            New analysis
+          </Link>
+        </div>
       </div>
       {user && <RetentionBanner tier={user.subscription_tier} />}
 

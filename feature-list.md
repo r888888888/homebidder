@@ -12,6 +12,8 @@
 
 # DONE
 
+- Side-by-side comparison view. New `/compare` route lets users pick 2–4 favorited analyses and renders a head-to-head comparison table on list price, recommended offer, fair value, $/sqft, risk level, investment rating, renovation cost (mid), monthly buy cost, monthly rent equivalent, school proficiency average, and transit. Backend: `GET /api/analyses?favorites=true` filter. Frontend: selection-then-grid UX with at-most-4 enforcement; "Compare favorites" link added to the history page header. 2 new backend tests, 8 new frontend tests, 1 new history-page link test.
+
 - History search: search input on the history page filters analyses by address substring (case-insensitive). Backend `GET /api/analyses` accepts optional `q` query param and applies a case-insensitive LIKE filter on `Listing.address_matched`. Frontend resets to page 1 and passes `q` on each change. Empty state shows "No analyses match your search." vs "No saved analyses yet." based on whether a query is active. 2 new backend tests, 3 new frontend tests.
 
 - Onboarding journey for new users: `/welcome` route shown after all registration paths (email/password, Google OAuth, Apple OAuth). Investor+ users see a Buying Plan setup form; Buyer tier users see a feature teaser with upgrade CTA. Skip button available. Completion/skip tracked in localStorage (`homebidder_onboarding_done_${userId}`) — re-visits redirect to `/`. Pricing page updated: Buying Plan added to Investor feature list + callout explaining optimal stopping theory. 9 new frontend tests.

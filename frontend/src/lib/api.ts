@@ -120,13 +120,15 @@ export const apiClient = {
   getAnalysesList: async (
     page: number,
     search: string,
-    pageSize = 20
+    pageSize = 20,
+    opts: { favorites?: boolean } = {}
   ): Promise<AnalysisListResponse> => {
     const params = new URLSearchParams({
       limit: String(pageSize),
       offset: String((page - 1) * pageSize),
     });
     if (search.trim()) params.set("q", search.trim());
+    if (opts.favorites) params.set("favorites", "true");
     const r = await fetch(`${apiBase}/api/analyses?${params}`, {
       headers: authHeaders(),
     });

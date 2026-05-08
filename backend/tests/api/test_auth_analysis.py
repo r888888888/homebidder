@@ -420,3 +420,53 @@ async def test_toggle_favorite_not_found_returns_404(client):
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Favorites filter (used by /compare)
+# ---------------------------------------------------------------------------
+
+async def test_list_analyses_favorites_only_returns_favorited_rows(client):
+    """GET /api/analyses?favorites=true returns only analyses where is_favorite=True."""
+    import uuid as uuid_mod
+
+    token, user_id = await _register_and_login(client, "fav_filter@test.com")
+    uid = uuid_mod.UUID(user_id)
+
+    fav_id = await _seed_analysis(user_id=uid, address="10 Fav St, SF, CA 94110")
+    await _seed_analysis(user_id=uid, address="11 Plain St, SF, CA 94110")
+
+    # Mark only the first as a favorite.
+    await client.patch(
+        f"/api/analyses/{fav_id}/favorite",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    resp = await client.get(
+        "/api/analyses?favorites=true",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total"] == 1
+    assert len(data["items"]) == 1
+    assert data["items"][0]["address"] == "10 FAV ST, SF, CA 94110"
+    assert data["items"][0]["is_favorite"] is True
+
+
+async def test_list_analyses_favorites_false_includes_unfavorited(client):
+    """GET /api/analyses (no favorites filter) still returns all rows."""
+    import uuid as uuid_mod
+
+    token, user_id = await _register_and_login(client, "fav_filter_off@test.com")
+    uid = uuid_mod.UUID(user_id)
+
+    await _seed_analysis(user_id=uid, address="20 A St, SF, CA 94110")
+    await _seed_analysis(user_id=uid, address="21 B St, SF, CA 94110")
+
+    resp = await client.get(
+        "/api/analyses",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["total"] == 2

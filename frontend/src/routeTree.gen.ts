@@ -16,6 +16,7 @@ import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as HistoryRouteImport } from './routes/history'
 import { Route as FaqRouteImport } from './routes/faq'
+import { Route as CompareRouteImport } from './routes/compare'
 import { Route as ChangelogRouteImport } from './routes/changelog'
 import { Route as BuyingPlanRouteImport } from './routes/buying-plan'
 import { Route as AnalysisRouteImport } from './routes/analysis'
@@ -58,6 +59,11 @@ const HistoryRoute = HistoryRouteImport.update({
 const FaqRoute = FaqRouteImport.update({
   id: '/faq',
   path: '/faq',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CompareRoute = CompareRouteImport.update({
+  id: '/compare',
+  path: '/compare',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ChangelogRoute = ChangelogRouteImport.update({
@@ -107,6 +113,7 @@ export interface FileRoutesByFullPath {
   '/analysis': typeof AnalysisRoute
   '/buying-plan': typeof BuyingPlanRoute
   '/changelog': typeof ChangelogRoute
+  '/compare': typeof CompareRoute
   '/faq': typeof FaqRoute
   '/history': typeof HistoryRoute
   '/login': typeof LoginRoute
@@ -124,6 +131,7 @@ export interface FileRoutesByTo {
   '/analysis': typeof AnalysisRoute
   '/buying-plan': typeof BuyingPlanRoute
   '/changelog': typeof ChangelogRoute
+  '/compare': typeof CompareRoute
   '/faq': typeof FaqRoute
   '/history': typeof HistoryRoute
   '/login': typeof LoginRoute
@@ -142,6 +150,7 @@ export interface FileRoutesById {
   '/analysis': typeof AnalysisRoute
   '/buying-plan': typeof BuyingPlanRoute
   '/changelog': typeof ChangelogRoute
+  '/compare': typeof CompareRoute
   '/faq': typeof FaqRoute
   '/history': typeof HistoryRoute
   '/login': typeof LoginRoute
@@ -161,6 +170,7 @@ export interface FileRouteTypes {
     | '/analysis'
     | '/buying-plan'
     | '/changelog'
+    | '/compare'
     | '/faq'
     | '/history'
     | '/login'
@@ -178,6 +188,7 @@ export interface FileRouteTypes {
     | '/analysis'
     | '/buying-plan'
     | '/changelog'
+    | '/compare'
     | '/faq'
     | '/history'
     | '/login'
@@ -195,6 +206,7 @@ export interface FileRouteTypes {
     | '/analysis'
     | '/buying-plan'
     | '/changelog'
+    | '/compare'
     | '/faq'
     | '/history'
     | '/login'
@@ -213,6 +225,7 @@ export interface RootRouteChildren {
   AnalysisRoute: typeof AnalysisRoute
   BuyingPlanRoute: typeof BuyingPlanRoute
   ChangelogRoute: typeof ChangelogRoute
+  CompareRoute: typeof CompareRoute
   FaqRoute: typeof FaqRoute
   HistoryRoute: typeof HistoryRoute
   LoginRoute: typeof LoginRoute
@@ -274,6 +287,13 @@ declare module '@tanstack/react-router' {
       path: '/faq'
       fullPath: '/faq'
       preLoaderRoute: typeof FaqRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/compare': {
+      id: '/compare'
+      path: '/compare'
+      fullPath: '/compare'
+      preLoaderRoute: typeof CompareRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/changelog': {
@@ -341,6 +361,7 @@ const rootRouteChildren: RootRouteChildren = {
   AnalysisRoute: AnalysisRoute,
   BuyingPlanRoute: BuyingPlanRoute,
   ChangelogRoute: ChangelogRoute,
+  CompareRoute: CompareRoute,
   FaqRoute: FaqRoute,
   HistoryRoute: HistoryRoute,
   LoginRoute: LoginRoute,

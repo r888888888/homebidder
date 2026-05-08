@@ -87,6 +87,15 @@ describe("HistoryPage", () => {
     expect(screen.getByRole("heading", { name: /analysis history/i })).toBeInTheDocument();
   });
 
+  it("links to the /compare page so users can compare favorited analyses", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify(PAGE_1_EMPTY), { status: 200 })
+    );
+    renderHistoryPage();
+    const compareLink = screen.getByRole("link", { name: /compare/i });
+    expect(compareLink).toHaveAttribute("href", "/compare");
+  });
+
   it("shows empty state when no analyses exist", async () => {
     vi.mocked(fetch).mockResolvedValue(
       new Response(JSON.stringify(PAGE_1_EMPTY), { status: 200 })
