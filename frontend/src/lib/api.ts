@@ -253,6 +253,23 @@ export const apiClient = {
 
   // ── User account ───────────────────────────────────────────────────────────
 
+  updateAffordabilityProfile: async (data: {
+    annual_income: number | null;
+    monthly_debts: number | null;
+    down_payment: number | null;
+    target_rate_pct: number | null;
+  }): Promise<void> => {
+    const r = await fetch(`${apiBase}/api/users/me`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify(data),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({})) as { detail?: string };
+      throw new Error(err.detail ?? "Failed to save affordability profile");
+    }
+  },
+
   changePassword: async (newPassword: string): Promise<void> => {
     const r = await fetch(`${apiBase}/api/users/me`, {
       method: "PATCH",

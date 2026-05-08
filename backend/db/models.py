@@ -26,6 +26,11 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
     stripe_subscription_id: Mapped[str | None] = mapped_column(String(128), nullable=True, unique=True)
     subscription_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
     is_grandfathered: Mapped[bool] = mapped_column(default=False, server_default="0", nullable=False)
+    # Affordability profile — stored on the user so they carry across devices/analyses
+    annual_income: Mapped[float | None] = mapped_column(Float, nullable=True)
+    monthly_debts: Mapped[float | None] = mapped_column(Float, nullable=True)
+    down_payment: Mapped[float | None] = mapped_column(Float, nullable=True)
+    target_rate_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
 # fastapi-users Pydantic schemas (required for router registration in main.py)
@@ -34,6 +39,10 @@ class UserRead(schemas.BaseUser[uuid.UUID]):
     display_name: str | None = None
     subscription_tier: str = "buyer"
     is_grandfathered: bool = False
+    annual_income: float | None = None
+    monthly_debts: float | None = None
+    down_payment: float | None = None
+    target_rate_pct: float | None = None
 
 
 class UserCreate(schemas.BaseUserCreate):
@@ -41,7 +50,10 @@ class UserCreate(schemas.BaseUserCreate):
 
 
 class UserUpdate(schemas.BaseUserUpdate):
-    pass
+    annual_income: float | None = None
+    monthly_debts: float | None = None
+    down_payment: float | None = None
+    target_rate_pct: float | None = None
 
 
 # ---------------------------------------------------------------------------

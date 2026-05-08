@@ -84,6 +84,10 @@ _USERS_MIGRATIONS: list[tuple[str, str]] = [
     ("stripe_subscription_id", "VARCHAR(128)"),
     ("subscription_status",  "VARCHAR(32)"),
     ("is_grandfathered",     "INTEGER NOT NULL DEFAULT 0"),
+    ("annual_income",        "FLOAT"),
+    ("monthly_debts",        "FLOAT"),
+    ("down_payment",         "FLOAT"),
+    ("target_rate_pct",      "FLOAT"),
 ]
 
 

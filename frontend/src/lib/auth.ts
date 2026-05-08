@@ -28,6 +28,10 @@ export interface UserRead {
   display_name?: string | null;
   subscription_tier: "buyer" | "investor" | "agent";
   is_grandfathered: boolean;
+  annual_income?: number | null;
+  monthly_debts?: number | null;
+  down_payment?: number | null;
+  target_rate_pct?: number | null;
 }
 
 export async function fetchCurrentUser(): Promise<UserRead | null> {

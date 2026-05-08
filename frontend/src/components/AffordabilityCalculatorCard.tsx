@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "@tanstack/react-router";
 import { useAuth } from "../lib/AuthContext";
 import {
   computeMaxPurchasePrice,
@@ -11,13 +12,6 @@ import type { OfferData } from "./OfferRecommendationCard";
 interface Props {
   investment: InvestmentData;
   offer: OfferData | null | undefined;
-}
-
-interface StoredAffordability {
-  annualIncome: number | null;
-  monthlyDebts: number;
-  downPayment: number | null;
-  targetRatePct: number;
 }
 
 function parseNum(s: string): number {
@@ -42,79 +36,23 @@ function fmtMonthly(n: number): string {
 export function AffordabilityCalculatorCard({ investment, offer }: Props) {
   const { user } = useAuth();
 
-  const storageKey = user ? `homebidder_affordability_${user.id}` : null;
   const hoaPrefill = offer?.hoa_equivalent_sfh_value?.monthly_hoa_fee ?? 0;
-
-  // Lazy-initialize state from localStorage so values are available on first render
-  const [incomeStr, setIncomeStr] = useState<string>(() => {
-    if (!storageKey) return "";
-    try {
-      const s = JSON.parse(localStorage.getItem(storageKey) ?? "{}") as Partial<StoredAffordability>;
-      return s.annualIncome != null ? String(s.annualIncome) : "";
-    } catch { return ""; }
-  });
-
-  const [debtsStr, setDebtsStr] = useState<string>(() => {
-    if (!storageKey) return "0";
-    try {
-      const s = JSON.parse(localStorage.getItem(storageKey) ?? "{}") as Partial<StoredAffordability>;
-      return s.monthlyDebts != null ? String(s.monthlyDebts) : "0";
-    } catch { return "0"; }
-  });
-
-  const [downPaymentStr, setDownPaymentStr] = useState<string>(() => {
-    if (!storageKey) return "";
-    try {
-      const s = JSON.parse(localStorage.getItem(storageKey) ?? "{}") as Partial<StoredAffordability>;
-      return s.downPayment != null ? String(s.downPayment) : "";
-    } catch { return ""; }
-  });
-
-  const [rateStr, setRateStr] = useState<string>(() => {
-    if (!storageKey) {
-      return String(investment.rate_30yr_fixed ?? DEFAULT_RATE_FALLBACK_PCT);
-    }
-    try {
-      const s = JSON.parse(localStorage.getItem(storageKey) ?? "{}") as Partial<StoredAffordability>;
-      if (s.targetRatePct != null) return String(s.targetRatePct);
-    } catch { /* fall through */ }
-    return String(investment.rate_30yr_fixed ?? DEFAULT_RATE_FALLBACK_PCT);
-  });
-
-  // HOA is property-specific — always from offer prefill, never from localStorage
   const [hoaStr, setHoaStr] = useState<string>(String(hoaPrefill));
 
-  // Sync HOA when offer data changes (e.g. on re-mount with a new analysis)
   useEffect(() => {
     setHoaStr(String(offer?.hoa_equivalent_sfh_value?.monthly_hoa_fee ?? 0));
   }, [offer?.hoa_equivalent_sfh_value?.monthly_hoa_fee]);
 
-  // Persist buyer-specific fields on every change
-  useEffect(() => {
-    if (!storageKey) return;
-    try {
-      const income = parseNum(incomeStr);
-      const debts = parseNum(debtsStr);
-      const dp = parseNum(downPaymentStr);
-      const rate = parseNum(rateStr) || DEFAULT_RATE_FALLBACK_PCT;
-      localStorage.setItem(
-        storageKey,
-        JSON.stringify({
-          annualIncome: income > 0 ? income : null,
-          monthlyDebts: debts,
-          downPayment: dp > 0 ? dp : null,
-          targetRatePct: rate,
-        } satisfies StoredAffordability)
-      );
-    } catch { /* ignore */ }
-  }, [storageKey, incomeStr, debtsStr, downPaymentStr, rateStr]);
+  // Null guard must come after all hooks
+  if (!user) return null;
 
-  // Derived values
-  const annualIncome = parseNum(incomeStr);
-  const monthlyDebts = parseNum(debtsStr);
-  const downPayment = parseNum(downPaymentStr);
+  // Read financial profile from user object (set on the Profile page)
+  const annualIncome = user.annual_income ?? 0;
+  const monthlyDebts = user.monthly_debts ?? 0;
+  const downPayment = user.down_payment ?? 0;
+  const targetRatePct =
+    user.target_rate_pct ?? investment.rate_30yr_fixed ?? DEFAULT_RATE_FALLBACK_PCT;
   const monthlyHOA = parseNum(hoaStr);
-  const targetRatePct = parseNum(rateStr) || DEFAULT_RATE_FALLBACK_PCT;
 
   const hasIncome = annualIncome > 0;
 
@@ -128,7 +66,6 @@ export function AffordabilityCalculatorCard({ investment, offer }: Props) {
 
   const dtiPct = hasIncome ? Math.round(getDtiCap(annualIncome) * 100) : 36;
 
-  // Monthly comparison: H_max vs property cost (monthly_buy_cost + HOA)
   const propertyMonthlyCost =
     investment.monthly_buy_cost != null
       ? investment.monthly_buy_cost + monthlyHOA
@@ -138,16 +75,11 @@ export function AffordabilityCalculatorCard({ investment, offer }: Props) {
       ? result.hMax - propertyMonthlyCost
       : null;
 
-  // Price gap vs recommended offer (fall back to list price)
-  const referencePrice =
-    offer?.offer_recommended ?? offer?.list_price ?? null;
+  const referencePrice = offer?.offer_recommended ?? offer?.list_price ?? null;
   const priceGap =
     referencePrice != null && hasIncome && !result.debtsBlown && !result.downPaymentExceedsMax
       ? result.maxPrice - referencePrice
       : null;
-
-  // Null guard must come after all hooks
-  if (!user) return null;
 
   const inputClass =
     "w-full rounded-xl border border-[var(--card-border)] bg-white py-2.5 pl-8 pr-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--coral)]";
@@ -163,125 +95,14 @@ export function AffordabilityCalculatorCard({ investment, offer }: Props) {
       </div>
 
       <div className="space-y-5 px-6 py-5">
-        {/* Input grid */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label
-              htmlFor="aff-income"
-              className="mb-1.5 block text-xs font-medium text-[var(--ink-soft)]"
-            >
-              Annual income
-            </label>
-            <div className="relative">
-              <span className={iconClass} aria-hidden="true">$</span>
-              <input
-                id="aff-income"
-                aria-label="Annual income"
-                type="text"
-                inputMode="numeric"
-                value={incomeStr}
-                onChange={(e) => setIncomeStr(e.target.value)}
-                placeholder="150,000"
-                className={inputClass}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label
-              htmlFor="aff-debts"
-              className="mb-1.5 block text-xs font-medium text-[var(--ink-soft)]"
-            >
-              Monthly debts
-            </label>
-            <div className="relative">
-              <span className={iconClass} aria-hidden="true">$</span>
-              <input
-                id="aff-debts"
-                aria-label="Monthly debts"
-                type="text"
-                inputMode="numeric"
-                value={debtsStr}
-                onChange={(e) => setDebtsStr(e.target.value)}
-                placeholder="0"
-                className={inputClass}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label
-              htmlFor="aff-down"
-              className="mb-1.5 block text-xs font-medium text-[var(--ink-soft)]"
-            >
-              Down payment
-            </label>
-            <div className="relative">
-              <span className={iconClass} aria-hidden="true">$</span>
-              <input
-                id="aff-down"
-                aria-label="Down payment"
-                type="text"
-                inputMode="numeric"
-                value={downPaymentStr}
-                onChange={(e) => setDownPaymentStr(e.target.value)}
-                placeholder="160,000"
-                className={inputClass}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label
-              htmlFor="aff-hoa"
-              className="mb-1.5 block text-xs font-medium text-[var(--ink-soft)]"
-            >
-              Property HOA / mo
-            </label>
-            <div className="relative">
-              <span className={iconClass} aria-hidden="true">$</span>
-              <input
-                id="aff-hoa"
-                aria-label="Property HOA / mo"
-                type="text"
-                inputMode="numeric"
-                value={hoaStr}
-                onChange={(e) => setHoaStr(e.target.value)}
-                placeholder="0"
-                className={inputClass}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label
-              htmlFor="aff-rate"
-              className="mb-1.5 block text-xs font-medium text-[var(--ink-soft)]"
-            >
-              Target rate
-            </label>
-            <div className="relative">
-              <input
-                id="aff-rate"
-                aria-label="Target rate"
-                type="text"
-                inputMode="decimal"
-                value={rateStr}
-                onChange={(e) => setRateStr(e.target.value)}
-                className={inputClass + " pl-3 pr-7"}
-              />
-              <span
-                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--ink-muted)] select-none"
-                aria-hidden="true"
-              >
-                %
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Outputs */}
-        {hasIncome && (
+        {!hasIncome ? (
+          <p className="text-sm text-[var(--ink-soft)]">
+            <Link to="/profile" className="font-medium text-[var(--coral)] underline">
+              Set up your financial profile
+            </Link>{" "}
+            to see your max purchase price and affordability for this property.
+          </p>
+        ) : (
           <div className="space-y-3">
             {result.debtsBlown ? (
               <div
@@ -292,14 +113,11 @@ export function AffordabilityCalculatorCard({ investment, offer }: Props) {
                 <strong>{dtiPct}% DTI cap</strong>.
               </div>
             ) : result.downPaymentExceedsMax ? (
-              <div
-                className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
-              >
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                 Your down payment exceeds the max purchase price from income alone. Your binding constraint is your income.
               </div>
             ) : (
               <div className="rounded-xl bg-[var(--bg)] px-4 py-4 space-y-2">
-                {/* Max price headline */}
                 <div>
                   <p className="text-xs text-[var(--ink-muted)] uppercase tracking-wide">
                     Max purchase price
@@ -312,7 +130,6 @@ export function AffordabilityCalculatorCard({ investment, offer }: Props) {
                   </p>
                 </div>
 
-                {/* DTI cap sub-line with tooltip */}
                 <div className="flex items-center gap-1.5">
                   <span
                     data-testid="dti-cap-label"
@@ -339,7 +156,6 @@ export function AffordabilityCalculatorCard({ investment, offer }: Props) {
                   </div>
                 </div>
 
-                {/* Down payment % and PMI indicator */}
                 {downPayment > 0 && (
                   <p
                     data-testid="dp-pct-line"
@@ -355,7 +171,6 @@ export function AffordabilityCalculatorCard({ investment, offer }: Props) {
               </div>
             )}
 
-            {/* Monthly comparison */}
             {monthlyDelta != null && (
               <div
                 data-testid="monthly-comparison"
@@ -384,7 +199,6 @@ export function AffordabilityCalculatorCard({ investment, offer }: Props) {
               </div>
             )}
 
-            {/* Price gap (secondary) */}
             {priceGap != null && (
               <div
                 data-testid="price-gap"
@@ -410,7 +224,29 @@ export function AffordabilityCalculatorCard({ investment, offer }: Props) {
           </div>
         )}
 
-        {/* Disclaimer */}
+        {/* HOA is property-specific — always inline */}
+        <div className="max-w-[12rem]">
+          <label
+            htmlFor="aff-hoa"
+            className="mb-1.5 block text-xs font-medium text-[var(--ink-soft)]"
+          >
+            Property HOA / mo
+          </label>
+          <div className="relative">
+            <span className={iconClass} aria-hidden="true">$</span>
+            <input
+              id="aff-hoa"
+              aria-label="Property HOA / mo"
+              type="text"
+              inputMode="numeric"
+              value={hoaStr}
+              onChange={(e) => setHoaStr(e.target.value)}
+              placeholder="0"
+              className={inputClass}
+            />
+          </div>
+        </div>
+
         <p className="text-xs text-[var(--ink-muted)]">
           Assumes you have the down payment plus closing costs (~2–5% of purchase) and reserves
           separate from this calculation. Not financial advice.

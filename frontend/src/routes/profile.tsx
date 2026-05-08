@@ -117,12 +117,39 @@ function ShieldIcon() {
 }
 
 export default function ProfilePage() {
-  const { user, isLoading, logout } = useAuth();
+  const { user, isLoading, logout, refreshUser } = useAuth();
   const navigate = useNavigate();
 
   const [newPassword, setNewPassword] = useState("");
   const [pwSuccess, setPwSuccess] = useState(false);
   const [pwError, setPwError] = useState<string | null>(null);
+
+  // Affordability defaults state — initialized from user profile
+  const [affIncome, setAffIncome] = useState(() =>
+    user?.annual_income != null ? String(user.annual_income) : ""
+  );
+  const [affDebts, setAffDebts] = useState(() =>
+    user?.monthly_debts != null ? String(user.monthly_debts) : ""
+  );
+  const [affDown, setAffDown] = useState(() =>
+    user?.down_payment != null ? String(user.down_payment) : ""
+  );
+  const [affRate, setAffRate] = useState(() =>
+    user?.target_rate_pct != null ? String(user.target_rate_pct) : ""
+  );
+  const [affSuccess, setAffSuccess] = useState(false);
+  const [affError, setAffError] = useState<string | null>(null);
+
+  // Sync affordability fields from server once the user object is available
+  // (AuthContext loads asynchronously, so useState initializers run before user arrives)
+  useEffect(() => {
+    if (user) {
+      setAffIncome(user.annual_income != null ? String(user.annual_income) : "");
+      setAffDebts(user.monthly_debts != null ? String(user.monthly_debts) : "");
+      setAffDown(user.down_payment != null ? String(user.down_payment) : "");
+      setAffRate(user.target_rate_pct != null ? String(user.target_rate_pct) : "");
+    }
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -199,6 +226,28 @@ export default function ProfilePage() {
       await upgradeMutation(priceId);
     } catch (err) {
       setBillingError(err instanceof Error ? err.message : "Something went wrong");
+    }
+  }
+
+  async function handleSaveAffordability(e: FormEvent) {
+    e.preventDefault();
+    setAffError(null);
+    setAffSuccess(false);
+    try {
+      const parseOrNull = (s: string) => {
+        const n = Number(s.replace(/[^0-9.]/g, ""));
+        return s.trim() === "" || isNaN(n) ? null : n;
+      };
+      await apiClient.updateAffordabilityProfile({
+        annual_income: parseOrNull(affIncome),
+        monthly_debts: parseOrNull(affDebts),
+        down_payment: parseOrNull(affDown),
+        target_rate_pct: parseOrNull(affRate),
+      });
+      await refreshUser();
+      setAffSuccess(true);
+    } catch (err) {
+      setAffError(err instanceof Error ? err.message : "Failed to save");
     }
   }
 
@@ -461,6 +510,112 @@ export default function ProfilePage() {
             >
               {pwSubmitting ? "Updating…" : "Update password"}
             </button>
+          </form>
+        </div>
+
+        {/* ── Affordability defaults card ───────────────────────────── */}
+        <div className="card fade-up stagger-3 p-6">
+          <h2 className="mb-1 text-base font-semibold text-[var(--ink)]">Affordability Defaults</h2>
+          <p className="mb-5 text-sm text-[var(--ink-soft)]">
+            Your financial profile used by the affordability calculator on each analysis.
+          </p>
+
+          {affSuccess && (
+            <p className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-2.5 text-sm text-green-700">
+              Saved successfully.
+            </p>
+          )}
+          {affError && (
+            <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-600">
+              {affError}
+            </p>
+          )}
+
+          <form onSubmit={handleSaveAffordability} className="grid grid-cols-1 gap-4 sm:grid-cols-2 max-w-lg">
+            <div>
+              <label htmlFor="aff-income" className="mb-1.5 block text-sm font-medium text-[var(--ink)]">
+                Annual income
+              </label>
+              <div className="relative">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[var(--ink-muted)]" aria-hidden="true">$</span>
+                <input
+                  id="aff-income"
+                  aria-label="Annual income"
+                  type="text"
+                  inputMode="numeric"
+                  value={affIncome}
+                  onChange={(e) => setAffIncome(e.target.value)}
+                  placeholder="150,000"
+                  className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] py-2.5 pl-7 pr-3 text-sm text-[var(--ink)] outline-none focus:ring-2 focus:ring-[var(--navy)]"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="aff-debts" className="mb-1.5 block text-sm font-medium text-[var(--ink)]">
+                Monthly debts
+              </label>
+              <div className="relative">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[var(--ink-muted)]" aria-hidden="true">$</span>
+                <input
+                  id="aff-debts"
+                  aria-label="Monthly debts"
+                  type="text"
+                  inputMode="numeric"
+                  value={affDebts}
+                  onChange={(e) => setAffDebts(e.target.value)}
+                  placeholder="0"
+                  className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] py-2.5 pl-7 pr-3 text-sm text-[var(--ink)] outline-none focus:ring-2 focus:ring-[var(--navy)]"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="aff-down" className="mb-1.5 block text-sm font-medium text-[var(--ink)]">
+                Down payment
+              </label>
+              <div className="relative">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[var(--ink-muted)]" aria-hidden="true">$</span>
+                <input
+                  id="aff-down"
+                  aria-label="Down payment"
+                  type="text"
+                  inputMode="numeric"
+                  value={affDown}
+                  onChange={(e) => setAffDown(e.target.value)}
+                  placeholder="200,000"
+                  className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] py-2.5 pl-7 pr-3 text-sm text-[var(--ink)] outline-none focus:ring-2 focus:ring-[var(--navy)]"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="aff-rate" className="mb-1.5 block text-sm font-medium text-[var(--ink)]">
+                Target rate
+              </label>
+              <div className="relative">
+                <input
+                  id="aff-rate"
+                  aria-label="Target rate"
+                  type="text"
+                  inputMode="decimal"
+                  value={affRate}
+                  onChange={(e) => setAffRate(e.target.value)}
+                  placeholder="6.5"
+                  className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] py-2.5 pl-3 pr-7 text-sm text-[var(--ink)] outline-none focus:ring-2 focus:ring-[var(--navy)]"
+                />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--ink-muted)]" aria-hidden="true">%</span>
+              </div>
+            </div>
+
+            <div className="sm:col-span-2">
+              <button
+                type="submit"
+                className="cursor-pointer rounded-lg bg-[var(--navy)] px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90"
+              >
+                Save affordability defaults
+              </button>
+            </div>
           </form>
         </div>
 

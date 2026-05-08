@@ -345,3 +345,116 @@ describe("ProfilePage — subscription section", () => {
     });
   });
 });
+
+describe("ProfilePage — affordability defaults", () => {
+  function renderWithAffordabilityUser(affordabilityOverrides: Record<string, unknown> = {}) {
+    localStorage.setItem("hb_token", "valid.jwt");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => makeUserJson({
+            annual_income: 150000,
+            monthly_debts: 500,
+            down_payment: 200000,
+            target_rate_pct: 6.75,
+            ...affordabilityOverrides,
+          }),
+        })
+        .mockResolvedValueOnce({ ok: true, json: async () => makeStatusJson() })
+    );
+    return render(<AuthProvider><ProfilePage /></AuthProvider>);
+  }
+
+  it("renders Affordability Defaults heading with 4 labeled inputs", async () => {
+    renderWithAffordabilityUser();
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /affordability defaults/i })).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText(/annual income/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/monthly debts/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/down payment/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/target rate/i)).toBeInTheDocument();
+  });
+
+  it("pre-fills inputs from user's saved affordability values", async () => {
+    renderWithAffordabilityUser();
+    await waitFor(() => {
+      expect(screen.getByLabelText(/annual income/i)).toHaveValue("150000");
+    });
+    expect(screen.getByLabelText(/monthly debts/i)).toHaveValue("500");
+    expect(screen.getByLabelText(/down payment/i)).toHaveValue("200000");
+    expect(screen.getByLabelText(/target rate/i)).toHaveValue("6.75");
+  });
+
+  it("pre-fills empty string when user has no affordability values set", async () => {
+    renderWithAffordabilityUser({
+      annual_income: null,
+      monthly_debts: null,
+      down_payment: null,
+      target_rate_pct: null,
+    });
+    await waitFor(() => {
+      expect(screen.getByLabelText(/annual income/i)).toHaveValue("");
+    });
+    expect(screen.getByLabelText(/down payment/i)).toHaveValue("");
+  });
+
+  it("save button calls PATCH /api/users/me with the 4 affordability fields", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem("hb_token", "valid.jwt");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce({ ok: true, json: async () => makeUserJson() })
+        .mockResolvedValueOnce({ ok: true, json: async () => makeStatusJson() })
+        .mockResolvedValueOnce({ ok: true, json: async () => makeUserJson({ annual_income: 120000 }) }) // PATCH response
+        .mockResolvedValueOnce({ ok: true, json: async () => makeUserJson({ annual_income: 120000 }) }) // refreshUser
+    );
+    render(<AuthProvider><ProfilePage /></AuthProvider>);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/annual income/i)).toBeInTheDocument();
+    });
+
+    await user.clear(screen.getByLabelText(/annual income/i));
+    await user.type(screen.getByLabelText(/annual income/i), "120000");
+    await user.click(screen.getByRole("button", { name: /save affordability/i }));
+
+    await waitFor(() => {
+      const calls = (fetch as ReturnType<typeof vi.fn>).mock.calls;
+      const patchCall = calls.find(
+        ([url, opts]: [string, RequestInit]) =>
+          url.includes("/api/users/me") && opts?.method === "PATCH"
+      );
+      expect(patchCall).toBeTruthy();
+      const body = JSON.parse(patchCall![1].body as string);
+      expect(body.annual_income).toBe(120000);
+    });
+  });
+
+  it("shows success message after saving affordability defaults", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem("hb_token", "valid.jwt");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce({ ok: true, json: async () => makeUserJson() })
+        .mockResolvedValueOnce({ ok: true, json: async () => makeStatusJson() })
+        .mockResolvedValueOnce({ ok: true, json: async () => makeUserJson() }) // PATCH
+        .mockResolvedValueOnce({ ok: true, json: async () => makeUserJson() }) // refreshUser
+    );
+    render(<AuthProvider><ProfilePage /></AuthProvider>);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /save affordability/i })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: /save affordability/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/saved successfully/i)).toBeInTheDocument();
+    });
+  });
+});
