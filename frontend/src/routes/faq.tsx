@@ -1,5 +1,5 @@
-import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
 
 export const Route = createFileRoute("/faq")({ component: FAQPage });
 
@@ -58,7 +58,8 @@ const FAQ_SECTIONS: FAQSection[] = [
           "Tenancy-in-Common (TIC) properties in San Francisco typically sell at a 7% discount to equivalent condo or single-family values. This discount reflects two structural differences: (1) TIC financing is harder to obtain — most lenders require fractional loans at higher rates — and (2) TIC ownership carries liquidity risk because resale depends on co-owner cooperation or partition. HomeBidder detects TIC ownership signals in the listing description and property type, and applies the −7% discount to the comp-derived fair value before computing the offer range.",
       },
       {
-        question: "How does HomeBidder handle multi-family and duplex properties?",
+        question:
+          "How does HomeBidder handle multi-family and duplex properties?",
         answer:
           "For whole-building multi-family properties (duplexes, triplexes, small apartment buildings), HomeBidder adds an income-based premium on top of the comp-derived fair value. The premium uses a Gross Rent Multiplier (GRM) of 18 — a commonly used benchmark in the Bay Area — applied to the estimated annual rent for all units. For example, a duplex with two units each renting at $3,500/month has annual gross rent of $84,000; at GRM 18 the income value is $1,512,000. The difference between that income-capitalized value and the comp-derived value is added as a premium, capped at 10% of fair value, so a single outlier rent estimate cannot dramatically distort the offer range.",
       },
@@ -88,7 +89,8 @@ const FAQ_SECTIONS: FAQSection[] = [
     title: "Investment Analysis",
     items: [
       {
-        question: "How are the 10/20/30-year appreciation projections calculated?",
+        question:
+          "How are the 10/20/30-year appreciation projections calculated?",
         answer:
           "Projections use FHFA House Price Index data specific to the property's metropolitan statistical area (MSA) and zip code where available. The historical compound annual growth rate (CAGR) over the most recent full decade is used as the base appreciation rate. The model compounds this rate forward from the estimated purchase price. These are illustrative projections — actual appreciation depends on market conditions, interest rates, and local policy changes.",
       },
@@ -138,7 +140,8 @@ const FAQ_SECTIONS: FAQSection[] = [
           "Renovation estimates are ballpark figures intended to calibrate your offer, not contractor bids. Bay Area construction costs vary significantly by neighborhood, contractor availability, permit complexity, and material choices. The estimates are based on median contractor rates for the SF Bay Area and are most reliable for full-scope renovation of a typical 1900–1970s SFH. Always obtain at least two licensed contractor quotes before finalizing your offer on a fixer property.",
       },
       {
-        question: "Can I upload an inspection report to refine the renovation estimate?",
+        question:
+          "Can I upload an inspection report to refine the renovation estimate?",
         answer:
           "Yes. After an analysis is complete, you can upload a PDF inspection report from the analysis detail page. HomeBidder sends the report to Claude as a document, which parses it into structured findings organized by category (roof, electrical, plumbing, HVAC, foundation, etc.) along with severity ratings and recommended actions. These findings then replace the keyword-based fixer estimate with a scope derived directly from the inspector's observations — typically more accurate for properties where you have already conducted due diligence. The individual line items remain toggleable so you can include or exclude work from the total.",
       },
@@ -150,7 +153,7 @@ const FAQ_SECTIONS: FAQSection[] = [
       {
         question: "What is the Buying Plan?",
         answer:
-          "The Buying Plan is a structured home-search framework based on the secretary problem — a classical optimal-stopping algorithm. You tell HomeBidder your target buy-by date and how many properties you expect to tour per week. From those inputs, HomeBidder derives a fixed search pool size N and an explore-phase threshold of floor(N / e) ≈ 37% of N. During the explore phase you gather data without committing. Once you pass the threshold, you commit to the first property whose composite score (Quality + Location) beats every property you saw during the explore phase. The goal is to maximize the probability of landing the best property, not just a good one. The Buying Plan is available to Investor and Agent plan subscribers.",
+          "The Buying Plan is a structured home-search framework designed to remove the guess work behind winning your dream home. You tell HomeBidder your target buy-by date and how many properties you expect to tour per week. From those inputs, HomeBidder derives a fixed search pool size N and an explore-phase threshold of floor(N / e) ≈ 37% of N. During the explore phase you gather data without committing. Once you pass the threshold, you commit to the first property whose composite score (Quality + Location) beats every property you saw during the explore phase. The Buying Plan is available to Investor and Agent plan subscribers and is optional.",
       },
       {
         question: "What is the goal of the Buying Plan?",
@@ -262,11 +265,7 @@ export function FAQPage() {
               </h2>
               <div>
                 {section.items.map((item, ii) => (
-                  <FAQItem
-                    key={ii}
-                    item={item}
-                    id={`${si}-${ii}`}
-                  />
+                  <FAQItem key={ii} item={item} id={`${si}-${ii}`} />
                 ))}
               </div>
             </section>

@@ -5,8 +5,6 @@ import { useToast } from "../components/Toast";
 import type { PropertyData } from "../components/PropertySummaryCard";
 import type { OfferData } from "../components/OfferRecommendationCard";
 import type { RiskData } from "../components/RiskAnalysisCard";
-import type { InvestmentData, NearbySchool } from "../components/InvestmentCard";
-import type { FixerAnalysisData } from "../components/FixerAnalysisCard";
 
 export const Route = createFileRoute("/compare")({ component: ComparePage });
 
@@ -18,12 +16,9 @@ interface AnalysisDetail {
   address: string;
   offer_recommended: number | null;
   risk_level: string | null;
-  investment_rating: string | null;
   property_data: PropertyData | null;
   offer_data: OfferData | null;
   risk_data: RiskData | null;
-  investment_data: InvestmentData | null;
-  renovation_data: FixerAnalysisData | null;
 }
 
 function fmtUsd(n: number | null | undefined): string {
@@ -36,31 +31,16 @@ function fmtPpsf(price: number | null | undefined, sqft: number | null | undefin
   return "$" + Math.round(price / sqft).toLocaleString("en-US") + "/sqft";
 }
 
-function fmtMiles(n: number | null | undefined): string {
+function fmtSqft(n: number | null | undefined): string {
   if (n == null) return "—";
-  return `${n.toFixed(1)} mi`;
+  return n.toLocaleString("en-US") + " sqft";
 }
 
-function avgSchoolPct(schools: NearbySchool[] | undefined): number | null {
-  if (!schools || schools.length === 0) return null;
-  const values: number[] = [];
-  for (const s of schools) {
-    if (s.math_pct != null) values.push(s.math_pct);
-    if (s.ela_pct != null) values.push(s.ela_pct);
-  }
-  if (values.length === 0) return null;
-  return values.reduce((a, b) => a + b, 0) / values.length;
-}
-
-function transitLabel(inv: InvestmentData | null): string {
-  if (!inv) return "—";
-  if (inv.nearest_bart_station && inv.bart_distance_miles != null) {
-    return `BART ${inv.nearest_bart_station} · ${fmtMiles(inv.bart_distance_miles)}`;
-  }
-  if (inv.nearest_muni_stop && inv.muni_distance_miles != null) {
-    return `MUNI ${inv.nearest_muni_stop} · ${fmtMiles(inv.muni_distance_miles)}`;
-  }
-  return "—";
+function fmtBedsBaths(beds: number | null | undefined, baths: number | null | undefined): string {
+  if (beds == null && baths == null) return "—";
+  const bedsStr = beds == null ? "—" : String(beds);
+  const bathsStr = baths == null ? "—" : String(baths);
+  return `${bedsStr} bd / ${bathsStr} ba`;
 }
 
 const RISK_PILL_STYLES: Record<string, string> = {
@@ -87,6 +67,26 @@ interface ComparisonRow {
 
 const COMPARISON_ROWS: ComparisonRow[] = [
   {
+    label: "City",
+    render: (a) => a.property_data?.city ?? "—",
+  },
+  {
+    label: "Neighborhood",
+    render: (a) => a.property_data?.neighborhoods ?? "—",
+  },
+  {
+    label: "Beds / Baths",
+    render: (a) => fmtBedsBaths(a.property_data?.bedrooms, a.property_data?.bathrooms),
+  },
+  {
+    label: "Sqft",
+    render: (a) => fmtSqft(a.property_data?.sqft),
+  },
+  {
+    label: "Lot Size",
+    render: (a) => fmtSqft(a.property_data?.lot_size),
+  },
+  {
     label: "List Price",
     render: (a) => fmtUsd(a.offer_data?.list_price),
   },
@@ -105,33 +105,6 @@ const COMPARISON_ROWS: ComparisonRow[] = [
   {
     label: "Risk Level",
     render: (a) => <RiskPill level={a.risk_level ?? a.risk_data?.overall_risk ?? null} />,
-  },
-  {
-    label: "Investment Rating",
-    render: (a) => a.investment_rating ?? "—",
-  },
-  {
-    label: "Renovation (mid)",
-    render: (a) => fmtUsd(a.renovation_data?.renovation_estimate_mid ?? null),
-  },
-  {
-    label: "Monthly Buy Cost",
-    render: (a) => fmtUsd(a.investment_data?.monthly_buy_cost ?? null),
-  },
-  {
-    label: "Monthly Rent Equiv.",
-    render: (a) => fmtUsd(a.investment_data?.monthly_rent_equivalent ?? null),
-  },
-  {
-    label: "Schools (avg proficiency)",
-    render: (a) => {
-      const pct = avgSchoolPct(a.investment_data?.nearby_schools);
-      return pct == null ? "—" : `${pct.toFixed(0)}%`;
-    },
-  },
-  {
-    label: "Transit",
-    render: (a) => transitLabel(a.investment_data ?? null),
   },
 ];
 

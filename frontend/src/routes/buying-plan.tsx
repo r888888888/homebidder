@@ -36,8 +36,16 @@ interface SeenProperty {
   quality: string;
   location: string;
   composite_score: number;
+  bidding_intent: "yes" | "no" | null;
   seen_at: string;
   notes: string | null;
+}
+
+const LEGACY_INTENT_THRESHOLD = 0.5;
+
+function deriveWouldBid(sp: SeenProperty): boolean {
+  if (sp.bidding_intent !== null) return sp.bidding_intent === "yes";
+  return sp.composite_score >= LEGACY_INTENT_THRESHOLD;
 }
 
 interface PlanResponse {
@@ -303,16 +311,6 @@ export function BuyingPlanPage() {
                 {status.explore_threshold - status.seen_count}
               </span>{" "}
               more properties as seen to complete the explore phase.
-              {status.explore_max_score !== null && (
-                <span>
-                  {" "}
-                  Best score so far:{" "}
-                  <span className="font-semibold">
-                    {Math.round(status.explore_max_score * 100)}%
-                  </span>
-                  .
-                </span>
-              )}
             </p>
           </>
         ) : (
@@ -323,30 +321,25 @@ export function BuyingPlanPage() {
             <p className="text-2xl font-bold text-[var(--ink)]">
               {status.seen_count} properties reviewed
             </p>
-            {status.explore_max_score !== null && (
-              <p className="mt-1 text-sm text-[var(--ink-soft)]">
-                Commit to the next property scoring above{" "}
-                <span className="font-semibold">
-                  {Math.round(status.explore_max_score * 100)}%
-                </span>{" "}
-                (your explore-phase best).
-              </p>
-            )}
+            <p className="mt-1 text-sm text-[var(--ink-soft)]">
+              Commit to the next property you mark as{" "}
+              <span className="font-semibold">"Would bid"</span>.
+            </p>
             {premiumPct > 0 && (
               <p className="mt-2 text-sm">
                 <span className="font-semibold text-[var(--coral)]">
                   Bid premium: +{premiumPct}%
                 </span>{" "}
                 <span className="text-[var(--ink-muted)]">
-                  ({status.properties_past_threshold} qualifying commit-phase{" "}
-                  {status.properties_past_threshold === 1 ? "property" : "properties"} × 1%)
+                  ({status.properties_past_threshold} 'Would bid'{" "}
+                  {status.properties_past_threshold === 1 ? "property" : "properties"} past threshold × 1%)
                 </span>
               </p>
             )}
             <p className="mt-3 text-sm text-[var(--ink-soft)]">
               After visiting a property, open its analysis and click{" "}
               <span className="font-semibold text-[var(--ink)]">"Mark Seen"</span>{" "}
-              to record your rating.{" "}
+              to record your decision.{" "}
               <Link to="/history" className="underline text-[var(--navy)]">
                 Open analysis
               </Link>
@@ -364,12 +357,10 @@ export function BuyingPlanPage() {
           <ul className="space-y-2">
             {seen_properties.map((sp, i) => {
               const isExploreProp = i < status.explore_threshold;
-              const score = Math.round(sp.composite_score * 100);
+              const wouldBid = deriveWouldBid(sp);
+              const isLegacy = sp.bidding_intent === null;
               const beatsMax =
-                status.phase === "commit" &&
-                status.explore_max_score !== null &&
-                !isExploreProp &&
-                sp.composite_score > status.explore_max_score;
+                status.phase === "commit" && !isExploreProp && wouldBid;
               return (
                 <li
                   key={sp.id}
@@ -386,23 +377,22 @@ export function BuyingPlanPage() {
                     <span className="font-medium text-[var(--ink)]">
                       {sp.address_snapshot}
                     </span>
-                    <span className="ml-2 text-xs text-[var(--ink-muted)]">
-                      {sp.quality} / {sp.location}
-                    </span>
+                    {isLegacy && (
+                      <span className="ml-2 text-xs text-[var(--ink-muted)]">
+                        {sp.quality} / {sp.location} (legacy)
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <span
-                      className={[
-                        "text-xs font-semibold",
-                        score >= 75
-                          ? "text-emerald-600"
-                          : score >= 50
-                            ? "text-amber-600"
-                            : "text-[var(--ink-muted)]",
-                      ].join(" ")}
-                    >
-                      {score}%
-                    </span>
+                    {wouldBid ? (
+                      <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
+                        Would bid
+                      </span>
+                    ) : (
+                      <span className="rounded bg-[var(--bg)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--ink-muted)]">
+                        Skip
+                      </span>
+                    )}
                     {isExploreProp && (
                       <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
                         Explore

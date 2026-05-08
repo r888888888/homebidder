@@ -53,6 +53,7 @@ _ANALYSES_MIGRATIONS: list[tuple[str, str]] = [
     ("user_id",               "CHAR(36)"),
     ("is_favorite",           "INTEGER NOT NULL DEFAULT 0"),
     ("inspection_data_json",  "TEXT"),
+    ("validation_data_json",  "TEXT"),
 ]
 
 _COMPS_MIGRATIONS: list[tuple[str, str]] = [
@@ -67,8 +68,9 @@ _COMPS_MIGRATIONS: list[tuple[str, str]] = [
     ("source",     "VARCHAR(32)"),
 ]
 
-# No columns to add post-initial-deploy yet; placeholder for future ALTER TABLEs.
-_SEEN_PROPERTIES_MIGRATIONS: list[tuple[str, str]] = []
+_SEEN_PROPERTIES_MIGRATIONS: list[tuple[str, str]] = [
+    ("bidding_intent", "VARCHAR(8)"),
+]
 
 # buying_plans table — columns added after v1.14 release.
 _BUYING_PLANS_MIGRATIONS: list[tuple[str, str]] = [

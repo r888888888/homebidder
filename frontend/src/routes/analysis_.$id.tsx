@@ -141,7 +141,7 @@ export function PermalinkPage() {
     seedAnalysis?.renovation_data ?? null
   );
   const [activeTab, setActiveTab] = useState<TabId>("decision");
-  const [seenCompositeScore, setSeenCompositeScore] = useState<number | null>(null);
+  const [seenBiddingIntent, setSeenBiddingIntent] = useState<"yes" | "no" | null>(null);
   const [planRefreshKey, setPlanRefreshKey] = useState(0);
   const toast = useToast();
   const { user } = useAuth();
@@ -195,10 +195,7 @@ export function PermalinkPage() {
       : null;
 
   const bidPremiumPct =
-    planCommitData !== null &&
-    seenCompositeScore !== null &&
-    planCommitData.explore_max_score !== null &&
-    seenCompositeScore >= planCommitData.explore_max_score
+    planCommitData !== null && seenBiddingIntent === "yes"
       ? planCommitData.bid_premium_pct
       : null;
 
@@ -312,7 +309,7 @@ export function PermalinkPage() {
               <MarkSeenButton
                 analysisId={analysis.id}
                 address={analysis.address}
-                onSeenEntry={setSeenCompositeScore}
+                onSeenEntry={setSeenBiddingIntent}
                 onChanged={() => { refetchPlan(); setPlanRefreshKey((k) => k + 1); }}
               />
             )}

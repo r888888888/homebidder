@@ -1,5 +1,7 @@
 # TODO
 
+- Affordability calculator with DTI. "What can I actually borrow?" inputs (income, monthly debts, down payment, target rate) → max purchase price + affordability gap on this property. Pure math, no new APIs. Shown on the Investment tab (with teaser for Buyer tier).
+- Commute time + cost. Add a "work address" buyer-context field; compute transit duration/cost and drive duration to that destination. Display in NeighborhoodCard. Turns "BART is 0.4 mi away" into "32 min to your office, $9.50 round-trip". Google Maps Distance Matrix or open routing API.
 - Support pest inspection reports. Use the same strategy as immplementing insepection reports.
 - Support uploading 3R reports to capture permit details.
 - Investigate database backups
@@ -9,10 +11,16 @@
 - Plan this new feature: a validation mode. The app should look at recently sold properties in SF and run analysis on each property. Then it should grade its performance. For poorly scoring analyses, use the LLM to hypothesize what caused the discrepancy.
 - Tier differentiation — bulk/batch analysis for Agent tier. Agent can submit a CSV of addresses and receive analyses for all of them. High-effort but strongest competitive differentiator for active agents touring many properties.
 - Tier differentiation — watchlist for Investor+. Save a set of addresses; one-click re-run to refresh an analysis as market conditions change.
+- Offer strategy depth. Expand OfferRecommendationCard to explain _why_ the recommended price was chosen, model contingency cost impact (waived inspection, appraisal gap, financing), describe escalation clause mechanics, and surface a "competition signal" derived from DOM, price-change history, and market velocity.
+- Saved searches & email alerts. Saved-search filters (zip, price range, beds/baths, max risk, max reno cost) with weekly email digests for matching new listings. Companion to BuyingPlan ("what to look at next" vs. "when to commit"). Needs listings ingestion + email infra.
+- Inspection red-flag pre-screen. Pre-offer checklist generated from existing listing signals: year_built → lead paint era / knob-and-tube risk; foundation type → seismic retrofit need; roof age inferred from photos/permits; electrical panel age. Reuses `description_signals` and permit data; surface on Property tab. Helps buyers screen before paying for inspection.
+- Walkability / lifestyle signals. Add Walk Score (paid API ~$0.001/req) + grocery/coffee/restaurant proximity to NeighborhoodCard. CalEnviroScreen + crime cover hazards but not livability — this rounds out the neighborhood story for buyers who care about more than commute and schools.
 
 # DONE
 
 - Side-by-side comparison view. New `/compare` route lets users pick 2–4 favorited analyses and renders a head-to-head comparison table on list price, recommended offer, fair value, $/sqft, risk level, investment rating, renovation cost (mid), monthly buy cost, monthly rent equivalent, school proficiency average, and transit. Backend: `GET /api/analyses?favorites=true` filter. Frontend: selection-then-grid UX with at-most-4 enforcement; "Compare favorites" link added to the history page header. 2 new backend tests, 8 new frontend tests, 1 new history-page link test.
+
+- Mark Seen — replace ordinal Quality+Location signals with a single binary bidding-intent question. Modal now asks "Would you make an offer on this property?" (Yes / No radio) + optional notes; Quality/Location dropdowns removed. New `bidding_intent` VARCHAR(8) column on `seen_properties` (nullable for legacy rows); legacy `quality`/`location` columns retained as NOT NULL with server-side default `"neutral"`. `composite_score` derived as 1.0/0.0 from intent for new rows. Buying Plan algorithm rewritten around binary `_would_bid()` helper (intent if set, else legacy `composite_score >= 0.5`). Commit qualification = any commit-phase Yes; explore_max_score reported as 1.0/0.0/None for API back-compat. Dashboard shows "Would bid" / "Skip" badges per row instead of percentages; legacy rows display "(legacy)" suffix. Per-analysis bid-premium overlay now keys on `bidding_intent === "yes"` instead of score comparison. 7 new backend tests, 5 new frontend tests; existing tests updated for the new contract.
 
 - History search: search input on the history page filters analyses by address substring (case-insensitive). Backend `GET /api/analyses` accepts optional `q` query param and applies a case-insensitive LIKE filter on `Listing.address_matched`. Frontend resets to page 1 and passes `q` on each change. Empty state shows "No analyses match your search." vs "No saved analyses yet." based on whether a query is active. 2 new backend tests, 3 new frontend tests.
 

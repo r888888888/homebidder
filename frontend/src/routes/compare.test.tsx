@@ -73,18 +73,16 @@ const ANALYSIS_1 = {
   risk_level: "Moderate",
   investment_rating: "Buy",
   is_favorite: true,
-  property_data: { sqft: 1500 },
+  property_data: {
+    sqft: 1500,
+    bedrooms: 3,
+    bathrooms: 2,
+    lot_size: 2800,
+    city: "San Francisco",
+    neighborhoods: "Castro, Eureka Valley",
+  },
   offer_data: { list_price: 1_250_000, fair_value_estimate: 1_200_000 },
   risk_data: { overall_risk: "Moderate" },
-  investment_data: {
-    monthly_buy_cost: 7500,
-    monthly_rent_equivalent: 6500,
-    nearest_bart_station: "Castro",
-    bart_distance_miles: 0.4,
-    nearby_schools: [
-      { name: "Lowell", type: "high", math_pct: 80, ela_pct: 75, distance_miles: 1.0 },
-    ],
-  },
   renovation_data: { renovation_estimate_mid: 50000 },
   comps: [],
 };
@@ -99,16 +97,16 @@ const ANALYSIS_2 = {
   risk_level: "Low",
   investment_rating: "Hold",
   is_favorite: true,
-  property_data: { sqft: 1000 },
+  property_data: {
+    sqft: 1000,
+    bedrooms: 2,
+    bathrooms: 1.5,
+    lot_size: null,
+    city: "Oakland",
+    neighborhoods: "Jack London Square",
+  },
   offer_data: { list_price: 875_000, fair_value_estimate: 850_000 },
   risk_data: { overall_risk: "Low" },
-  investment_data: {
-    monthly_buy_cost: 5200,
-    monthly_rent_equivalent: 4500,
-    nearest_bart_station: "12th St",
-    bart_distance_miles: 0.2,
-    nearby_schools: [],
-  },
   renovation_data: null,
   comps: [],
 };
@@ -261,13 +259,31 @@ describe("ComparePage", () => {
     // Comparison column headers show both addresses
     expect(screen.getAllByText(/100 MAIN ST/i).length).toBeGreaterThan(0);
 
-    // Comparison rows surface key fields
+    // Property attributes appear as comparison rows
+    expect(screen.getByText(/^city$/i)).toBeInTheDocument();
+    expect(screen.getByText(/^neighborhood$/i)).toBeInTheDocument();
+    expect(screen.getByText(/beds \/ baths/i)).toBeInTheDocument();
+    expect(screen.getByText(/^sqft$/i)).toBeInTheDocument();
+    expect(screen.getByText(/^lot size$/i)).toBeInTheDocument();
+
+    // Pricing + risk rows are kept
     expect(screen.getByText(/list price/i)).toBeInTheDocument();
     expect(screen.getByText(/recommended offer/i)).toBeInTheDocument();
     expect(screen.getByText(/\$\/sqft/i)).toBeInTheDocument();
     expect(screen.getByText(/risk level/i)).toBeInTheDocument();
-    expect(screen.getByText(/renovation/i)).toBeInTheDocument();
-    expect(screen.getByText(/monthly buy cost/i)).toBeInTheDocument();
+
+    // Investment-projection rows are removed
+    expect(screen.queryByText(/investment rating/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^renovation/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/monthly buy cost/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/monthly rent equiv/i)).not.toBeInTheDocument();
+
+    // Cell values render correctly
+    expect(screen.getByText("San Francisco")).toBeInTheDocument();
+    expect(screen.getByText("Oakland")).toBeInTheDocument();
+    expect(screen.getByText(/castro, eureka valley/i)).toBeInTheDocument();
+    expect(screen.getByText(/3 bd \/ 2 ba/i)).toBeInTheDocument();
+    expect(screen.getByText(/2 bd \/ 1\.5 ba/i)).toBeInTheDocument();
 
     // Each detail endpoint was fetched
     const detailCalls = vi.mocked(fetch).mock.calls.filter(([url]) =>

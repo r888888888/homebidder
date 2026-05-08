@@ -345,3 +345,75 @@ class TestValidationResultEvent:
         assert isinstance(payload, list), "fetch_comps SSE result must be a list for CompsCard"
         assert len(payload) == 1
         assert payload[0]["address"] == "402 Hearst Ave"
+
+
+class TestStreamCachedAnalysisValidation:
+    async def test_validation_result_replayed_when_cached_analysis_has_validation_data(self):
+        """_stream_cached_analysis emits validation_result when validation_data_json is set."""
+        import json
+        from agent.orchestrator import _stream_cached_analysis
+        from unittest.mock import MagicMock
+
+        validation_payload = {
+            "actual_sold_price": 1_350_000,
+            "estimated_price": 1_200_000,
+            "error_dollars": -150_000,
+            "error_pct": -11.1,
+            "within_ci": False,
+            "sold_date": "2026-01-15",
+            "address": "400 Hearst Ave",
+        }
+
+        analysis = MagicMock()
+        analysis.id = 99
+        analysis.comps = []
+        analysis.property_data_json = None
+        analysis.neighborhood_data_json = None
+        analysis.offer_data_json = None
+        analysis.risk_data_json = None
+        analysis.investment_data_json = None
+        analysis.permits_data_json = None
+        analysis.inspection_data_json = None
+        analysis.renovation_data_json = None
+        analysis.crime_data_json = None
+        analysis.validation_data_json = json.dumps(validation_payload)
+        analysis.rationale = None
+
+        events = []
+        async for chunk in _stream_cached_analysis(analysis):
+            if chunk.startswith("data: "):
+                events.append(json.loads(chunk[6:]))
+
+        validation_events = [e for e in events if e.get("type") == "validation_result"]
+        assert len(validation_events) == 1
+        assert validation_events[0]["result"]["actual_sold_price"] == 1_350_000
+        assert validation_events[0]["result"]["within_ci"] is False
+
+    async def test_no_validation_result_when_cached_analysis_lacks_validation_data(self):
+        """_stream_cached_analysis does not emit validation_result when validation_data_json is None."""
+        from agent.orchestrator import _stream_cached_analysis
+        from unittest.mock import MagicMock
+        import json
+
+        analysis = MagicMock()
+        analysis.id = 100
+        analysis.comps = []
+        analysis.property_data_json = None
+        analysis.neighborhood_data_json = None
+        analysis.offer_data_json = None
+        analysis.risk_data_json = None
+        analysis.investment_data_json = None
+        analysis.permits_data_json = None
+        analysis.inspection_data_json = None
+        analysis.renovation_data_json = None
+        analysis.crime_data_json = None
+        analysis.validation_data_json = None
+        analysis.rationale = None
+
+        events = []
+        async for chunk in _stream_cached_analysis(analysis):
+            if chunk.startswith("data: "):
+                events.append(json.loads(chunk[6:]))
+
+        validation_events = [e for e in events if e.get("type") == "validation_result"]
+        assert len(validation_events) == 0

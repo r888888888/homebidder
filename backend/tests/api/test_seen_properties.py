@@ -10,8 +10,7 @@ from db.models import Analysis, Listing
 
 
 # ---------------------------------------------------------------------------
-# Helpers (duplicated from test_auth_analysis.py — no shared fixtures across
-# test files to keep test isolation simple)
+# Helpers
 # ---------------------------------------------------------------------------
 
 async def _seed_analysis(user_id=None, address="1 Test St, San Francisco, CA 94110") -> int:
@@ -50,22 +49,81 @@ async def _register_and_login(client, email: str, password: str = "pass123"):
 # POST /api/seen-properties
 # ---------------------------------------------------------------------------
 
-async def test_mark_seen_creates_record(client):
-    """POST with valid data creates a seen_property and returns composite_score."""
-    token, user_id = await _register_and_login(client, "mark@test.com")
+async def test_mark_seen_yes_persists_composite_score_one(client):
+    """POST with bidding_intent='yes' returns composite_score=1.0."""
+    token, user_id = await _register_and_login(client, "yes@test.com")
     analysis_id = await _seed_analysis(user_id=user_id)
 
     resp = await client.post(
         "/api/seen-properties",
-        json={"analysis_id": analysis_id, "quality": "good", "location": "good"},
+        json={"analysis_id": analysis_id, "bidding_intent": "yes"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 201
     data = resp.json()
     assert data["analysis_id"] == analysis_id
-    assert data["quality"] == "good"
-    assert data["location"] == "good"
-    assert pytest.approx(data["composite_score"]) == pytest.approx(0.875)  # (0.75+1.0)/2
+    assert data["bidding_intent"] == "yes"
+    assert data["composite_score"] == pytest.approx(1.0)
+
+
+async def test_mark_seen_no_persists_composite_score_zero(client):
+    """POST with bidding_intent='no' returns composite_score=0.0."""
+    token, user_id = await _register_and_login(client, "no@test.com")
+    analysis_id = await _seed_analysis(user_id=user_id)
+
+    resp = await client.post(
+        "/api/seen-properties",
+        json={"analysis_id": analysis_id, "bidding_intent": "no"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["bidding_intent"] == "no"
+    assert data["composite_score"] == pytest.approx(0.0)
+
+
+async def test_mark_seen_omits_quality_and_location_uses_defaults(client):
+    """POST without quality/location succeeds (server defaults to 'neutral')."""
+    token, user_id = await _register_and_login(client, "defaults@test.com")
+    analysis_id = await _seed_analysis(user_id=user_id)
+
+    resp = await client.post(
+        "/api/seen-properties",
+        json={"analysis_id": analysis_id, "bidding_intent": "yes"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 201
+    data = resp.json()
+    # Server stores neutral defaults so the legacy NOT NULL columns are satisfied.
+    assert data["quality"] == "neutral"
+    assert data["location"] == "neutral"
+
+
+async def test_mark_seen_requires_bidding_intent(client):
+    """POST without bidding_intent returns 422."""
+    token, user_id = await _register_and_login(client, "missing@test.com")
+    analysis_id = await _seed_analysis(user_id=user_id)
+
+    resp = await client.post(
+        "/api/seen-properties",
+        json={"analysis_id": analysis_id},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422
+
+
+async def test_mark_seen_invalid_bidding_intent_returns_422(client):
+    """POST with bidding_intent='maybe' (or any non-yes/no) returns 422."""
+    token, user_id = await _register_and_login(client, "maybe@test.com")
+    analysis_id = await _seed_analysis(user_id=user_id)
+
+    for bad in ("maybe", "true", "Yes", ""):
+        resp = await client.post(
+            "/api/seen-properties",
+            json={"analysis_id": analysis_id, "bidding_intent": bad},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert resp.status_code == 422, f"Expected 422 for bidding_intent={bad!r}"
 
 
 async def test_mark_seen_requires_auth(client):
@@ -73,42 +131,16 @@ async def test_mark_seen_requires_auth(client):
     analysis_id = await _seed_analysis()
     resp = await client.post(
         "/api/seen-properties",
-        json={"analysis_id": analysis_id, "quality": "good", "location": "good"},
+        json={"analysis_id": analysis_id, "bidding_intent": "yes"},
     )
     assert resp.status_code == 401
-
-
-async def test_mark_seen_invalid_quality_returns_422(client):
-    """POST with an invalid quality string returns 422."""
-    token, user_id = await _register_and_login(client, "badquality@test.com")
-    analysis_id = await _seed_analysis(user_id=user_id)
-
-    resp = await client.post(
-        "/api/seen-properties",
-        json={"analysis_id": analysis_id, "quality": "fantastic", "location": "good"},
-        headers={"Authorization": f"Bearer {token}"},
-    )
-    assert resp.status_code == 422
-
-
-async def test_mark_seen_invalid_location_returns_422(client):
-    """POST with an invalid location string returns 422."""
-    token, user_id = await _register_and_login(client, "badloc@test.com")
-    analysis_id = await _seed_analysis(user_id=user_id)
-
-    resp = await client.post(
-        "/api/seen-properties",
-        json={"analysis_id": analysis_id, "quality": "good", "location": "amazing"},
-        headers={"Authorization": f"Bearer {token}"},
-    )
-    assert resp.status_code == 422
 
 
 async def test_mark_seen_duplicate_returns_409(client):
     """Marking the same analysis seen twice returns 409."""
     token, user_id = await _register_and_login(client, "dup@test.com")
     analysis_id = await _seed_analysis(user_id=user_id)
-    payload = {"analysis_id": analysis_id, "quality": "good", "location": "good"}
+    payload = {"analysis_id": analysis_id, "bidding_intent": "yes"}
 
     resp1 = await client.post(
         "/api/seen-properties", json=payload, headers={"Authorization": f"Bearer {token}"}
@@ -125,7 +157,7 @@ async def test_mark_seen_analysis_not_found_returns_404(client):
     token, _ = await _register_and_login(client, "notfound@test.com")
     resp = await client.post(
         "/api/seen-properties",
-        json={"analysis_id": 99999, "quality": "good", "location": "good"},
+        json={"analysis_id": 99999, "bidding_intent": "yes"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 404
@@ -138,7 +170,7 @@ async def test_mark_seen_with_notes(client):
 
     resp = await client.post(
         "/api/seen-properties",
-        json={"analysis_id": analysis_id, "quality": "neutral", "location": "neutral", "notes": "Nice yard"},
+        json={"analysis_id": analysis_id, "bidding_intent": "yes", "notes": "Nice yard"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 201
@@ -158,7 +190,7 @@ async def test_list_seen_properties(client):
     for aid in (analysis_id_1, analysis_id_2):
         await client.post(
             "/api/seen-properties",
-            json={"analysis_id": aid, "quality": "good", "location": "neutral"},
+            json={"analysis_id": aid, "bidding_intent": "yes"},
             headers={"Authorization": f"Bearer {token}"},
         )
 
@@ -166,6 +198,8 @@ async def test_list_seen_properties(client):
     assert resp.status_code == 200
     data = resp.json()
     assert len(data["seen_properties"]) == 2
+    # bidding_intent is round-tripped on the list response.
+    assert all("bidding_intent" in row for row in data["seen_properties"])
 
 
 async def test_list_seen_properties_requires_auth(client):
@@ -181,7 +215,7 @@ async def test_list_seen_by_analysis_id(client):
 
     await client.post(
         "/api/seen-properties",
-        json={"analysis_id": analysis_id, "quality": "good", "location": "good"},
+        json={"analysis_id": analysis_id, "bidding_intent": "yes"},
         headers={"Authorization": f"Bearer {token}"},
     )
 
@@ -193,6 +227,7 @@ async def test_list_seen_by_analysis_id(client):
     rows = resp.json()["seen_properties"]
     assert len(rows) == 1
     assert rows[0]["analysis_id"] == analysis_id
+    assert rows[0]["bidding_intent"] == "yes"
 
 
 async def test_list_seen_cross_user_isolation(client):
@@ -203,7 +238,7 @@ async def test_list_seen_cross_user_isolation(client):
     analysis_id = await _seed_analysis(user_id=user_id_a)
     await client.post(
         "/api/seen-properties",
-        json={"analysis_id": analysis_id, "quality": "good", "location": "good"},
+        json={"analysis_id": analysis_id, "bidding_intent": "yes"},
         headers={"Authorization": f"Bearer {token_a}"},
     )
 
@@ -223,7 +258,7 @@ async def test_delete_seen_property(client):
 
     create_resp = await client.post(
         "/api/seen-properties",
-        json={"analysis_id": analysis_id, "quality": "good", "location": "good"},
+        json={"analysis_id": analysis_id, "bidding_intent": "yes"},
         headers={"Authorization": f"Bearer {token}"},
     )
     seen_id = create_resp.json()["id"]
@@ -246,7 +281,7 @@ async def test_delete_cross_user_returns_403(client):
     analysis_id = await _seed_analysis(user_id=user_id_a)
     create_resp = await client.post(
         "/api/seen-properties",
-        json={"analysis_id": analysis_id, "quality": "good", "location": "good"},
+        json={"analysis_id": analysis_id, "bidding_intent": "yes"},
         headers={"Authorization": f"Bearer {token_a}"},
     )
     seen_id = create_resp.json()["id"]

@@ -279,6 +279,7 @@ async def get_analysis(analysis_id: int, db: AsyncSession = Depends(get_db)):
         "permits_data": _safe_json(analysis.permits_data_json),
         "crime_data": _safe_json(analysis.crime_data_json),
         "inspection_data": _safe_json(analysis.inspection_data_json),
+        "validation_data": _safe_json(analysis.validation_data_json),
         "comps": [
             {
                 "address": c.address,

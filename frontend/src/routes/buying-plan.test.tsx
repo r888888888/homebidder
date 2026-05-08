@@ -230,7 +230,7 @@ describe("BuyingPlanPage", () => {
         status: {
           phase: "commit",
           seen_count: 13,
-          explore_max_score: 0.875,
+          explore_max_score: 1.0,
           explore_threshold: 11,
           properties_past_threshold: 2,
           bid_premium_pct: 0.02,
@@ -244,5 +244,77 @@ describe("BuyingPlanPage", () => {
     const link = screen.getByRole("link", { name: /mark.*(seen|viewing)|open.*analysis/i });
     expect(link).toBeInTheDocument();
     expect(link).toHaveAttribute("href", "/history");
+  });
+
+  it("renders 'Would bid' badge for seen properties with bidding_intent='yes'", async () => {
+    mockFetchPlan(
+      makePlanResponse({
+        seen_properties: [
+          {
+            id: 1,
+            analysis_id: 100,
+            address_snapshot: "11 Yes St",
+            quality: "neutral",
+            location: "neutral",
+            composite_score: 1.0,
+            bidding_intent: "yes",
+            seen_at: "2026-05-04T12:00:00",
+            notes: null,
+          },
+        ],
+      })
+    );
+    render(<BuyingPlanPage />);
+    await waitFor(() => expect(screen.getByText("11 Yes St")).toBeInTheDocument());
+    expect(screen.getByText(/would bid/i)).toBeInTheDocument();
+  });
+
+  it("renders 'Skip' badge for seen properties with bidding_intent='no'", async () => {
+    mockFetchPlan(
+      makePlanResponse({
+        seen_properties: [
+          {
+            id: 2,
+            analysis_id: 101,
+            address_snapshot: "12 No St",
+            quality: "neutral",
+            location: "neutral",
+            composite_score: 0.0,
+            bidding_intent: "no",
+            seen_at: "2026-05-04T12:00:00",
+            notes: null,
+          },
+        ],
+      })
+    );
+    render(<BuyingPlanPage />);
+    await waitFor(() => expect(screen.getByText("12 No St")).toBeInTheDocument());
+    expect(screen.getByText(/skip/i)).toBeInTheDocument();
+  });
+
+  it("renders legacy quality/location with '(legacy)' label for null bidding_intent", async () => {
+    mockFetchPlan(
+      makePlanResponse({
+        seen_properties: [
+          {
+            id: 3,
+            analysis_id: 102,
+            address_snapshot: "13 Old St",
+            quality: "good",
+            location: "good",
+            composite_score: 0.875,
+            bidding_intent: null,
+            seen_at: "2026-04-01T12:00:00",
+            notes: null,
+          },
+        ],
+      })
+    );
+    render(<BuyingPlanPage />);
+    await waitFor(() => expect(screen.getByText("13 Old St")).toBeInTheDocument());
+    // Legacy row falls back to quality/location display + "(legacy)".
+    expect(screen.getByText(/legacy/i)).toBeInTheDocument();
+    // Derived would_bid (composite >= 0.5) → still shown as Would bid.
+    expect(screen.getByText(/would bid/i)).toBeInTheDocument();
   });
 });

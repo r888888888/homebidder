@@ -45,6 +45,7 @@ export interface SeenProperty {
   quality: string;
   location: string;
   composite_score: number;
+  bidding_intent: "yes" | "no" | null;
   seen_at: string;
   notes: string | null;
 }
@@ -70,6 +71,7 @@ export interface SeenEntry {
   quality: string;
   location: string;
   composite_score: number;
+  bidding_intent: "yes" | "no" | null;
   seen_at: string;
   notes: string | null;
 }
@@ -214,14 +216,17 @@ export const apiClient = {
 
   markSeen: async (
     analysisId: number,
-    quality: string,
-    location: string,
+    biddingIntent: "yes" | "no",
     notes: string | null
   ): Promise<SeenEntry> => {
     const r = await fetch(`${apiBase}/api/seen-properties`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ analysis_id: analysisId, quality, location, notes }),
+      body: JSON.stringify({
+        analysis_id: analysisId,
+        bidding_intent: biddingIntent,
+        notes,
+      }),
     });
     if (r.status === 409) throw new Error("ALREADY_SEEN");
     if (!r.ok) throw new Error(r.statusText);

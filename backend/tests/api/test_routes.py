@@ -1082,3 +1082,80 @@ async def test_get_analysis_with_corrupted_json_returns_null_field(client):
     assert data["property_data"] is None       # corrupted → null
     assert data["risk_data"] == {"risk_level": "HIGH"}  # valid → parsed
     assert data["renovation_data"] is None
+
+
+async def test_get_analysis_includes_validation_data(client):
+    """GET /api/analyses/{id} returns validation_data when the analysis has it."""
+    import json, datetime
+    from db.models import Analysis, Listing
+    from db import engine
+    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlalchemy.orm import sessionmaker
+
+    validation_payload = {
+        "actual_sold_price": 1_350_000,
+        "estimated_price": 1_280_000,
+        "error_dollars": -70_000,
+        "error_pct": -5.2,
+        "within_ci": True,
+        "sold_date": "2026-03-15",
+        "address": "42 Sold St, SF, CA 94110",
+    }
+
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with async_session() as session:
+        listing = Listing(
+            address_input="42 Sold St, SF, CA 94110",
+            address_matched="42 SOLD ST, SF, CA 94110",
+        )
+        session.add(listing)
+        await session.flush()
+        analysis = Analysis(
+            listing_id=listing.id,
+            session_id="validation-session",
+            created_at=datetime.datetime.utcnow(),
+            validation_data_json=json.dumps(validation_payload),
+        )
+        session.add(analysis)
+        await session.commit()
+        analysis_id = analysis.id
+
+    resp = await client.get(f"/api/analyses/{analysis_id}")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "validation_data" in data
+    assert data["validation_data"]["actual_sold_price"] == 1_350_000
+    assert data["validation_data"]["within_ci"] is True
+    assert data["validation_data"]["sold_date"] == "2026-03-15"
+
+
+async def test_get_analysis_validation_data_null_when_absent(client):
+    """GET /api/analyses/{id} returns validation_data as null when not set."""
+    import datetime
+    from db.models import Analysis, Listing
+    from db import engine
+    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlalchemy.orm import sessionmaker
+
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with async_session() as session:
+        listing = Listing(
+            address_input="99 No Validation St, SF, CA 94110",
+            address_matched="99 NO VALIDATION ST, SF, CA 94110",
+        )
+        session.add(listing)
+        await session.flush()
+        analysis = Analysis(
+            listing_id=listing.id,
+            session_id="no-validation-session",
+            created_at=datetime.datetime.utcnow(),
+        )
+        session.add(analysis)
+        await session.commit()
+        analysis_id = analysis.id
+
+    resp = await client.get(f"/api/analyses/{analysis_id}")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "validation_data" in data
+    assert data["validation_data"] is None

@@ -555,45 +555,40 @@ describe("PermalinkPage — favorites", () => {
     seen_properties: [],
   };
 
-  it("applies buying plan bid premium when property is seen with passing score", async () => {
+  it("applies buying plan bid premium when property is seen with bidding_intent=yes", async () => {
     // ANALYSIS_DETAIL has offer_recommended: 1_200_000; 2% → $1,224,000
     vi.mocked(fetch)
       .mockResolvedValueOnce(new Response(JSON.stringify(ANALYSIS_DETAIL), { status: 200 }))
-      // buying-plan: commit phase, explore_max=0.75, premium=2%
       .mockResolvedValueOnce(new Response(JSON.stringify(COMMIT_PLAN_RESPONSE), { status: 200 }))
-      // MarkSeenButton: property already seen with score 0.875 (beats 0.75)
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ seen_properties: [{ id: 1, analysis_id: 1, quality: "excellent", location: "good", composite_score: 0.875, seen_at: "2026-05-05T10:00:00", notes: null }] }), { status: 200 })
+        new Response(JSON.stringify({ seen_properties: [{ id: 1, analysis_id: 1, quality: "neutral", location: "neutral", composite_score: 1.0, bidding_intent: "yes", seen_at: "2026-05-05T10:00:00", notes: null }] }), { status: 200 })
       );
     renderPage();
     await waitFor(() => expect(screen.getByText(/1,224,000/)).toBeInTheDocument());
     expect(screen.getByText(/buying plan calibration/i)).toBeInTheDocument();
   });
 
-  it("applies premium when seen score equals explore max", async () => {
-    // explore_max is 0.75; score exactly 0.75 should qualify
+  it("applies premium when seen with Yes intent regardless of explore_max", async () => {
+    // Binary signal: any "yes" qualifies, no score comparison needed.
     vi.mocked(fetch)
       .mockResolvedValueOnce(new Response(JSON.stringify(ANALYSIS_DETAIL), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify(COMMIT_PLAN_RESPONSE), { status: 200 }))
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ seen_properties: [{ id: 1, analysis_id: 1, quality: "good", location: "neutral", composite_score: 0.75, seen_at: "2026-05-05T10:00:00", notes: null }] }), { status: 200 })
+        new Response(JSON.stringify({ seen_properties: [{ id: 1, analysis_id: 1, quality: "neutral", location: "neutral", composite_score: 1.0, bidding_intent: "yes", seen_at: "2026-05-05T10:00:00", notes: null }] }), { status: 200 })
       );
     renderPage();
     await waitFor(() => expect(screen.getByText(/1,224,000/)).toBeInTheDocument());
   });
 
-  it("does not apply premium when seen score does not beat explore max", async () => {
+  it("does not apply premium when seen with bidding_intent=no", async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(new Response(JSON.stringify(ANALYSIS_DETAIL), { status: 200 }))
-      // buying-plan: commit phase, explore_max=0.75, premium=2%
       .mockResolvedValueOnce(new Response(JSON.stringify(COMMIT_PLAN_RESPONSE), { status: 200 }))
-      // MarkSeenButton: seen but score 0.5 (does NOT beat 0.75)
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ seen_properties: [{ id: 1, analysis_id: 1, quality: "neutral", location: "neutral", composite_score: 0.5, seen_at: "2026-05-05T10:00:00", notes: null }] }), { status: 200 })
+        new Response(JSON.stringify({ seen_properties: [{ id: 1, analysis_id: 1, quality: "neutral", location: "neutral", composite_score: 0.0, bidding_intent: "no", seen_at: "2026-05-05T10:00:00", notes: null }] }), { status: 200 })
       );
     renderPage();
     await waitFor(() => expect(screen.getByText(/offer recommendation/i)).toBeInTheDocument());
-    // Wait for all fetches to settle
     await waitFor(() => expect(fetch).toHaveBeenCalledTimes(3));
     expect(screen.queryByText(/1,224,000/)).not.toBeInTheDocument();
     expect(screen.queryByText(/buying plan calibration/i)).not.toBeInTheDocument();
@@ -608,7 +603,7 @@ describe("PermalinkPage — favorites", () => {
       .mockResolvedValueOnce(new Response(JSON.stringify(ANALYSIS_DETAIL), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify(pausedPlanResponse), { status: 200 }))
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ seen_properties: [{ id: 1, analysis_id: 1, quality: "excellent", location: "good", composite_score: 0.875, seen_at: "2026-05-05T10:00:00", notes: null }] }), { status: 200 })
+        new Response(JSON.stringify({ seen_properties: [{ id: 1, analysis_id: 1, quality: "neutral", location: "neutral", composite_score: 1.0, bidding_intent: "yes", seen_at: "2026-05-05T10:00:00", notes: null }] }), { status: 200 })
       );
     renderPage();
     await waitFor(() => expect(screen.getByText(/offer recommendation/i)).toBeInTheDocument());
@@ -640,14 +635,15 @@ describe("PermalinkPage — favorites", () => {
       // 3. MarkSeenButton GET (not yet seen)
       .mockResolvedValueOnce(new Response(JSON.stringify({ seen_properties: [] }), { status: 200 }))
       // 4. MarkSeenButton POST
-      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 1, analysis_id: 1, quality: "good", location: "good", composite_score: 0.875, seen_at: "2026-05-05T10:00:00", notes: null }), { status: 201 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 1, analysis_id: 1, quality: "neutral", location: "neutral", composite_score: 1.0, bidding_intent: "yes", seen_at: "2026-05-05T10:00:00", notes: null }), { status: 201 }))
       // 5. buying-plan refetch after marking seen
-      .mockResolvedValueOnce(new Response(JSON.stringify({ status: { phase: "explore", seen_count: 4, explore_max_score: 0.875, explore_threshold: 11, properties_past_threshold: 0, bid_premium_pct: 0 } }), { status: 200 }));
+      .mockResolvedValueOnce(new Response(JSON.stringify({ status: { phase: "explore", seen_count: 4, explore_max_score: 1.0, explore_threshold: 11, properties_past_threshold: 0, bid_premium_pct: 0 } }), { status: 200 }));
 
     renderPage();
 
     const markSeenBtn = await screen.findByRole("button", { name: /mark seen/i });
     await userEvent.click(markSeenBtn);
+    await userEvent.click(screen.getByRole("radio", { name: /yes/i }));
     await userEvent.click(screen.getByRole("button", { name: /save/i }));
 
     await waitFor(() => expect(fetch).toHaveBeenCalledTimes(5));

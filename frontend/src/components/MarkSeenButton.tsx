@@ -6,19 +6,7 @@ import { apiBase, apiClient } from "../lib/api";
 import { authHeaders } from "../lib/auth";
 import { useMutation } from "../hooks/useMutation";
 
-const QUALITY_OPTIONS = [
-  { value: "terrible", label: "Terrible" },
-  { value: "bad", label: "Bad" },
-  { value: "neutral", label: "Neutral" },
-  { value: "good", label: "Good" },
-  { value: "excellent", label: "Excellent" },
-];
-
-const LOCATION_OPTIONS = [
-  { value: "bad", label: "Bad" },
-  { value: "neutral", label: "Neutral" },
-  { value: "good", label: "Good" },
-];
+type BiddingIntent = "yes" | "no";
 
 interface SeenEntry {
   id: number;
@@ -26,6 +14,7 @@ interface SeenEntry {
   quality: string;
   location: string;
   composite_score: number;
+  bidding_intent: BiddingIntent | null;
   seen_at: string;
   notes: string | null;
 }
@@ -33,7 +22,7 @@ interface SeenEntry {
 interface Props {
   analysisId: number;
   address: string;
-  onSeenEntry?: (compositeScore: number | null) => void;
+  onSeenEntry?: (intent: BiddingIntent | null) => void;
   onChanged?: () => void;
 }
 
@@ -43,8 +32,7 @@ export function MarkSeenButton({ analysisId, address, onSeenEntry, onChanged }: 
   const [seenEntry, setSeenEntry] = useState<SeenEntry | null>(null);
   const [loadingState, setLoadingState] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
-  const [quality, setQuality] = useState("neutral");
-  const [location, setLocation] = useState("neutral");
+  const [biddingIntent, setBiddingIntent] = useState<BiddingIntent | "">("");
   const [notes, setNotes] = useState("");
 
   useEffect(() => {
@@ -60,18 +48,18 @@ export function MarkSeenButton({ analysisId, address, onSeenEntry, onChanged }: 
         const rows: SeenEntry[] = data.seen_properties ?? [];
         const entry = rows.length > 0 ? rows[0] : null;
         setSeenEntry(entry);
-        onSeenEntry?.(entry?.composite_score ?? null);
+        onSeenEntry?.(entry?.bidding_intent ?? null);
       })
       .catch(() => {})
       .finally(() => setLoadingState(false));
   }, [analysisId, user]);
 
   const { mutate: submitMutation, loading: submitting } = useMutation(
-    (formData: { quality: string; location: string; notes: string | null }) =>
-      apiClient.markSeen(analysisId, formData.quality, formData.location, formData.notes),
+    (formData: { biddingIntent: BiddingIntent; notes: string | null }) =>
+      apiClient.markSeen(analysisId, formData.biddingIntent, formData.notes),
     (result) => {
       setSeenEntry(result);
-      onSeenEntry?.(result.composite_score);
+      onSeenEntry?.(result.bidding_intent);
       onChanged?.();
       setModalOpen(false);
       toast.success("Property marked as seen.");
@@ -95,8 +83,12 @@ export function MarkSeenButton({ analysisId, address, onSeenEntry, onChanged }: 
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (biddingIntent === "") {
+      toast.error("Please choose Yes or No.");
+      return;
+    }
     try {
-      await submitMutation({ quality, location, notes: notes.trim() || null });
+      await submitMutation({ biddingIntent, notes: notes.trim() || null });
     } catch (err) {
       if ((err as Error).message === "ALREADY_SEEN") {
         toast.error("Already marked as seen.");
@@ -115,16 +107,17 @@ export function MarkSeenButton({ analysisId, address, onSeenEntry, onChanged }: 
   }
 
   function openModal() {
-    setQuality("neutral");
-    setLocation("neutral");
+    setBiddingIntent("");
     setNotes("");
     setModalOpen(true);
   }
 
-  const scoreLabel =
-    seenEntry
-      ? `${seenEntry.quality} / ${seenEntry.location}`
-      : null;
+  const intentLabel =
+    seenEntry?.bidding_intent === "yes"
+      ? "Would bid"
+      : seenEntry?.bidding_intent === "no"
+        ? "Skip"
+        : null;
 
   return (
     <>
@@ -133,14 +126,18 @@ export function MarkSeenButton({ analysisId, address, onSeenEntry, onChanged }: 
           type="button"
           aria-label="Seen"
           onClick={handleUnmark}
-          title={`Seen — Quality: ${seenEntry.quality}, Location: ${seenEntry.location}\nClick to unmark`}
+          title={
+            intentLabel
+              ? `Seen — ${intentLabel}\nClick to unmark`
+              : "Seen\nClick to unmark"
+          }
           className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-white px-3 py-1.5 text-xs font-semibold text-emerald-600 shadow-sm hover:bg-[var(--bg)] transition-colors"
         >
           <Eye size={12} />
           Seen
-          {scoreLabel && (
+          {intentLabel && (
             <span className="ml-0.5 text-[var(--ink-muted)] font-normal">
-              ({scoreLabel})
+              ({intentLabel})
             </span>
           )}
         </button>
@@ -160,7 +157,7 @@ export function MarkSeenButton({ analysisId, address, onSeenEntry, onChanged }: 
         <div
           role="dialog"
           aria-modal="true"
-          aria-label="Rate this property"
+          aria-label="Mark this property as seen"
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
           onClick={(e) => {
             if (e.target === e.currentTarget) setModalOpen(false);
@@ -174,53 +171,52 @@ export function MarkSeenButton({ analysisId, address, onSeenEntry, onChanged }: 
               {address}
             </p>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label
-                  htmlFor="quality-select"
-                  className="mb-1 block text-xs font-semibold text-[var(--ink)]"
-                >
-                  Quality
-                </label>
-                <p className="mb-1.5 text-xs text-[var(--ink-muted)]">
-                  Roof, foundation, fixtures, water damage, build quality…
+              <fieldset>
+                <legend className="mb-1 block text-xs font-semibold text-[var(--ink)]">
+                  Would you make an offer on this property?
+                </legend>
+                <p className="mb-2 text-xs text-[var(--ink-muted)]">
+                  Your overall judgment — would you actually bid?
                 </p>
-                <select
-                  id="quality-select"
-                  value={quality}
-                  onChange={(e) => setQuality(e.target.value)}
-                  className="w-full rounded-lg border border-[var(--line)] bg-white px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--navy)]"
-                >
-                  {QUALITY_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label
-                  htmlFor="location-select"
-                  className="mb-1 block text-xs font-semibold text-[var(--ink)]"
-                >
-                  Location
-                </label>
-                <p className="mb-1.5 text-xs text-[var(--ink-muted)]">
-                  Walkability, transit, noise, hills, surroundings…
-                </p>
-                <select
-                  id="location-select"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  className="w-full rounded-lg border border-[var(--line)] bg-white px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--navy)]"
-                >
-                  {LOCATION_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <label
+                    className={[
+                      "cursor-pointer rounded-lg border px-3 py-2 text-center text-sm font-semibold transition-colors",
+                      biddingIntent === "yes"
+                        ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                        : "border-[var(--line)] bg-white text-[var(--ink-muted)] hover:bg-[var(--bg)]",
+                    ].join(" ")}
+                  >
+                    <input
+                      type="radio"
+                      name="bidding-intent"
+                      value="yes"
+                      checked={biddingIntent === "yes"}
+                      onChange={() => setBiddingIntent("yes")}
+                      className="sr-only"
+                    />
+                    Yes — I'd bid
+                  </label>
+                  <label
+                    className={[
+                      "cursor-pointer rounded-lg border px-3 py-2 text-center text-sm font-semibold transition-colors",
+                      biddingIntent === "no"
+                        ? "border-[var(--ink)] bg-[var(--bg)] text-[var(--ink)]"
+                        : "border-[var(--line)] bg-white text-[var(--ink-muted)] hover:bg-[var(--bg)]",
+                    ].join(" ")}
+                  >
+                    <input
+                      type="radio"
+                      name="bidding-intent"
+                      value="no"
+                      checked={biddingIntent === "no"}
+                      onChange={() => setBiddingIntent("no")}
+                      className="sr-only"
+                    />
+                    No — skip
+                  </label>
+                </div>
+              </fieldset>
 
               <div>
                 <label

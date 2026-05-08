@@ -69,6 +69,7 @@ def _seen_to_dict(sp: SeenProperty) -> dict:
         "quality": sp.quality,
         "location": sp.location,
         "composite_score": sp.composite_score,
+        "bidding_intent": sp.bidding_intent,
         "seen_at": sp.seen_at.isoformat() if sp.seen_at else None,
         "notes": sp.notes,
     }
@@ -86,7 +87,13 @@ async def _get_plan_status(plan: BuyingPlan, db: AsyncSession) -> tuple[dict, li
 
     status = plan_status(
         explore_threshold=plan.explore_threshold,
-        seen_properties=[{"composite_score": sp.composite_score} for sp in seen_rows],
+        seen_properties=[
+            {
+                "composite_score": sp.composite_score,
+                "bidding_intent": sp.bidding_intent,
+            }
+            for sp in seen_rows
+        ],
     )
     status["explore_threshold"] = plan.explore_threshold
     return status, seen_dicts

@@ -3,6 +3,7 @@ import { apiBase } from "./api";
 const TOKEN_KEY = "hb_token";
 
 export function getToken(): string | null {
+  if (typeof window === "undefined") return null;
   return localStorage.getItem(TOKEN_KEY);
 }
 

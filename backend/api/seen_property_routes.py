@@ -1,4 +1,4 @@
-"""API routes for marking properties as seen (quality + location ratings)."""
+"""API routes for marking properties as seen (binary bidding-intent rating)."""
 
 from datetime import datetime
 
@@ -8,7 +8,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.auth import current_active_user
-from buying_plan.logic import QUALITY_SCALE, LOCATION_SCALE, composite_score
+from buying_plan.logic import (
+    BIDDING_INTENT_VALUES,
+    LOCATION_SCALE,
+    QUALITY_SCALE,
+    composite_score_from_intent,
+)
 from db import get_db
 from db.models import Analysis, SeenProperty, User
 
@@ -17,9 +22,22 @@ seen_property_router = APIRouter()
 
 class MarkSeenRequest(BaseModel):
     analysis_id: int
-    quality: str
-    location: str
+    bidding_intent: str
+    # quality and location accept legacy clients but are no longer surfaced in
+    # the new UI. Default "neutral" keeps the legacy NOT NULL columns satisfied
+    # without a destructive schema migration.
+    quality: str = "neutral"
+    location: str = "neutral"
     notes: str | None = None
+
+    @field_validator("bidding_intent")
+    @classmethod
+    def validate_bidding_intent(cls, v: str) -> str:
+        if v not in BIDDING_INTENT_VALUES:
+            raise ValueError(
+                f"bidding_intent must be one of {sorted(BIDDING_INTENT_VALUES)}"
+            )
+        return v
 
     @field_validator("quality")
     @classmethod
@@ -44,6 +62,7 @@ def _seen_property_to_dict(sp: SeenProperty) -> dict:
         "quality": sp.quality,
         "location": sp.location,
         "composite_score": sp.composite_score,
+        "bidding_intent": sp.bidding_intent,
         "seen_at": sp.seen_at.isoformat() if sp.seen_at else None,
         "notes": sp.notes,
     }
@@ -55,14 +74,12 @@ async def mark_seen(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(current_active_user),
 ):
-    """Mark an analysis as physically seen, capturing quality and location ratings."""
-    # Look up the analysis to snapshot its address.
+    """Mark an analysis as physically seen, capturing the user's binary bidding intent."""
     result = await db.execute(select(Analysis).where(Analysis.id == body.analysis_id))
     analysis = result.scalar_one_or_none()
     if analysis is None:
         raise HTTPException(status_code=404, detail="Analysis not found")
 
-    # Check for duplicate (same user, same analysis).
     dup_result = await db.execute(
         select(SeenProperty).where(
             SeenProperty.user_id == user.id,
@@ -72,13 +89,12 @@ async def mark_seen(
     if dup_result.scalar_one_or_none() is not None:
         raise HTTPException(status_code=409, detail="This analysis has already been marked as seen")
 
-    # Snapshot the address from the listing.
     from db.models import Listing
     listing_result = await db.execute(select(Listing).where(Listing.id == analysis.listing_id))
     listing = listing_result.scalar_one_or_none()
     address_snapshot = listing.address_input if listing else str(body.analysis_id)
 
-    score = composite_score(body.quality, body.location)
+    score = composite_score_from_intent(body.bidding_intent)
     sp = SeenProperty(
         user_id=user.id,
         analysis_id=body.analysis_id,
@@ -86,6 +102,7 @@ async def mark_seen(
         quality=body.quality,
         location=body.location,
         composite_score=score,
+        bidding_intent=body.bidding_intent,
         seen_at=datetime.utcnow(),
         notes=body.notes,
     )

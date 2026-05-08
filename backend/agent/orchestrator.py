@@ -272,6 +272,7 @@ async def _persist_analysis(
     buyer_context: str = "",
     user_id=None,
     inspection_findings: dict | None = None,
+    validation_result: dict | None = None,
 ) -> int:
     """Write Listing, Analysis, and Comp records to DB and return analysis id."""
     from sqlalchemy import select
@@ -343,6 +344,7 @@ async def _persist_analysis(
         renovation_data_json=json.dumps(renovation_result) if renovation_result else None,
         crime_data_json=json.dumps(crime_result) if crime_result else None,
         inspection_data_json=json.dumps(inspection_findings) if inspection_findings else None,
+        validation_data_json=json.dumps(validation_result) if validation_result else None,
         buyer_context=buyer_context or None,
         user_id=user_id,
     )
@@ -460,6 +462,10 @@ async def _stream_cached_analysis(analysis) -> AsyncIterator[str]:
         data = json.loads(analysis.crime_data_json)
         yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'fetch_crime_data', 'input': {}})}\n\n"
         yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'fetch_crime_data', 'result': data})}\n\n"
+
+    if analysis.validation_data_json:
+        data = json.loads(analysis.validation_data_json)
+        yield f"data: {json.dumps({'type': 'validation_result', 'result': data})}\n\n"
 
     if analysis.rationale:
         yield f"data: {json.dumps({'type': 'text', 'text': analysis.rationale})}\n\n"
@@ -768,6 +774,7 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
     final_text_parts: list[str] = []
     # Validation mode: set when subject property was itself recently sold
     subject_sale_data: dict | None = None
+    validation_payload: dict | None = None
 
     # Data-gathering tools Claude is allowed to call
     DATA_TOOLS = [t for t in TOOLS if t["name"] in ("lookup_property_by_address", "fetch_neighborhood_context", "fetch_comps")]
@@ -840,6 +847,7 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
                         buyer_context=buyer_context,
                         user_id=user_id,
                         inspection_findings=inspection_findings,
+                        validation_result=validation_payload,
                     )
                     log.info("Analysis persisted: id=%d", analysis_id)
                     yield f"data: {json.dumps({'type': 'analysis_id', 'id': analysis_id})}\n\n"
@@ -948,6 +956,7 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
                             estimate, actual, error_pct, within_ci,
                         )
                         yield f"data: {json.dumps({'type': 'validation_result', 'result': validation_payload})}\n\n"
+                    # else: subject sold but estimate unavailable — don't persist partial data
 
                 # Phase 7: risk assessment
                 yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'assess_risk', 'input': {}})}\n\n"

@@ -213,7 +213,8 @@ async def test_get_plan_returns_plan_and_status(client):
 
 
 async def test_get_plan_status_reflects_seen_properties(client):
-    """Status seen_count increments as properties are marked seen."""
+    """Status seen_count increments as properties are marked seen, and a Yes
+    intent flips explore_max_score to 1.0."""
     token, user_id = await _register_and_login(client, "withseen@test.com")
     await _upgrade_to_investor(user_id)
 
@@ -222,13 +223,35 @@ async def test_get_plan_status_reflects_seen_properties(client):
     analysis_id = await _seed_analysis(user_id=uuid.UUID(user_id), address="5 Seen St, SF, CA 94110")
     await client.post(
         "/api/seen-properties",
-        json={"analysis_id": analysis_id, "quality": "good", "location": "good"},
+        json={"analysis_id": analysis_id, "bidding_intent": "yes"},
         headers=_AUTH(token),
     )
 
     resp = await client.get("/api/buying-plan", headers=_AUTH(token))
-    assert resp.json()["status"]["seen_count"] == 1
-    assert resp.json()["status"]["explore_max_score"] == pytest.approx(0.875)
+    body = resp.json()
+    assert body["status"]["seen_count"] == 1
+    # Binary: any Yes during explore → explore_max_score = 1.0
+    assert body["status"]["explore_max_score"] == pytest.approx(1.0)
+    # bidding_intent round-trips on the seen_properties payload.
+    assert body["seen_properties"][0]["bidding_intent"] == "yes"
+
+
+async def test_get_plan_status_no_intent_does_not_qualify(client):
+    """A 'no' bidding intent does not raise explore_max_score off zero."""
+    token, user_id = await _register_and_login(client, "withno@test.com")
+    await _upgrade_to_investor(user_id)
+
+    await client.post("/api/buying-plan", json=_BASE_PAYLOAD, headers=_AUTH(token))
+
+    analysis_id = await _seed_analysis(user_id=uuid.UUID(user_id), address="6 No St, SF, CA 94110")
+    await client.post(
+        "/api/seen-properties",
+        json={"analysis_id": analysis_id, "bidding_intent": "no"},
+        headers=_AUTH(token),
+    )
+
+    resp = await client.get("/api/buying-plan", headers=_AUTH(token))
+    assert resp.json()["status"]["explore_max_score"] == pytest.approx(0.0)
 
 
 async def test_get_plan_buyer_can_still_get(client):
