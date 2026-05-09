@@ -324,16 +324,14 @@ describe("PermalinkPage", () => {
     upgradeLinks.forEach(link => expect(link).toHaveAttribute("href", "/pricing"));
   });
 
-  it("shows AffordabilityCalculatorCard for investor and teaser for buyer on Market tab", async () => {
-    // Investor sees full calculator
+  it("shows AffordabilityCalculatorCard for investor and teaser for buyer on Decision tab", async () => {
+    // Investor sees full calculator on the default Decision tab
     mockUseAuth.mockReturnValue({ user: { id: "u1", subscription_tier: "investor" }, isLoading: false });
     const detail = { ...ANALYSIS_DETAIL, investment_data: INVESTMENT_DATA };
     vi.mocked(fetch).mockResolvedValueOnce(
       new Response(JSON.stringify(detail), { status: 200 })
     );
     renderPage();
-    await waitFor(() => expect(screen.getByRole("tab", { name: /market/i })).toBeInTheDocument());
-    await userEvent.click(screen.getByRole("tab", { name: /market/i }));
     await waitFor(() =>
       expect(screen.getByText(/affordability calculator/i)).toBeInTheDocument()
     );

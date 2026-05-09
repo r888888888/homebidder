@@ -28,6 +28,22 @@ export function computeMonthlyPMI(loan: number): number {
   return loan * (PMI_ANNUAL_PCT / 100 / 12);
 }
 
+export function computeMonthlyHousingCost(
+  price: number,
+  downPayment: number,
+  targetRatePct: number
+): number {
+  if (price <= 0) return 0;
+  const r = targetRatePct / 100 / 12;
+  const M = amortizationFactor(r);
+  const loan = Math.max(0, price - downPayment);
+  const dpPct = downPayment / price;
+  const pmi_m = dpPct < MIN_DP_PCT_NO_PMI ? PMI_ANNUAL_PCT / 100 / 12 : 0;
+  const tax_m = PROPERTY_TAX_ANNUAL_PCT / 100 / 12;
+  const ins_m = INSURANCE_ANNUAL_PCT / 100 / 12;
+  return loan * (M + pmi_m) + price * (tax_m + ins_m);
+}
+
 export interface AffordabilityResult {
   maxPrice: number;
   regime: "no_pmi" | "with_pmi" | "boundary";

@@ -3,6 +3,7 @@ import {
   getDtiCap,
   computeMaxPurchasePrice,
   computeMonthlyPMI,
+  computeMonthlyHousingCost,
   DEFAULT_RATE_FALLBACK_PCT,
   PROPERTY_TAX_ANNUAL_PCT,
   INSURANCE_ANNUAL_PCT,
@@ -316,6 +317,33 @@ describe("computeMonthlyPMI", () => {
 
   it("returns 0 for zero loan", () => {
     expect(computeMonthlyPMI(0)).toBe(0);
+  });
+});
+
+describe("computeMonthlyHousingCost", () => {
+  it("computes PITI for a 20%+ down payment (no PMI)", () => {
+    // 920k price, 200k down (21.7% dp), 6.5% rate → no PMI
+    const cost = computeMonthlyHousingCost(920_000, 200_000, 6.5);
+    // loan=720k × M(6.5%) ≈ 4552 + 920k × (1.2%+0.35%)/12 ≈ 1189 → ~5741
+    expect(cost).toBeGreaterThan(5_500);
+    expect(cost).toBeLessThan(6_000);
+  });
+
+  it("larger down payment produces lower monthly cost", () => {
+    const smallDown = computeMonthlyHousingCost(920_000, 50_000, 6.5);
+    const largeDown = computeMonthlyHousingCost(920_000, 400_000, 6.5);
+    expect(largeDown).toBeLessThan(smallDown);
+  });
+
+  it("includes PMI premium when dp < 20%", () => {
+    // 920k price, 50k down (5.4%) → PMI on 870k loan ≈ 507/mo extra
+    const withPmi = computeMonthlyHousingCost(920_000, 50_000, 6.5);
+    const noPmi = computeMonthlyHousingCost(920_000, 200_000, 6.5);
+    expect(withPmi).toBeGreaterThan(noPmi + 400);
+  });
+
+  it("returns 0 for zero price", () => {
+    expect(computeMonthlyHousingCost(0, 0, 6.5)).toBe(0);
   });
 });
 

@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { useAuth } from "../lib/AuthContext";
 import {
   computeMaxPurchasePrice,
+  computeMonthlyHousingCost,
   getDtiCap,
   DEFAULT_RATE_FALLBACK_PCT,
 } from "../lib/affordability";
@@ -66,16 +67,16 @@ export function AffordabilityCalculatorCard({ investment, offer }: Props) {
 
   const dtiPct = hasIncome ? Math.round(getDtiCap(annualIncome) * 100) : 36;
 
+  const referencePrice = offer?.offer_recommended ?? offer?.list_price ?? null;
+
   const propertyMonthlyCost =
-    investment.monthly_buy_cost != null
-      ? investment.monthly_buy_cost + monthlyHOA
+    referencePrice != null
+      ? computeMonthlyHousingCost(referencePrice, downPayment, targetRatePct) + monthlyHOA
       : null;
   const monthlyDelta =
     propertyMonthlyCost != null && hasIncome && !result.debtsBlown
       ? result.hMax - propertyMonthlyCost
       : null;
-
-  const referencePrice = offer?.offer_recommended ?? offer?.list_price ?? null;
   const priceGap =
     referencePrice != null && hasIncome && !result.debtsBlown && !result.downPaymentExceedsMax
       ? result.maxPrice - referencePrice

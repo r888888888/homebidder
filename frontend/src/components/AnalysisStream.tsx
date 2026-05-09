@@ -205,7 +205,7 @@ export function AnalysisStream({ events, isRunning }: Props) {
   const analysisIdEvent = events.find((e) => e.type === "analysis_id");
 
   const tabHasContent: Record<TabId, boolean> = {
-    decision: offerData != null || renovationData != null,
+    decision: offerData != null || renovationData != null || investmentData != null,
     property: propertyData != null || neighborhoodData != null,
     market: compsData != null || investmentData != null,
     risk: riskData != null || permitsData != null,
@@ -240,6 +240,11 @@ export function AnalysisStream({ events, isRunning }: Props) {
               />
             ) : (
               isRunning && <PanelSkeleton label="Analyzing renovation potential…" />
+            )}
+            {investmentData && (
+              isInvestorPlus
+                ? <AffordabilityCalculatorCard investment={investmentData} offer={offerData} />
+                : <AffordabilityCalculatorTeaserCard />
             )}
           </div>
         )}
@@ -290,11 +295,6 @@ export function AnalysisStream({ events, isRunning }: Props) {
               isInvestorPlus
                 ? <InvestmentCard investment={investmentData} />
                 : <InvestmentTeaserCard investment={investmentData} />
-            )}
-            {investmentData && (
-              isInvestorPlus
-                ? <AffordabilityCalculatorCard investment={investmentData} offer={offerData} />
-                : <AffordabilityCalculatorTeaserCard />
             )}
           </div>
         )}

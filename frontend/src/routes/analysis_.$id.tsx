@@ -372,6 +372,11 @@ export function PermalinkPage() {
                   initialDisabledIndices={renovationData.disabled_indices ?? []}
                 />
               )}
+              {analysis.investment_data && (
+                isInvestorPlus
+                  ? <AffordabilityCalculatorCard investment={analysis.investment_data} offer={analysis.offer_data} />
+                  : <AffordabilityCalculatorTeaserCard />
+              )}
             </div>
           )}
         </div>
@@ -433,11 +438,6 @@ export function PermalinkPage() {
                 isInvestorPlus
                   ? <InvestmentCard investment={analysis.investment_data} />
                   : <InvestmentTeaserCard investment={analysis.investment_data} />
-              )}
-              {analysis.investment_data && (
-                isInvestorPlus
-                  ? <AffordabilityCalculatorCard investment={analysis.investment_data} offer={analysis.offer_data} />
-                  : <AffordabilityCalculatorTeaserCard />
               )}
             </div>
           )}

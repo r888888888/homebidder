@@ -183,6 +183,46 @@ const FAQ_SECTIONS: FAQSection[] = [
     ],
   },
   {
+    title: "Affordability Calculator",
+    items: [
+      {
+        question: "How does the affordability calculator work?",
+        answer:
+          "The affordability calculator back-solves your maximum purchase price from your personal financial profile — annual income, monthly debts, down payment, and target mortgage rate — using the same PITI components as the investment analysis (principal & interest, property tax at 1.2%, homeowner's insurance at 0.35%). It then compares that max price against the property's recommended offer price and shows a monthly budget comparison. To see it on any analysis, set up your financial profile on the Profile page; it is available to Investor and Agent plan subscribers.",
+      },
+      {
+        question: "What DTI cap does HomeBidder use, and why is it tiered?",
+        answer:
+          "HomeBidder uses income-tiered debt-to-income caps rather than a flat percentage: 36% for incomes below $100k, 40% for $100k–$199k, 43% for $200k–$299k, and 45% for $300k and above. Fixed living expenses — food, transport, healthcare — do not scale linearly with income, so higher-income households can genuinely sustain a larger share of income toward housing without financial strain. These tiers are informed by conventional and jumbo underwriting practice (the 43% qualified-mortgage cap, Fannie Mae DU norms) but are a HomeBidder product judgment for HCOL Bay Area buyers, not a regulatory standard. The percentage is applied to gross (pre-tax) income — the same convention lenders use, since gross income is verifiable from W-2s and tax returns and is consistent across borrowers regardless of withholding.",
+      },
+      {
+        question: "How is the max purchase price calculated?",
+        answer:
+          "The calculator first computes your maximum monthly housing budget: DTI cap × (annual income ÷ 12) minus monthly debts minus property HOA. It then back-solves for the purchase price P whose full PITI payment equals that budget. Because PMI applies when your down payment is less than 20% of P, two regimes are solved simultaneously — one assuming no PMI and one assuming PMI at 0.7% annually — and the self-consistent result is used. If the 20%-down threshold sits exactly between the two regime answers, the maximum price is set to down payment ÷ 0.20 (the boundary case). The result is rounded to the nearest $1,000.",
+      },
+      {
+        question: "What does the monthly comparison show?",
+        answer:
+          "The monthly comparison shows this specific property's estimated PITI — computed from the recommended offer price using your actual down payment and target rate — plus any HOA fee, versus your maximum monthly housing budget. When the property fits within your budget the comparison is shown in green with the margin; when it exceeds your budget it is shown in amber with the overage. Unlike the server-computed monthly buy cost shown in the Investment tab (which uses standard assumptions), this comparison reflects your real down payment, so a larger down payment produces a meaningfully lower monthly figure.",
+      },
+      {
+        question: "What happens if my debts or HOA exceed my DTI budget?",
+        answer:
+          "If your existing monthly debts plus the property HOA already equal or exceed your DTI cap times your monthly income, there is no remaining budget for a mortgage payment. The calculator shows an inline message — 'Your monthly debts and HOA exceed the maximum housing budget at the X% DTI cap' — and suppresses the max price and gap outputs. Reducing debts or choosing a property with lower HOA will resolve this.",
+      },
+      {
+        question: "What should I include in Monthly debts?",
+        answer:
+          "Enter the sum of your minimum monthly payments on all non-housing debt — car loans, student loans, personal loans, and the minimum monthly payment shown on each credit card statement. Do not enter your total monthly card spending; lenders use the minimum payment, not what you actually pay. A card you pay in full each month still has a minimum payment listed on the statement, typically around 1–2% of the balance. If you carry no revolving balances, enter zero. Note: alimony or child support obligations should also be included if applicable, as lenders count these as recurring debt in DTI calculations.",
+      },
+      {
+        question: "Where do I set my income, debts, down payment, and rate?",
+        answer:
+          "These four fields live in the Affordability Defaults card on your Profile page. They are saved to your account so every analysis you open automatically uses your current financial profile — you do not need to re-enter them each time. The property HOA is the only field set per-analysis (prefilled from listing data when available) because it varies by property. You can update your profile at any time and the calculator on all open analyses will reflect the change.",
+      },
+    ],
+  },
+  {
     title: "Saved Analyses & Tracking",
     items: [
       {

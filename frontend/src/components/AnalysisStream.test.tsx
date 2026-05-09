@@ -793,20 +793,18 @@ describe("AnalysisStream — affordability calculator tier gating", () => {
     },
   ];
 
-  it("shows AffordabilityCalculatorCard for investor user on Market tab", async () => {
+  it("shows AffordabilityCalculatorCard for investor user on Decision tab", async () => {
     const user = userEvent.setup();
     mockUseAuth.mockReturnValue({ user: { id: "u1", subscription_tier: "investor" }, isLoading: false });
     render(<AnalysisStream events={investmentEvents} isRunning={false} />);
-    await user.click(screen.getByRole("tab", { name: /market/i }));
     expect(screen.getByText(/affordability calculator/i)).toBeInTheDocument();
     expect(screen.queryByText(/unlock affordability calculator/i)).not.toBeInTheDocument();
   });
 
-  it("shows AffordabilityCalculatorTeaserCard for buyer user on Market tab", async () => {
+  it("shows AffordabilityCalculatorTeaserCard for buyer user on Decision tab", async () => {
     const user = userEvent.setup();
     mockUseAuth.mockReturnValue({ user: { id: "u2", subscription_tier: "buyer" }, isLoading: false });
     render(<AnalysisStream events={investmentEvents} isRunning={false} />);
-    await user.click(screen.getByRole("tab", { name: /market/i }));
     expect(screen.getByText(/unlock affordability calculator/i)).toBeInTheDocument();
     const links = screen.getAllByRole("link", { name: /upgrade to investor/i });
     links.forEach(link => expect(link).toHaveAttribute("href", "/pricing"));

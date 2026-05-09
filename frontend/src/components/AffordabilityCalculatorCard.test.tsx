@@ -133,11 +133,11 @@ describe("AffordabilityCalculatorCard", () => {
     expect(screen.getByTestId("monthly-comparison").textContent).toMatch(/over your max/i);
   });
 
-  it("monthly comparison is hidden when monthly_buy_cost is null", () => {
+  it("monthly comparison is hidden when both offer prices are null", () => {
     render(
       <AffordabilityCalculatorCard
-        investment={{ ...BASE_INVESTMENT, monthly_buy_cost: null }}
-        offer={BASE_OFFER}
+        investment={BASE_INVESTMENT}
+        offer={{ ...BASE_OFFER, offer_recommended: null, list_price: null }}
       />
     );
 
