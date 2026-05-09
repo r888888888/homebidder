@@ -5,6 +5,27 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+## [1.16.0] - 2026-05-08
+
+### Added
+- DTI-based affordability calculator (Investor+ tier) — personalized max purchase price back-solved from annual income, monthly debts, down payment, and target rate using income-tiered DTI caps (36/40/43/45%); accounts for PMI when down payment implies sub-20% LTV; shown on the Decision tab of every analysis
+- Affordability profile fields — annual income, monthly debts, down payment, and target mortgage rate saved to user account on the Profile page; used automatically across all analyses without re-entry
+- Side-by-side comparison view for favorited analyses — compare any two saved analyses head-to-head on the Favorites page
+- Pause/resume for active Buying Plan — users can pause and resume an active Buying Plan from the plan page without losing their seen-property history
+- Set up Buying Plan button on Profile page for Investor/Agent users — resets onboarding state and navigates to /welcome to restart plan setup
+
+### Changed
+- Monthly housing cost comparison in the affordability calculator uses the user's actual down payment and rate rather than the server-computed default assumptions, so larger down payments correctly produce lower monthly figures
+- Affordability calculator placed on the Decision tab (previously Market tab)
+- Comps lookup window widened to 180 days with per-comp recency weighting
+- Analysis detail page header buttons decluttered
+- FAQ expanded with Affordability Calculator section (7 entries covering DTI tiers, gross vs. net income, monthly debts guidance, max price methodology, PMI, and profile setup) and Buying Plan goal entry
+
+### Fixed
+- Multi-family detection no longer triggers on "upper/lower level" phrases in listing descriptions
+- forceRefresh made robust; toast confirmation shown on manual refresh
+- Toast success method added so mark-seen confirmation displays correctly
+
 ## [1.15.0] - 2026-05-05
 
 ### Added
