@@ -477,6 +477,7 @@ async def fetch_ba_value_drivers(
     property: dict[str, Any],
     zip_code: str,
     user_id=None,
+    is_bay_area: bool = True,
 ) -> dict[str, Any]:
     """Compute Bay Area-specific value drivers with no external paid APIs."""
     lot_size = property.get("lot_size")
@@ -531,7 +532,7 @@ async def fetch_ba_value_drivers(
     muni_distance_miles: float | None = None
     nearby_schools: list[dict[str, Any]] = []
 
-    if lat is not None and lon is not None:
+    if is_bay_area and lat is not None and lon is not None:
         bart = await _fetch_bart_stations()
         caltrain = [
             {"name": s.get("name"), "lat": s.get("lat"), "lon": s.get("lon"), "system": "Caltrain"}
@@ -568,4 +569,5 @@ async def fetch_ba_value_drivers(
         "transit_system": nearest_system,
         "transit_premium_likely": transit_premium_likely,
         "nearby_schools": nearby_schools,
+        "is_bay_area": is_bay_area,
     }

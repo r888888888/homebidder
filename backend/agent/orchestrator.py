@@ -39,6 +39,11 @@ MODEL_NARRATIVE = "claude-opus-4-6"
 # Cached analyses older than this are considered stale and re-run live.
 CACHE_TTL_DAYS = 7
 
+_BAY_AREA_COUNTIES = frozenset({
+    "san francisco", "san mateo", "santa clara", "alameda",
+    "contra costa", "marin", "sonoma", "napa", "solano",
+})
+
 
 def _insert_unit_into_address(address_matched: str, unit: str) -> str:
     """
@@ -587,6 +592,7 @@ async def _run_phase8_investment(
     user_id=None,
     market_stats: dict | None = None,
     buyer_context: str = "",
+    is_bay_area: bool = True,
 ) -> AsyncIterator[str]:
     """
     Phase 8 — fetch mortgage rates + BA value drivers in parallel, then compute
@@ -604,7 +610,7 @@ async def _run_phase8_investment(
 
     phase8_results = await asyncio.gather(
         fetch_mortgage_rates(),
-        fetch_ba_value_drivers(listing, listing_zip, user_id=user_id),
+        fetch_ba_value_drivers(listing, listing_zip, user_id=user_id, is_bay_area=is_bay_area),
         return_exceptions=True,
     )
 
@@ -757,6 +763,7 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
 
     # State tracked across turns
     property_result: dict | None = None
+    is_bay_area: bool = True  # default; overridden after lookup_property_by_address resolves
     neighborhood_result: dict | None = None
     phase6_trends: dict | None = None
     phase6_fhfa: dict | None = None
@@ -909,6 +916,8 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
 
             if "lookup_property_by_address" in dispatched:
                 property_result = dispatched["lookup_property_by_address"]
+                _county = str(property_result.get("county") or "").strip().lower()
+                is_bay_area = _county in _BAY_AREA_COUNTIES
 
                 phase6_state: dict = {}
                 async for chunk in _run_phase6(property_result, phase6_state):
@@ -981,6 +990,7 @@ async def run_agent(address: str, buyer_context: str = "", db: AsyncSession | No
                     user_id=user_id,
                     market_stats=market_stats,
                     buyer_context=buyer_context,
+                    is_bay_area=is_bay_area,
                 ):
                     yield chunk
                 phase8_investment = phase8_state.get("investment")

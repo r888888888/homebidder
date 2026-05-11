@@ -176,4 +176,41 @@ describe("InvestmentCard", () => {
     expect(screen.queryByText(/rent control/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/nearest transit/i)).not.toBeInTheDocument();
   });
+
+  it("shows non-Bay Area notice when is_bay_area is false", () => {
+    render(
+      <InvestmentCard
+        investment={{
+          ...BASE,
+          is_bay_area: false,
+          nearest_bart_station: null,
+          bart_distance_miles: null,
+          nearest_muni_stop: null,
+          muni_distance_miles: null,
+          transit_premium_likely: false,
+          nearby_schools: [],
+        }}
+      />
+    );
+
+    expect(
+      screen.getByText(/transit and school data are only available for sf bay area properties/i)
+    ).toBeInTheDocument();
+  });
+
+  it("does not show non-Bay Area notice when is_bay_area is true", () => {
+    render(<InvestmentCard investment={{ ...BASE, is_bay_area: true }} />);
+
+    expect(
+      screen.queryByText(/only available for sf bay area/i)
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not show non-Bay Area notice when is_bay_area is undefined", () => {
+    render(<InvestmentCard investment={BASE} />);
+
+    expect(
+      screen.queryByText(/only available for sf bay area/i)
+    ).not.toBeInTheDocument();
+  });
 });

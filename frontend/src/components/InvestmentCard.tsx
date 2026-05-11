@@ -32,6 +32,7 @@ export interface InvestmentData {
   muni_distance_miles: number | null;
   transit_premium_likely: boolean;
   nearby_schools: NearbySchool[];
+  is_bay_area?: boolean;
 }
 
 interface Props {
@@ -195,6 +196,12 @@ export function InvestmentCard({ investment }: Props) {
               % students meeting/exceeding CA standards (CAASPP). Green ≥60%, yellow 40–59%, red &lt;40%.
             </p>
           </div>
+        )}
+
+        {investment.is_bay_area === false && (
+          <p className="text-xs text-[var(--ink-muted)]">
+            Transit and school data are only available for SF Bay Area properties.
+          </p>
         )}
 
         <p className="text-xs text-[var(--ink-muted)]">

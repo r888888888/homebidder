@@ -973,3 +973,88 @@ class TestSecondUnitRentEstimate:
             result = await fetch_ba_value_drivers(property_data, "94601")
 
         assert result.get("second_unit_rent_estimate") is not None
+
+
+class TestNonBayAreaProperties:
+    """fetch_ba_value_drivers with is_bay_area=False skips transit and schools."""
+
+    _AUSTIN_TX_PROPERTY = {
+        "property_type": "SINGLE_FAMILY",
+        "lot_size": 5000,
+        "city": "Austin",
+        "year_built": 2005,
+        "latitude": 30.2672,
+        "longitude": -97.7431,
+    }
+
+    async def test_non_bay_area_skips_transit_lookups(self):
+        from agent.tools.ba_value_drivers import fetch_ba_value_drivers
+
+        with patch("agent.tools.ba_value_drivers._fetch_zip_median_rent", new=AsyncMock(return_value=2800.0)), \
+             patch("agent.tools.ba_value_drivers._fetch_bart_stations", side_effect=AssertionError("should not fetch BART for non-Bay Area")), \
+             patch("agent.tools.ba_value_drivers._load_caltrain_stations", side_effect=AssertionError("should not load Caltrain for non-Bay Area")):
+            result = await fetch_ba_value_drivers(self._AUSTIN_TX_PROPERTY, "78701", is_bay_area=False)
+
+        assert result["nearest_bart_station"] is None
+        assert result["bart_distance_miles"] is None
+        assert result["nearest_muni_stop"] is None
+        assert result["muni_distance_miles"] is None
+        assert result["nearest_transit_station"] is None
+        assert result["transit_distance_miles"] is None
+        assert result["transit_system"] is None
+        assert result["transit_premium_likely"] is False
+
+    async def test_non_bay_area_skips_schools_lookup(self):
+        from agent.tools.ba_value_drivers import fetch_ba_value_drivers
+
+        with patch("agent.tools.ba_value_drivers._fetch_zip_median_rent", new=AsyncMock(return_value=2800.0)), \
+             patch("agent.tools.ba_value_drivers._load_schools", side_effect=AssertionError("should not load schools for non-Bay Area")):
+            result = await fetch_ba_value_drivers(self._AUSTIN_TX_PROPERTY, "78701", is_bay_area=False)
+
+        assert result["nearby_schools"] == []
+
+    async def test_non_bay_area_still_computes_rent_and_adu(self):
+        from agent.tools.ba_value_drivers import fetch_ba_value_drivers
+
+        with patch("agent.tools.ba_value_drivers._fetch_zip_median_rent", new=AsyncMock(return_value=2800.0)):
+            result = await fetch_ba_value_drivers(self._AUSTIN_TX_PROPERTY, "78701", is_bay_area=False)
+
+        assert result["zip_median_rent"] == 2800.0
+        assert result["adu_potential"] is True  # large SFH lot qualifies
+
+    async def test_non_bay_area_flag_included_in_return_dict(self):
+        from agent.tools.ba_value_drivers import fetch_ba_value_drivers
+
+        with patch("agent.tools.ba_value_drivers._fetch_zip_median_rent", new=AsyncMock(return_value=None)):
+            result = await fetch_ba_value_drivers(self._AUSTIN_TX_PROPERTY, "78701", is_bay_area=False)
+
+        assert result["is_bay_area"] is False
+
+    async def test_bay_area_default_calls_transit(self):
+        from agent.tools.ba_value_drivers import fetch_ba_value_drivers
+
+        fake_bart = [{"name": "16TH ST MISSION", "lat": 37.765062, "lon": -122.419694, "system": "BART"}]
+        property_data = {
+            "property_type": "SINGLE_FAMILY",
+            "lot_size": 3000,
+            "city": "San Francisco",
+            "year_built": 1960,
+            "latitude": 37.764,
+            "longitude": -122.419,
+        }
+        bart_called = []
+
+        async def fake_fetch_bart():
+            bart_called.append(True)
+            return fake_bart
+
+        with patch("agent.tools.ba_value_drivers._load_caltrain_stations", return_value=[]), \
+             patch("agent.tools.ba_value_drivers._load_muni_stops", return_value=[]), \
+             patch("agent.tools.ba_value_drivers._load_schools", return_value=[]), \
+             patch("agent.tools.ba_value_drivers._fetch_zip_median_rent", new=AsyncMock(return_value=None)), \
+             patch("agent.tools.ba_value_drivers._fetch_bart_stations", side_effect=fake_fetch_bart):
+            result = await fetch_ba_value_drivers(property_data, "94110")  # is_bay_area defaults to True
+
+        assert len(bart_called) == 1
+        assert result["nearest_bart_station"] == "16TH ST MISSION"
+        assert result["is_bay_area"] is True
