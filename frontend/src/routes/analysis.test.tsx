@@ -333,7 +333,7 @@ describe("AnalysisPage", () => {
     const mockSignal = {} as AbortSignal;
     const mockController = { signal: mockSignal, abort: abortSpy };
     vi.spyOn(global, "AbortController").mockImplementation(
-      () => mockController as unknown as AbortController
+      function () { return mockController; } as unknown as new () => AbortController
     );
 
     vi.mocked(fetch).mockReturnValue(new Promise(() => {}) as Promise<Response>);
