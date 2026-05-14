@@ -363,6 +363,77 @@ class TestComputeInvestmentMetrics:
         assert result["purchase_price"] == price
         assert result["projected_value_10yr"] == expected_10yr
 
+
+class TestStateSpecificPropertyTax:
+    def test_tx_uses_state_rate(self):
+        from agent.tools.investment import compute_investment_metrics, _STATE_PROPERTY_TAX_PCT
+
+        result = compute_investment_metrics(
+            property={"price": 400_000, "state": "TX"},
+            mortgage_rates={"rate_30yr_fixed": 6.5},
+            hpi_trend={},
+            ba_value_drivers={"zip_median_rent": 2_000.0},
+        )
+
+        assert result["property_tax_rate_pct"] == _STATE_PROPERTY_TAX_PCT["TX"]
+        assert result["property_state"] == "TX"
+        expected_monthly_tax = round(400_000 * _STATE_PROPERTY_TAX_PCT["TX"] / 100 / 12, 2)
+        assert result["monthly_property_tax"] == pytest.approx(expected_monthly_tax, abs=0.01)
+
+    def test_co_uses_state_rate(self):
+        from agent.tools.investment import compute_investment_metrics, _STATE_PROPERTY_TAX_PCT
+
+        result = compute_investment_metrics(
+            property={"price": 600_000, "state": "CO"},
+            mortgage_rates={"rate_30yr_fixed": 6.5},
+            hpi_trend={},
+            ba_value_drivers={"zip_median_rent": 2_500.0},
+        )
+
+        assert result["property_tax_rate_pct"] == _STATE_PROPERTY_TAX_PCT["CO"]
+        assert result["property_state"] == "CO"
+        expected_monthly_tax = round(600_000 * _STATE_PROPERTY_TAX_PCT["CO"] / 100 / 12, 2)
+        assert result["monthly_property_tax"] == pytest.approx(expected_monthly_tax, abs=0.01)
+
+    def test_ca_still_uses_prop13_rate(self):
+        from agent.tools.investment import compute_investment_metrics, _PROPERTY_TAX_ANNUAL_PCT
+
+        result = compute_investment_metrics(
+            property={"price": 1_200_000, "state": "CA"},
+            mortgage_rates={"rate_30yr_fixed": 6.5},
+            hpi_trend={},
+            ba_value_drivers={"zip_median_rent": 3_500.0},
+        )
+
+        assert result["property_tax_rate_pct"] == _PROPERTY_TAX_ANNUAL_PCT  # 1.20
+        assert result["property_state"] == "CA"
+
+    def test_none_state_defaults_to_ca_rate(self):
+        from agent.tools.investment import compute_investment_metrics, _PROPERTY_TAX_ANNUAL_PCT
+
+        result = compute_investment_metrics(
+            property={"price": 800_000},
+            mortgage_rates={"rate_30yr_fixed": 6.5},
+            hpi_trend={},
+            ba_value_drivers={"zip_median_rent": 3_000.0},
+        )
+
+        assert result["property_tax_rate_pct"] == _PROPERTY_TAX_ANNUAL_PCT  # 1.20
+        assert result["property_state"] is None
+
+    def test_unknown_state_defaults_to_ca_rate(self):
+        from agent.tools.investment import compute_investment_metrics, _PROPERTY_TAX_ANNUAL_PCT
+
+        result = compute_investment_metrics(
+            property={"price": 300_000, "state": "ZZ"},
+            mortgage_rates={"rate_30yr_fixed": 6.5},
+            hpi_trend={},
+            ba_value_drivers={"zip_median_rent": 1_500.0},
+        )
+
+        assert result["property_tax_rate_pct"] == _PROPERTY_TAX_ANNUAL_PCT
+        assert result["property_state"] == "ZZ"
+
     def test_muni_fields_passed_through_from_ba_value_drivers(self):
         from agent.tools.investment import compute_investment_metrics
 

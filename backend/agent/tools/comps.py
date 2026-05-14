@@ -90,6 +90,12 @@ _SUBURBAN_BAY_AREA_ZIPS = {
 }
 
 
+# When a ZIP-level comp search returns fewer than this many comps after filtering,
+# retry with a city-level search and apply a distance cap to keep results local.
+_SPARSE_COMPS_THRESHOLD = 5
+_CITY_FALLBACK_RADIUS_MILES = 2.0
+
+
 def _adaptive_radius(zip_code: str) -> float:
     """
     Return a search radius in miles appropriate for the zip code density.
@@ -167,6 +173,36 @@ async def fetch_comps(
                 )
                 if subject_sale is None:
                     subject_sale = fallback_sale
+
+            # City-level fallback: when the ZIP search is sparse and we have subject
+            # coords, widen the search to city level and cap results by distance.
+            if (
+                len(comps) < _SPARSE_COMPS_THRESHOLD
+                and subject_lat is not None
+                and subject_lon is not None
+                and city
+            ):
+                city_location = f"{city}, {state}" if state else city
+                city_df = await asyncio.to_thread(_scrape_homeharvest_comps, city_location, max_results)
+                if city_df is not None and not city_df.empty:
+                    city_comps, city_sale = _process_df(
+                        city_df,
+                        address,
+                        subject_lat,
+                        subject_lon,
+                        subject_sqft,
+                        max_results,
+                        subject_type_norm,
+                        bedrooms,
+                        max_distance_miles=_CITY_FALLBACK_RADIUS_MILES,
+                    )
+                    # City comps are distance-filtered and therefore higher quality than
+                    # unfiltered ZIP comps; prefer them whenever they're non-empty.
+                    if city_comps:
+                        comps = city_comps
+                        if subject_sale is None:
+                            subject_sale = city_sale
+
             return {"comps": comps, "subject_sale": subject_sale}
     except Exception:
         pass
@@ -219,6 +255,7 @@ def _process_df(
     max_results: int,
     subject_property_type: str | None = None,
     bedrooms: int | None = None,
+    max_distance_miles: float | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
     """Convert homeharvest DataFrame to list of comp dicts with Phase 4 enrichments.
 
@@ -238,10 +275,14 @@ def _process_df(
         comp_beds = _safe(row, "beds")
 
         if subject_property_type:
-            # Only exclude if we could identify the type AND it's a different type.
-            # Comps with unrecognized/missing types (comp_type_norm is None) pass through
-            # rather than being silently discarded as potential false negatives.
-            if comp_type_norm is not None and comp_type_norm != subject_property_type:
+            # SFH and townhome are treated as the same bucket for comp selection —
+            # both are ground-level owned homes and are valid comps for each other.
+            _SFH_LIKE = {"sfh", "townhome"}
+            subject_bucket = "sfh_like" if subject_property_type in _SFH_LIKE else subject_property_type
+            comp_bucket = "sfh_like" if comp_type_norm in _SFH_LIKE else comp_type_norm
+            # Only exclude if we could identify the type AND it's a different bucket.
+            # Comps with unrecognized/missing types (comp_type_norm is None) pass through.
+            if comp_type_norm is not None and subject_bucket != comp_bucket:
                 continue
 
         if bedrooms is not None:
@@ -280,6 +321,9 @@ def _process_df(
             distance_miles = round(_haversine(subject_lat, subject_lon, comp_lat, comp_lon), 4)
         else:
             distance_miles = None
+
+        if max_distance_miles is not None and distance_miles is not None and distance_miles > max_distance_miles:
+            continue
 
         comps.append({
             "address": comp_address,

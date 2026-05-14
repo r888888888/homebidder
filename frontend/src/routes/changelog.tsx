@@ -15,6 +15,18 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "1.17.0",
+    date: "2026-05-14",
+    entries: [
+      { category: "Added", text: "State-specific property tax rates for investment analysis — out-of-state properties use accurate effective rates for AZ, CO, FL, GA, IL, MA, NC, NY, OR, TN, TX, and WA instead of the CA Prop 13 rate" },
+      { category: "Changed", text: "Transit and school-quality sections hidden for non-Bay-Area properties" },
+      { category: "Changed", text: "CA-specific risk factors (fault zone, fire hazard, liquefaction, highway proximity, air quality, environmental contamination) hidden for non-CA properties" },
+      { category: "Changed", text: "Comps search falls back to city-level when ZIP-level returns fewer than 5 results, capping results to a 2-mile radius for quality" },
+      { category: "Changed", text: "SFH and townhome treated as interchangeable comp types for comp selection" },
+      { category: "Fixed", text: "\"Lot size missing\" data warning no longer shown when property type is unknown" },
+    ],
+  },
+  {
     version: "1.16.0",
     date: "2026-05-08",
     entries: [

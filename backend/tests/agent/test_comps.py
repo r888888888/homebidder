@@ -250,6 +250,59 @@ class TestPropertyTypeFilter:
         assert len(comps) == 1
         assert comps[0]["address"] == "1 Condo Way"
 
+    async def test_townhome_subject_accepts_sfh_comps(self):
+        """Townhome subject should include SFH comps — they're comparable ground-level homes."""
+        from agent.tools.comps import fetch_comps
+
+        sfh = {**BASE_COMP_ROW, "street": "1 SFH Way", "style": "SINGLE_FAMILY"}
+        townhome = {**BASE_COMP_ROW, "street": "2 Town Way", "style": "TOWNHOMES"}
+        condo = {**BASE_COMP_ROW, "street": "3 Condo Way", "style": "CONDO"}
+        df = _make_df([sfh, townhome, condo])
+
+        with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+            result = await fetch_comps(
+                address="3524 Gonzales St",
+                city="Austin",
+                state="TX",
+                zip_code="78702",
+                subject_lat=AUSTIN_LAT,
+                subject_lon=AUSTIN_LON,
+                subject_property_type="TOWNHOMES",
+            )
+        comps = result["comps"]
+        addresses = [c["address"] for c in comps]
+
+        assert "1 SFH Way" in addresses, "SFH should be accepted as comp for a townhome subject"
+        assert "2 Town Way" in addresses, "Townhome should be accepted as comp for a townhome subject"
+        assert "3 Condo Way" not in addresses, "Condo should be excluded from townhome comps"
+
+    async def test_sfh_subject_accepts_townhome_comps(self):
+        """SFH subject should include townhome comps."""
+        from agent.tools.comps import fetch_comps
+
+        sfh = {**BASE_COMP_ROW, "street": "1 SFH Way", "style": "SINGLE_FAMILY"}
+        townhome = {**BASE_COMP_ROW, "street": "2 Town Way", "style": "TOWNHOMES"}
+        condo = {**BASE_COMP_ROW, "street": "3 Condo Way", "style": "CONDO"}
+        df = _make_df([sfh, townhome, condo])
+
+        with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = df
+            result = await fetch_comps(
+                address="100 Main St",
+                city="San Francisco",
+                state="CA",
+                zip_code="94110",
+                subject_lat=SF_LAT,
+                subject_lon=SF_LON,
+                subject_property_type="SINGLE_FAMILY",
+            )
+        comps = result["comps"]
+        addresses = [c["address"] for c in comps]
+
+        assert "2 Town Way" in addresses, "Townhome should be accepted as comp for an SFH subject"
+        assert "3 Condo Way" not in addresses, "Condo should be excluded from SFH comps"
+
     async def test_no_property_type_filter_when_subject_type_missing(self):
         """When no subject property type is provided, both condo and SFH remain."""
         from agent.tools.comps import fetch_comps
@@ -666,5 +719,123 @@ class TestRecencyWeightField:
         comps = result["comps"]
 
         assert comps[0]["recency_weight"] == pytest.approx(0.5)
+
+
+# ---------------------------------------------------------------------------
+# City-level fallback for sparse ZIP markets
+# ---------------------------------------------------------------------------
+
+# Austin, TX subject coords (78702 — East Austin)
+AUSTIN_LAT, AUSTIN_LON = 30.2566, -97.7187
+
+def _make_nearby_austin_row(**overrides):
+    """Comp within 1 mile of Austin subject."""
+    base = {
+        "street": "100 Nearby St",
+        "city": "Austin",
+        "state": "TX",
+        "zip_code": "78702",
+        "sold_price": 290_000,
+        "list_price": 285_000,
+        "last_sold_date": "2026-03-01",
+        "beds": 4,
+        "full_baths": 3,
+        "half_baths": 1,
+        "sqft": 1900,
+        "latitude": AUSTIN_LAT + 0.005,   # ~0.35 miles north
+        "longitude": AUSTIN_LON,
+        "property_url": "https://redfin.com/austin-comp",
+        "style": "SINGLE_FAMILY",
+    }
+    base.update(overrides)
+    return base
+
+
+def _make_far_austin_row(**overrides):
+    """Comp 4 miles away — should be excluded by city fallback distance filter."""
+    base = _make_nearby_austin_row()
+    base["street"] = "999 Far Away Rd"
+    base["latitude"] = AUSTIN_LAT + 0.06   # ~4 miles north
+    base.update(overrides)
+    return base
+
+
+class TestCityFallback:
+    async def test_city_fallback_triggered_when_zip_yields_too_few_comps(self):
+        """When ZIP search returns fewer than the sparse threshold, city search is attempted."""
+        from agent.tools.comps import fetch_comps, _SPARSE_COMPS_THRESHOLD
+
+        zip_df = _make_df([_make_nearby_austin_row()])           # 1 comp — sparse
+        city_df = _make_df([_make_nearby_austin_row(street=f"{i} City St") for i in range(8)])  # 8 comps
+
+        with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.side_effect = [zip_df, city_df]
+            result = await fetch_comps(
+                address="3524 Gonzales St", city="Austin", state="TX",
+                zip_code="78702",
+                subject_lat=AUSTIN_LAT, subject_lon=AUSTIN_LON,
+                subject_sqft=1925, bedrooms=4,
+            )
+
+        assert len(result["comps"]) >= _SPARSE_COMPS_THRESHOLD
+        assert mock_thread.call_count == 2, "city fallback should have triggered a second scrape"
+
+    async def test_city_fallback_not_triggered_when_zip_has_enough_comps(self):
+        """When ZIP search returns >= threshold comps, city fallback is skipped."""
+        from agent.tools.comps import fetch_comps, _SPARSE_COMPS_THRESHOLD
+
+        zip_df = _make_df([_make_nearby_austin_row(street=f"{i} Comp St") for i in range(_SPARSE_COMPS_THRESHOLD + 2)])
+
+        with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = zip_df
+            result = await fetch_comps(
+                address="3524 Gonzales St", city="Austin", state="TX",
+                zip_code="78702",
+                subject_lat=AUSTIN_LAT, subject_lon=AUSTIN_LON,
+                subject_sqft=1925, bedrooms=4,
+            )
+
+        assert mock_thread.call_count == 1, "city fallback must NOT run when ZIP has enough comps"
+        assert len(result["comps"]) >= _SPARSE_COMPS_THRESHOLD
+
+    async def test_city_fallback_filters_comps_beyond_distance_limit(self):
+        """City-level comps more than 2 miles from the subject are excluded."""
+        from agent.tools.comps import fetch_comps
+
+        zip_df = _make_df([_make_nearby_austin_row()])  # sparse
+        city_df = _make_df([
+            _make_nearby_austin_row(street="1 Close St"),   # within 2 miles — keep
+            _make_far_austin_row(street="2 Far St"),         # ~4 miles — exclude
+        ])
+
+        with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.side_effect = [zip_df, city_df]
+            result = await fetch_comps(
+                address="3524 Gonzales St", city="Austin", state="TX",
+                zip_code="78702",
+                subject_lat=AUSTIN_LAT, subject_lon=AUSTIN_LON,
+                subject_sqft=1925, bedrooms=4,
+            )
+
+        addresses = [c["address"] for c in result["comps"]]
+        assert any("Close" in a for a in addresses), "nearby city comp should be included"
+        assert not any("Far" in a for a in addresses), "distant city comp should be excluded"
+
+    async def test_city_fallback_skipped_when_no_subject_coords(self):
+        """City fallback requires lat/lon to distance-filter; skip it when coords are absent."""
+        from agent.tools.comps import fetch_comps
+
+        zip_df = _make_df([_make_nearby_austin_row()])  # sparse
+
+        with patch("agent.tools.comps.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = zip_df
+            result = await fetch_comps(
+                address="3524 Gonzales St", city="Austin", state="TX",
+                zip_code="78702",
+                subject_lat=None, subject_lon=None,  # no coords
+                subject_sqft=1925, bedrooms=4,
+            )
+
+        assert mock_thread.call_count == 1, "city fallback must be skipped when coords are unavailable"
 
 # ---------------------------------------------------------------------------

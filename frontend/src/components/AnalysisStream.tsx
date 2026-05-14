@@ -310,7 +310,7 @@ export function AnalysisStream({ events, isRunning }: Props) {
         {activeTab === "risk" && (
           <div key="risk" className="tab-enter space-y-4">
             {riskData ? (
-              <RiskAnalysisCard risk={riskData} />
+              <RiskAnalysisCard risk={riskData} state={propertyData?.state} />
             ) : (
               isRunning && <PanelSkeleton label="Assessing risk factors…" />
             )}

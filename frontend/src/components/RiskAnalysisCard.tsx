@@ -18,6 +18,15 @@ const CES_FACTOR_NAMES = new Set([
   "environmental_contamination",
 ]);
 
+const CA_ONLY_FACTORS = new Set([
+  "alquist_priolo_fault_zone",
+  "fire_hazard_zone",
+  "liquefaction_risk",
+  "highway_proximity",
+  "air_quality",
+  "environmental_contamination",
+]);
+
 // Human-readable labels for each factor key
 const FACTOR_LABELS: Record<string, string> = {
   alquist_priolo_fault_zone: "Fault Zone (Alquist-Priolo)",
@@ -53,14 +62,20 @@ const CES_MAP_BASE_URL =
 
 interface Props {
   risk: RiskData;
+  state?: string | null;
 }
 
-export function RiskAnalysisCard({ risk }: Props) {
+export function RiskAnalysisCard({ risk, state }: Props) {
   const overall = OVERALL_STYLES[risk.overall_risk] ?? OVERALL_STYLES["Moderate"];
 
+  const isCA = !state || state.toUpperCase() === "CA";
+  const visibleFactors = isCA
+    ? risk.factors
+    : risk.factors.filter((f) => !CA_ONLY_FACTORS.has(f.name));
+
   // Separate active risk factors from n/a ones so n/a sits at the bottom
-  const active = risk.factors.filter((f) => f.level !== "n/a");
-  const inactive = risk.factors.filter((f) => f.level === "n/a");
+  const active = visibleFactors.filter((f) => f.level !== "n/a");
+  const inactive = visibleFactors.filter((f) => f.level === "n/a");
   const ordered = [...active, ...inactive];
 
   return (

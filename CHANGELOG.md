@@ -5,6 +5,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+## [1.17.0] - 2026-05-14
+
+### Added
+- State-specific property tax rates for investment analysis — out-of-state properties use accurate effective rates for AZ, CO, FL, GA, IL, MA, NC, NY, OR, TN, TX, and WA instead of the CA Prop 13 rate
+
+### Changed
+- Transit and school-quality sections hidden for non-Bay-Area properties
+- CA-specific risk factors (fault zone, fire hazard, liquefaction, highway proximity, air quality, environmental contamination) hidden for non-CA properties
+- Comps search falls back to city-level when ZIP-level returns fewer than 5 results, capping results to a 2-mile radius for quality
+- SFH and townhome treated as interchangeable comp types for comp selection
+
+### Fixed
+- "Lot size missing" data warning no longer shown when property type is unknown
+
 ## [1.16.0] - 2026-05-08
 
 ### Added

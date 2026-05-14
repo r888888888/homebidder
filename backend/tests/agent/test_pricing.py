@@ -790,6 +790,24 @@ class TestMissingSizeDataLowersConfidence:
         factors = result["fair_value_confidence_interval"]["factors"]
         assert "missing_lot_size" not in factors
 
+    def test_missing_lot_size_does_not_penalize_unit_property(self):
+        """An apartment/condo unit (has unit number) doesn't have its own lot — missing it is expected."""
+        listing = {**BASE_LISTING, "sqft": 900, "unit": "APT 18", "property_type": None}
+        result = recommend_offer(listing, self.STATS_WITH_COMP)
+        factors = result["fair_value_confidence_interval"]["factors"]
+        assert "missing_lot_size" not in factors, (
+            "Property with unit number should not be penalized for missing lot size"
+        )
+
+    def test_missing_lot_size_does_not_penalize_unknown_property_type(self):
+        """When property_type is unknown (None/empty), we can't know if a lot is expected — don't penalize."""
+        listing = {**BASE_LISTING, "sqft": 1200, "property_type": None}
+        result = recommend_offer(listing, self.STATS_WITH_COMP)
+        factors = result["fair_value_confidence_interval"]["factors"]
+        assert "missing_lot_size" not in factors, (
+            "Unknown property type should not be penalized for missing lot size"
+        )
+
 
 # ---------------------------------------------------------------------------
 # recommend_offer — unlisted (off-market) properties

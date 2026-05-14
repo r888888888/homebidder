@@ -7,8 +7,31 @@ _DOWN_PAYMENT_PCT = 0.20
 _ANNUAL_STOCK_RETURN_PCT = 10.0   # historical S&P 500 nominal
 _MAINTENANCE_ANNUAL_PCT = 0.005   # 0.5% of property value / year
 _ANNUAL_RENT_INCREASE_PCT = 3.0   # Bay Area historical rent growth
-_PROPERTY_TAX_ANNUAL_PCT = 1.20   # CA Prop 13 new-acquisition rate (% of purchase price)
+_PROPERTY_TAX_ANNUAL_PCT = 1.20   # CA Prop 13 new-acquisition rate — kept for test import compatibility
 _INSURANCE_ANNUAL_PCT = 0.35      # typical Bay Area homeowners insurance (% of purchase price)
+
+# State-specific effective property tax rates (% of purchase price/year, new-acquisition basis)
+_STATE_PROPERTY_TAX_PCT: dict[str, float] = {
+    "AZ": 0.62,
+    "CA": 1.20,  # Prop 13 new-acquisition rate
+    "CO": 0.55,
+    "FL": 0.90,
+    "GA": 0.90,
+    "IL": 2.20,
+    "MA": 1.14,
+    "NC": 0.80,
+    "NY": 1.70,
+    "OR": 0.90,
+    "TN": 0.74,
+    "TX": 1.80,
+    "WA": 0.90,
+}
+
+
+def _property_tax_pct(state: str | None) -> float:
+    if not state:
+        return _PROPERTY_TAX_ANNUAL_PCT
+    return _STATE_PROPERTY_TAX_PCT.get(str(state).strip().upper(), _PROPERTY_TAX_ANNUAL_PCT)
 
 
 def _monthly_mortgage_payment(principal: float, annual_rate_pct: float, term_years: int = 30) -> float:
@@ -89,11 +112,14 @@ def compute_investment_metrics(
     zip_median_rent = _optional_float(ba_value_drivers.get("zip_median_rent"))
     second_unit_rent = _optional_float(ba_value_drivers.get("second_unit_rent_estimate"))
 
+    state = property.get("state")
+    effective_tax_pct = _property_tax_pct(state)
+
     if price > 0 and zip_median_rent is not None:
         loan = price * (1 - _DOWN_PAYMENT_PCT)
         monthly_mortgage = _monthly_mortgage_payment(loan, rate_30)
         monthly_maintenance = price * _MAINTENANCE_ANNUAL_PCT / 12
-        monthly_property_tax = price * _PROPERTY_TAX_ANNUAL_PCT / 100 / 12
+        monthly_property_tax = price * effective_tax_pct / 100 / 12
         monthly_insurance = price * _INSURANCE_ANNUAL_PCT / 100 / 12
         monthly_buy_cost = round(
             monthly_mortgage + monthly_maintenance + monthly_property_tax + monthly_insurance, 2
@@ -128,6 +154,8 @@ def compute_investment_metrics(
         "monthly_buy_cost": monthly_buy_cost,
         "monthly_property_tax": round(monthly_property_tax, 2) if monthly_property_tax is not None else None,
         "monthly_insurance": round(monthly_insurance, 2) if monthly_insurance is not None else None,
+        "property_tax_rate_pct": effective_tax_pct,
+        "property_state": state,
         "monthly_net_buy_cost": monthly_net_buy_cost,
         "second_unit_rent_income": second_unit_rent,
         "monthly_rent_equivalent": zip_median_rent,

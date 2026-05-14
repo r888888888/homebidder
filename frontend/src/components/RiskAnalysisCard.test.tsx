@@ -2,6 +2,23 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { RiskAnalysisCard, type RiskData } from "./RiskAnalysisCard";
 
+const NON_CA_RISK: RiskData = {
+  overall_risk: "Low",
+  score: 0,
+  factors: [
+    { name: "alquist_priolo_fault_zone", level: "n/a", description: "No hazard zone data available." },
+    { name: "flood_zone", level: "low", description: "Zone X — minimal flood risk." },
+    { name: "fire_hazard_zone", level: "n/a", description: "No CalFire hazard zone data available." },
+    { name: "liquefaction_risk", level: "n/a", description: "No CGS liquefaction zone data available." },
+    { name: "home_age", level: "low", description: "Built in 2005." },
+    { name: "days_on_market", level: "low", description: "Fresh listing at 7 days." },
+    { name: "hpi_trend", level: "low", description: "Appreciating ZIP." },
+    { name: "highway_proximity", level: "n/a", description: "No CalEnviroScreen data available." },
+    { name: "air_quality", level: "n/a", description: "No CalEnviroScreen data available." },
+    { name: "environmental_contamination", level: "n/a", description: "No CalEnviroScreen contamination data available." },
+  ],
+};
+
 const LOW_RISK: RiskData = {
   overall_risk: "Low",
   score: 0,
@@ -97,5 +114,30 @@ describe("RiskAnalysisCard", () => {
   it("renders a section header", () => {
     render(<RiskAnalysisCard risk={LOW_RISK} />);
     expect(screen.getByText(/risk assessment/i)).toBeInTheDocument();
+  });
+
+  it("hides CA-specific factors for non-CA properties", () => {
+    render(<RiskAnalysisCard risk={NON_CA_RISK} state="TX" />);
+    expect(screen.queryByText(/fault zone/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/fire hazard/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/liquefaction/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/highway proximity/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/air quality/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/environmental contamination/i)).not.toBeInTheDocument();
+    // Non-CA factors must still appear
+    expect(screen.getAllByText(/flood/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/home age/i)).toBeInTheDocument();
+  });
+
+  it("shows CA-specific factors when state is CA", () => {
+    render(<RiskAnalysisCard risk={LOW_RISK} state="CA" />);
+    expect(screen.getAllByText(/fault zone/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/highway proximity/i)).toBeInTheDocument();
+  });
+
+  it("shows CA-specific factors when state is not provided", () => {
+    render(<RiskAnalysisCard risk={LOW_RISK} />);
+    expect(screen.getAllByText(/fault zone/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/highway proximity/i)).toBeInTheDocument();
   });
 });

@@ -417,7 +417,7 @@ def recommend_offer(
         total_adjustment=total_adjustment,
         list_price=list_price,
         sqft_missing=sqft is None,
-        lot_missing=not is_condo and lot_size is None,
+        lot_missing=not is_condo and bool(property_type_raw) and lot_size is None,
         no_list_price=list_price is None,
         multifamily_subtype=multifamily_subtype,
     )
